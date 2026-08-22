@@ -1,0 +1,10 @@
+{
+  "name": "USA Voyager",
+  "description": "USA Voyager is an AI-powered American English learning and US Citizenship preparation platform with official 128 USCIS civics questions, flashcards, simulated exams, and personalized conversation practice.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,367 @@
+[
+  {
+    "id": "review_1783083959095_ujxu8",
+    "rating": 1,
+    "comment": "",
+    "chatTranscript": [
+      {
+        "sender": "user",
+        "text": "Let's practice ordering coffee for Day 1!",
+        "timestamp": "08:59 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "08:59 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "Awesome, Day! ¡Vamos a practicar! Before we order, what kind of coffee are you in the mood for? ¿Un latte, espresso, or something else? ",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "user",
+        "text": "reflexiones Ajá. diarias.",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "That's right, daily reflections! To keep practicing, how would you ask for that coffee in English? Try saying, \"I'd like a latte, please.\" ¿Cómo lo dirías?",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "user",
+        "text": "I like a lot I like a latte.",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "Perfecto! Almost got it! Remember to say \"I'd like a latte\". Try making that \"like\" sound a bit longer. Can you say it again for me?  ",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "user",
+        "text": "I like a latte.",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "There you go! Great job practicing! \"I'd like a latte\" is so polite. Now, what if the barista asks, \"For here or to go?\" What would you say then?  ",
+        "timestamp": "09:00 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Está hablando muy rápido. Sí.",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Oh, disculpa! Tienes razón. A veces me emociono. Lo que preguntaba es qué dirías si te preguntan \"For here or to go?\", o sea, ¿para comer aquí o para llevar? ¿Qué prefieres? ",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Dile que no deje de corregirle esta grafema de galopar a lo correcto.",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Entendido! Seguiré corrigiendo con mucho gusto para que sigas mejorando. So, back to the coffee: for here or to go? ¿Qué eliges? ",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "user",
+        "text": "배를 열어 주시겠어요? 너희가 어떻게 인터랙트해, 이것을? 그리고 네가 가야 할 곳은 그리고 네가 있어야 할 곳은 피드백, según tú. Mira, yo puse aquí",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " Okay, sounds like you're talking about feedback and how we interact. I'm here to help you practice English! So, back to our coffee order, how would you say you want it \"for here\"? ¿Cómo lo dirías?Of course!",
+        "timestamp": "09:01 AM"
+      },
+      {
+        "sender": "user",
+        "text": "はい 、 6 。 Can you explain to me the lesson plans?",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " Think of them as our roadmap for practicing English in real life scenarios, like ordering coffee, asking for directions, or going on a tour. It's all about getting you talking and building confidence through experience! Is there a specific lesson you'd like to start with?",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "user",
+        "text": "See the Tell us about this the lesson plans that are that are in the system now.",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "Right now, we have lessons like \"Ordering Coffee,\" which we just practiced, \"Navigating the Subway,\" \"Buying Tickets for a Museum,\" or even just \"Chatting in Central Park.\" We can practice anything you might do in New York. Is there one that sounds more interesting to you?",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Now what are the missions?",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "The missions are like mini-challenges that help you use your English in action! For example, your Day 1 mission might be to order a coffee entirely in English and get what you want, or for Day 2, it could be to successfully navigate from Times Square to Central Park using the subway. Ready to try a mission for tomorrow?",
+        "timestamp": "09:02 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Let's try a mission now.",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "Alright! Let's pretend you're about to talk to the MTA worker at Times Square to get directions to Central Park. Your mission is to ask politely and understand the travel time. What's the first thing you'd say? Just practice asking for directions. \n",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "user",
+        "text": "¿Me puedes hablar en español?",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Claro que sí! Para la misión de ahora, imagina que estás en Times Square y necesitas llegar a Central Park en metro. ¿Cómo le preguntarías al trabajador de la estación por las direcciones? ¡Inténtalo!\n\n",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "user",
+        "text": "E I need go to Central Parque.",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Vas muy bien! Solo cambiemos \"go to\" por \"to get to\" para que suene más natural y decimos \"central park\". A ver, repítelo: \"I need to get to Central Park.\" ¡Tú puedes!",
+        "timestamp": "09:03 AM"
+      },
+      {
+        "sender": "user",
+        "text": "I'd need to get to central parqueo.",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Casi! Solo te falta un detallito con la pronunciación de \"Park.\" Suena más como \"parc,\" cortando la \"e\" al final. A ver, prueba de nuevo: \"I need to get to Central Park.\" ¡Vas muy bien!",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "user",
+        "text": "el progreso",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Exacto! ¡Ese es el",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Eh",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Ese es el progreso! Ver cómo vas mejorando paso a paso. ¿Quieres que probemos con otro pequeño desafío?",
+        "timestamp": "09:04 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Quiero que tienes una forma de Yo veo que aquí tienes un tab, una pestaña que dice progreso. Esto eh mide la gramática, la pronunciación, la confianza, la naturalidad. Este es como un como un",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " Exactly! You've",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "user",
+        "text": "un review, ¿no? de de qué tan bien lo estás haciendo.",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " got it! I do keep track of those things—your grammar, pronunciation, confidence, and how natural you sound—to help you see your progress. It's like a little report card so we know what to focus on. How do you feel about your progress so far?",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "user",
+        "text": "¿Y entonces esto qué es el classroom?",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Buena pregunta! Piensa que el classroom es todo Nueva York. No estamos encerrados en un aula, sino que aprendes inglés mientras pides un café, vas a un museo, o caminas por la calle. ¡La ciudad es tu salón de clases! ¿Qué te parece esa idea?",
+        "timestamp": "09:05 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🔴 Disconnected from VOYAGER Voice Agent.",
+        "timestamp": "09:05 AM"
+      }
+    ],
+    "createdAt": "2026-07-03T13:05:59.095Z"
+  },
+  {
+    "id": "review_1783084089644_wg43h",
+    "rating": 1,
+    "comment": "",
+    "chatTranscript": [
+      {
+        "sender": "user",
+        "text": "¡Genera mi resumen de progreso del final del día!",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Hola! Claro",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Aqui.",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "\n¡Perfecto! Let's see how you did today. Your grammar was strong, especially when using \"I'd like.\" Your pronunciation is improving, particularly with the 'th' sound, though we can focus on 'v'",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "user",
+        "text": "and",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "splash",
+        "text": " ¡Eso! Tu gramática ha estado genial, cada vez usas frases más complejas. En pronunciación, has mejorado mucho con la 'th', ¡sigue así! Tu confianza para hablar es lo que más se nota, ¡felicidades! ¿Qué tal te sentiste tú hoy?",
+        "timestamp": "09:06 AM"
+      },
+      {
+        "sender": "user",
+        "text": "Yes.",
+        "timestamp": "09:07 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "\n¡Me alegro muchísimo! Recuerda que cada práctica cuenta. ¡Mañana seguiremos con más inmersión y nuevos desafíos! ¿Hay algo en específico que te gustaría practicar?",
+        "timestamp": "09:07 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🔴 Disconnected from VOYAGER Voice Agent.",
+        "timestamp": "09:07 AM"
+      }
+    ],
+    "createdAt": "2026-07-03T13:08:09.644Z"
+  },
+  {
+    "id": "review_1783084516127_9eos8",
+    "rating": 1,
+    "comment": "",
+    "chatTranscript": [
+      {
+        "sender": "user",
+        "text": "hola",
+        "timestamp": "09:14 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "09:14 AM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Hola! Welcome to New York City! I'm VOYAGER, your guide and English companion. Are you ready to explore the city and practice some English? Where should we start?",
+        "timestamp": "09:14 AM"
+      },
+      {
+        "sender": "system",
+        "text": "🔴 Disconnected from VOYAGER Voice Agent.",
+        "timestamp": "09:15 AM"
+      }
+    ],
+    "createdAt": "2026-07-03T13:15:16.127Z"
+  },
+  {
+    "id": "review_1783268627810_om2oc",
+    "rating": 1,
+    "comment": "",
+    "chatTranscript": [
+      {
+        "sender": "system",
+        "text": "🎙️ Initiating voice connection... Please speak clearly.",
+        "timestamp": "12:23 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "12:23 PM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Hola! Soy VOYAGER, tu compañero de inmersión en Nueva York, y estoy aquí para ayudarte a alcanzar la fluidez en inglés. ¿Qué te gustaría hacer hoy? [SCORES:",
+        "timestamp": "12:23 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🔴 Disconnected from VOYAGER Voice Agent.",
+        "timestamp": "12:23 PM"
+      }
+    ],
+    "createdAt": "2026-07-05T16:23:47.810Z"
+  },
+  {
+    "id": "review_1783269606955_dtzj1",
+    "rating": 1,
+    "comment": "",
+    "chatTranscript": [
+      {
+        "sender": "system",
+        "text": "🎙️ Initiating voice connection... Please speak clearly.",
+        "timestamp": "12:39 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "12:39 PM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Hola! Soy VOYAGER, tu guía y maestro en Nueva York, and I want to help you learn English. ¿Cómo te puedo ayudar hoy?\n\n\n\n\n",
+        "timestamp": "12:39 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🔴 Disconnected from VOYAGER Voice Agent.",
+        "timestamp": "12:39 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🎙️ Initiating voice connection... Please speak clearly.",
+        "timestamp": "12:40 PM"
+      },
+      {
+        "sender": "system",
+        "text": "🟢 Connected! Speaking is active with SPLASH.",
+        "timestamp": "12:40 PM"
+      },
+      {
+        "sender": "splash",
+        "text": "¡Hola! Soy VOYAGER, tu compañero de inmersión en inglés en Nueva York, ¿en qué puedo ayudarte hoy?\n\n\n\n",
+        "timestamp": "12:40 PM"
+      }
+    ],
+    "createdAt": "2026-07-05T16:40:06.955Z"
+  }
+]
