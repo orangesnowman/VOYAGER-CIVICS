@@ -15,7 +15,7 @@ import { ChatInputBox } from './ChatInputBox';
 import { AuthModal } from './AuthModal';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -23,6 +23,7 @@ import { translations, getTranslatedMessageText } from './Translations';
 import { CONVERSATION_MODES, ConversationMode } from './ConversationModes';
 import { useConversationEngine } from './useConversationEngine';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
+import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 
 const modeDetails = [
  {
@@ -197,6 +198,163 @@ const countries = [
  { id: 'VE', nameEn: 'Venezuela', nameEs: 'Venezuela' }
 ];
 
+
+interface CitizenshipCoachProps {
+  selectedLang: 'EN' | 'ES';
+  onAskVoyager: (prompt: string) => void;
+  onOpenSimulator: () => void;
+}
+const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ selectedLang, onAskVoyager, onOpenSimulator }) => {
+  const [mode, setMode] = useState<'bilingual' | 'english'>('bilingual');
+  const [category, setCategory] = useState<'ALL' | 'AMERICAN_GOVERNMENT' | 'AMERICAN_HISTORY' | 'INTEGRATED_CIVICS'>('ALL');
+  const [index, setIndex] = useState(0);
+  const [answer, setAnswer] = useState('');
+  const [showAnswers, setShowAnswers] = useState(false);
+  const [result, setResult] = useState<'correct' | 'unsure' | 'review' | null>(null);
+  const questions = useMemo(() => category === 'ALL' ? ALL_CIVICS_128_QUESTIONS : ALL_CIVICS_128_QUESTIONS.filter(q => q.category === category), [category]);
+  const question = questions[index % Math.max(questions.length, 1)];
+  if (!question) return null;
+  const bilingual = mode === 'bilingual';
+  const lastQuestionPromptRef = useRef<string | null>(null);
+  useEffect(() => {
+    const promptKey = question.id + ':' + bilingual + ':' + selectedLang; if (lastQuestionPromptRef.current === promptKey) return; lastQuestionPromptRef.current = promptKey; const instruction = '[SYSTEM INSTRUCTION: You are Voyager in the Citizenship section. The learner is now on question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Read this exact question first in English, then immediately say its natural meaning in Spanish. Do not ask the learner to guess the meaning. Then wait silently for the answer. Give brief Spanish clarification only when needed. Never mention buttons, Siguiente, next questions, navigation, or internal rules.' : 'Speak only English, ask the question, accept equivalent correct answers, and after feedback tell the learner to press Next when ready.');
+    onAskVoyager(instruction);
+  }, [question.id, bilingual, selectedLang]);
+  const chooseCategory = (value: typeof category) => { setCategory(value); setIndex(0); setResult(null); setShowAnswers(false); };
+  const next = () => { setIndex(current => (current + 1) % Math.max(questions.length, 1)); setAnswer(''); setResult(null); setShowAnswers(false); };
+
+  const handleAnswerChange = (val: string) => {
+    setAnswer(val);
+    const clean = val.trim().toLowerCase();
+    if (!clean) {
+      setResult(null);
+      return;
+    }
+    const isExactOrClose = question.answersEn.some(a => {
+      const target = a.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
+      const cleanNoPunct = clean.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
+      return cleanNoPunct === target || target.includes(cleanNoPunct) || cleanNoPunct.includes(target);
+    });
+    if (isExactOrClose) {
+      setResult('correct');
+    } else {
+      const words = clean.split(/\s+/).filter(w => w.length > 2);
+      const partial = question.answersEn.some(a => {
+        const aWords = a.toLowerCase().split(/\s+/);
+        return words.some(w => aWords.includes(w));
+      });
+      setResult(partial ? 'unsure' : 'review');
+    }
+  };
+
+  const cycleResult = () => {
+    setResult(prev => {
+      if (!prev) return 'correct';
+      if (prev === 'correct') return 'unsure';
+      if (prev === 'unsure') return 'review';
+      return null;
+    });
+  };
+
+  const bulletColorClass = 
+    result === 'correct' ? 'bg-emerald-500' :
+    result === 'unsure' ? 'bg-amber-400' :
+    result === 'review' ? 'bg-rose-500' :
+    'bg-slate-900';
+
+  return (
+    <div className="flex-grow min-h-0 overflow-y-auto bg-white px-4 py-5 sm:px-8">
+      <div className="mx-auto max-w-2xl space-y-4 pb-8">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-slate-400">
+          <button onClick={() => { setMode('bilingual'); setResult(null); }} className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${bilingual ? 'text-red-600 underline underline-offset-4 decoration-red-600' : 'text-slate-500 hover:text-slate-800'}`}>COMPRENDE</button>
+          <ArrowRight className="w-3.5 h-3.5 text-blue-500/70 shrink-0" />
+          <button onClick={() => { setMode('english'); setResult(null); }} className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${!bilingual ? 'text-red-600 underline underline-offset-4 decoration-red-600' : 'text-slate-500 hover:text-slate-800'}`}>PRACTICA</button>
+          <ArrowRight className="w-3.5 h-3.5 text-blue-500/70 shrink-0" />
+          <button onClick={onOpenSimulator} className="px-2 py-1 text-sm font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">EXAMEN</button>
+        </div>
+        <div className="rounded-3xl bg-white border border-slate-200/80 p-5 shadow-xs space-y-4">
+          <div className="relative flex items-center justify-center min-h-[28px] text-xs font-bold text-slate-500">
+            <button
+              onClick={() => onAskVoyager('[SYSTEM INSTRUCTION: You are Voyager in the Citizenship coaching section. Teach question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Explain the meaning briefly in Spanish, then ask the learner to answer in English. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.' : 'Speak only English, ask the question, and wait for the learner response. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.'))}
+              className="w-7 h-7 rounded-full bg-[#0D224A] hover:bg-[#15346d] text-white transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
+              title="Escuchar y practicar con Voyager"
+              aria-label="Escuchar pregunta"
+            >
+              <Volume2 className="w-3.5 h-3.5 text-white" />
+            </button>
+            <span className="absolute right-0">{index + 1} / {questions.length}</span>
+          </div>
+
+          <div className="py-1 text-center space-y-1.5">
+            <div className="text-lg sm:text-xl font-bold text-slate-900 leading-snug">
+              <button
+                type="button"
+                onClick={cycleResult}
+                className={`inline-block w-3.5 h-3.5 rounded-full mr-2.5 -mt-0.5 align-middle transition-all cursor-pointer hover:scale-110 active:scale-95 ${bulletColorClass}`}
+                title={
+                  result === 'correct' ? (selectedLang === 'EN' ? 'Correct (Click to change)' : 'Correcta (Clic para cambiar)') :
+                  result === 'unsure' ? (selectedLang === 'EN' ? 'Unsure / Partial (Click to change)' : 'Dudosa (Clic para cambiar)') :
+                  result === 'review' ? (selectedLang === 'EN' ? 'Incorrect (Click to change)' : 'Incorrecta (Clic para cambiar)') :
+                  (selectedLang === 'EN' ? 'Default / Unanswered (Click to change)' : 'Por responder (Clic para cambiar)')
+                }
+                aria-label="Estado de respuesta"
+              />
+              <span>{question.questionEn}</span>
+            </div>
+            {bilingual && <div className="text-sm sm:text-base text-slate-600 font-normal">{question.questionEs}</div>}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100">
+            <div className="mb-2 flex items-center justify-center">
+              <button
+                type="button"
+                onClick={() => setShowAnswers(prev => !prev)}
+                className="flex flex-col items-center justify-center gap-0.5 text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-700 hover:text-[#0D224A] transition-colors cursor-pointer group select-none"
+                title="Haz clic para ver respuestas aceptables"
+              >
+                <span>RESPUESTA</span>
+                {showAnswers ? (
+                  <ChevronUp className="w-4 h-4 text-blue-600 transition-transform group-hover:-translate-y-0.5" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-blue-600 transition-transform group-hover:translate-y-0.5" />
+                )}
+              </button>
+            </div>
+
+            {showAnswers && (
+              <div className="mb-3 rounded-2xl bg-slate-50 border border-slate-200/80 p-3.5 space-y-2 text-xs sm:text-sm animate-fadeIn text-center">
+                {question.answersEn.map((ansEn, idx) => {
+                  const ansEs = question.answersEs && question.answersEs[idx];
+                  return (
+                    <div key={idx} className="leading-snug py-0.5">
+                      <span className="font-bold text-slate-900">{ansEn}</span>
+                      {bilingual && ansEs ? (
+                        <>
+                          <span className="mx-2 text-slate-400 font-normal">/</span>
+                          <span className="text-slate-600 font-medium">{ansEs}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-2 flex justify-end items-center">
+              <button
+                onClick={next}
+                className="px-2 py-1 text-sm font-bold text-slate-800 hover:text-slate-950 transition-colors cursor-pointer underline underline-offset-4"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface LiveAgentProps {
  isWidgetMode?: boolean;
  onClose?: () => void;
@@ -250,7 +408,7 @@ const UsaFlagIcon = ({ className = "w-6 h-4" }: { className?: string }) => (
 );
 
 const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) => {
- const [rightPanelTab, setRightPanelTab] = useState<'home' | 'chat' | 'civics' | 'roadmap' | 'teachers' | 'progress' | 'settings' | 'shopping'>('home');
+ const [rightPanelTab, setRightPanelTab] = useState<'home' | 'chat' | 'citizenship' | 'civics' | 'roadmap' | 'teachers' | 'progress' | 'settings' | 'shopping'>('home');
  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
  const [lastUserVoiceTranscription, setLastUserVoiceTranscription] = useState<string>('');
@@ -320,6 +478,12 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
   }, [isConnected, connect, setHasInteracted]);
 
   useEffect(() => {
+    if (window.location.hash === '#/citizenship' || window.location.hash === '#citizenship') {
+      setHasClickedConnect(true);
+      setHasInteracted(true);
+      setRightPanelTab('citizenship');
+      return;
+    }
     if (window.location.hash === '#/civics' || window.location.hash === '#civics') {
       setHasClickedConnect(true);
       setHasInteracted(true);
@@ -1407,7 +1571,7 @@ ${greetingPrompt}`;
       }
       
       let resumePrompt = "";
-      if (rightPanelTab === 'civics') {
+      if (rightPanelTab === 'civics' || rightPanelTab === 'citizenship') {
         resumePrompt = selectedLang === "EN"
           ? "[SYSTEM INSTRUCTION: The user clicked Play in the CIUDADANÍA section. As Officer Voyager, speak aloud a short, encouraging greeting in 1 brief sentence inviting them to continue their USCIS Civics practice.]"
           : "[SYSTEM INSTRUCTION: El usuario presionó reproducir en la sección de CIUDADANÍA. Como Officer Voyager, salúdalo en 1 frase e invítalo a continuar su práctica de cívica de USCIS.]";
@@ -1659,13 +1823,13 @@ ${greetingPrompt}`;
   {/* Top Logo */}
   <div className="pt-2 sm:pt-3 flex flex-col items-center justify-center text-center select-none z-20">
     <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-widest block leading-none">
-      {selectedLang === 'EN' ? 'I AM USA' : 'YO SOY USA'}
+      YO SOY USA
     </span>
     <h1 style={{ fontFamily: '"Allerta Stencil", sans-serif', textShadow: '0 2px 12px rgba(0,0,0,0.7)', letterSpacing: '0.12em' }} className="text-2xl sm:text-3xl md:text-[38px] lg:text-[44px] font-black text-white mt-1 uppercase block leading-none">
       VOYAGER<span className="text-[0.3em] font-light text-white/90 align-baseline ml-1 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span>
     </h1>
     <span style={{ fontFamily: "'Raleway', 'Allerta', sans-serif", letterSpacing: '0.18em' }} className="text-[8px] sm:text-[9.5px] md:text-[10.5px] font-normal text-[#FFD700] uppercase tracking-widest mt-1.5 sm:mt-2 block leading-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-      {selectedLang === 'EN' ? 'YOUR PASSPORT TO AMERICAN ENGLISH' : 'TU PASAPORTE AL INGLÉS AMERICANO'}
+      TU PASAPORTE AL INGLÉS AMERICANO
     </span>
   </div>
 
@@ -1844,9 +2008,11 @@ ${greetingPrompt}`;
  {!(!hasInteracted && hasClickedConnect) && (
  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center text-center pointer-events-none select-none pt-8 sm:pt-10 md:pt-12">
 
- <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.12em' }} className={`${rightPanelTab === 'civics' ? 'text-base sm:text-xl md:text-2xl mb-2' : 'text-2xl sm:text-3xl md:text-[34px]'} font-black text-[#0D224A] uppercase block leading-none mt-0.5`}>
+ <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.12em' }} className={`${(rightPanelTab === 'civics' || rightPanelTab === 'citizenship') ? 'text-base sm:text-xl md:text-2xl mb-1 sm:mb-2' : 'text-2xl sm:text-3xl md:text-[34px]'} font-black text-[#0D224A] uppercase block leading-none mt-0.5`}>
   {rightPanelTab === 'civics' ? (
    selectedLang === 'EN' ? 'USCIS CIVICS' : 'USCIS CÍVICA'
+  ) : rightPanelTab === 'citizenship' ? (
+   'CIUDADANÍA'
   ) : (
    <>VOYAGER<span className="text-[0.3em] font-light text-[#0D224A]/90 align-baseline ml-1 px-1 py-0.5 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span></>
   )}
@@ -1856,6 +2022,11 @@ ${greetingPrompt}`;
     {selectedLang === 'EN' 
       ? 'Complete study bank with verified USCIS citations (M-1778)' 
       : 'Banco completo con citas oficiales verificadas de USCIS (M-1778)'}
+  </span>
+ )}
+ {rightPanelTab === 'citizenship' && (
+  <span className="text-[13px] sm:text-[16px] text-slate-700 font-normal tracking-tight mt-0.5 pb-2 block truncate max-w-[360px] sm:max-w-xl">
+    Primero comprende; después practica con confianza...
   </span>
  )}
  </div>
@@ -1877,7 +2048,8 @@ ${greetingPrompt}`;
  <div className="absolute top-full left-2 mt-1 w-[165px] min-w-[165px] z-50 bg-[#0D224A]/50 backdrop-blur-md rounded-2xl shadow-2xl py-2 px-0 overflow-hidden flex flex-col gap-1 animate-slide-down">
  {[
  { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'Home' : 'Inicio', hash: '' },
- { id: 'civics', icon: Award, label: selectedLang === 'EN' ? 'Civics 128' : 'Ciudadanía 128', hash: '#/civics' },
+ { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'Citizenship' : 'Ciudadanía', hash: '#/citizenship' },
+ { id: 'civics', icon: Award, label: selectedLang === 'EN' ? 'Civics 128' : 'Tarjetas USCIS', hash: '#/civics' },
  { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'Chat' : 'Charla', hash: '' },
  { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'Teacher' : 'La Profe', hash: '' },
  { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName : (selectedLang === 'EN' ? 'Guest' : 'Invitado'), hash: '' },
@@ -1972,7 +2144,7 @@ ${greetingPrompt}`;
             </div>
           )}
 
-          {/* Main grid: Mascot on Left, Steps on Right */}
+          {/* Main grid: Mascot on Left, Steps on Rig220ht */}
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-10 items-center w-full">
  {/* Left: Mascot */}
  <div className={`${onboardingStep === 4 ? 'hidden sm:flex' : 'flex'} items-center justify-center w-full`}>
@@ -2889,13 +3061,13 @@ ${greetingPrompt}`;
      {/* Top Center Logo */}
      <div className="pt-1 flex flex-col items-center justify-center text-center select-none z-20">
        <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-widest block leading-none">
-         {selectedLang === 'EN' ? 'I AM USA' : 'YO SOY USA'}
+         YO SOY USA
        </span>
        <h1 style={{ fontFamily: '"Allerta Stencil", sans-serif', textShadow: '0 2px 12px rgba(0,0,0,0.7)', letterSpacing: '0.12em' }} className="text-2xl sm:text-3xl md:text-[38px] font-black text-white mt-1 uppercase block leading-none">
          VOYAGER<span className="text-[0.3em] font-light text-white/90 align-baseline ml-1 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span>
        </h1>
        <span style={{ fontFamily: "'Raleway', 'Allerta', sans-serif", letterSpacing: '0.18em' }} className="text-[8px] sm:text-[9.5px] md:text-[10.5px] font-normal text-[#FFD700] uppercase tracking-widest mt-1.5 block leading-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-         {selectedLang === 'EN' ? 'YOUR PASSPORT TO AMERICAN ENGLISH' : 'TU PASAPORTE AL INGLÉS AMERICANO'}
+         TU PASAPORTE AL INGLÉS AMERICANO
        </span>
      </div>
 
@@ -3651,6 +3823,8 @@ Pregunta del usuario: "${text}"]`;
  }}
  />
  </div>
+ ) : rightPanelTab === 'citizenship' ? (
+ <CitizenshipCoach selectedLang={'ES'} onAskVoyager={(prompt) => { if (!isConnected) connect(prompt, true); else { if (isPaused) resume(); sendText(prompt); } }} onOpenSimulator={() => { setRightPanelTab('civics'); window.location.hash = '#/civics'; }} />
  ) : rightPanelTab === 'civics' ? (
  <div className="flex-grow flex flex-col overflow-hidden h-full min-h-0">
   <Civics128Panel
