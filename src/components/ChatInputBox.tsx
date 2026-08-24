@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Square, Type, Headphones, AudioLines, Keyboard, ChevronDown, Delete, CornerDownLeft } from 'lucide-react';
+import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Square, Type, Headphones, AudioLines, Keyboard, ChevronDown, Delete, CornerDownLeft, RotateCw, Languages } from 'lucide-react';
 
 interface ChatInputBoxProps {
   selectedLang: 'EN' | 'ES';
@@ -507,7 +507,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     ? (selectedLang === 'EN' ? 'Listening... speak now' : 'Escuchando... habla ahora')
     : (selectedLang === 'EN' ? 'Write or dictate...' : 'Escribe o dicta...');
 
-  return (
+  return isLiveVoiceActive ? null : (
     <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2 md:pb-2.5 bg-transparent flex flex-col items-center w-full select-none">
       <form 
         onSubmit={handleSubmit} 
@@ -541,18 +541,15 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                   className="fixed inset-0 z-40 bg-transparent" 
                   onClick={() => setShowVoiceModeMenu(false)} 
                 />
-                <div className="absolute left-0 bottom-full mb-2 bg-white border border-slate-200 shadow-2xl rounded-2xl py-1.5 w-60 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                  <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1 flex items-center justify-between">
-                    <span>{selectedLang === 'EN' ? 'Voice & Conversation Mode' : 'Modo de Voz y Conversación'}</span>
-                  </div>
-                  
-                  {/* List of Voice Modes - Single row per mode */}
-                  <div className="flex flex-col py-0.5 max-h-60 overflow-y-auto">
+                <div className="absolute left-0 bottom-full mb-2 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl w-56 z-50 animate-fade-in flex flex-col text-white">
+                  {/* List of Voice Modes */}
+                  <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                     {[
                       {
                         id: 'spanish',
-                        label: selectedLang === 'EN' ? 'SPANISH' : 'ESPAÑOL',
-                        subLabel: selectedLang === 'EN' ? 'Spanish Only' : 'Solo Español',
+                        label: 'Español',
+                        iconType: 'text',
+                        badgeText: 'ES',
                         active: !!isSpanishOnlyMode,
                         activate: () => {
                           setIsSpanishOnlyMode?.(true);
@@ -561,8 +558,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                       },
                       {
                         id: 'bilingual',
-                        label: 'BILINGÜE',
-                        subLabel: selectedLang === 'EN' ? 'Bilingual' : 'Apoyo Bilingüe',
+                        label: 'Bilingüe',
+                        iconType: 'icon',
+                        icon: RotateCw,
                         active: !!isBilingualMode,
                         activate: () => {
                           setIsBilingualMode?.(true);
@@ -571,8 +569,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                       },
                       {
                         id: 'english',
-                        label: selectedLang === 'EN' ? 'ENGLISH' : 'INGLÉS',
-                        subLabel: selectedLang === 'EN' ? 'English Only' : 'Solo Inglés',
+                        label: 'Inglés',
+                        iconType: 'text',
+                        badgeText: 'EN',
                         active: !!isEnglishOnlyMode,
                         activate: () => {
                           setIsEnglishOnlyMode?.(true);
@@ -581,8 +580,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                       },
                       {
                         id: 'translate',
-                        label: selectedLang === 'EN' ? 'TRANSLATOR' : 'TRADUCTOR',
-                        subLabel: selectedLang === 'EN' ? 'Translation' : 'Traductor',
+                        label: 'Traductor',
+                        iconType: 'icon',
+                        icon: Languages,
                         active: !!isTranslateMode,
                         activate: () => {
                           setIsTranslateMode?.(true);
@@ -590,13 +590,17 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                         }
                       },
                       {
-                        id: 'listen',
-                        label: selectedLang === 'EN' ? 'LISTEN' : 'ESCUCHA',
-                        subLabel: selectedLang === 'EN' ? 'Listen Only' : 'Solo Escucha',
-                        active: !!isListenOnly,
+                        id: 'pause',
+                        label: 'Pausa',
+                        iconType: 'icon',
+                        icon: Pause,
+                        active: !!isPaused,
                         activate: () => {
-                          setIsListenOnly?.(true);
-                          if (isPaused) resume();
+                          if (isPaused) {
+                            resume();
+                          } else {
+                            pause();
+                          }
                         }
                       }
                     ].map((m) => (
@@ -607,15 +611,27 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                           m.activate();
                           setShowVoiceModeMenu(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between transition-colors cursor-pointer ${
+                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
                           m.active
-                            ? 'bg-amber-50 text-amber-900 font-bold border-l-4 border-amber-500'
-                            : 'text-slate-700 hover:bg-slate-50 font-semibold'
+                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
+                            : 'text-white/80 hover:text-white hover:bg-white/10'
                         }`}
                       >
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <span className="text-xs font-bold tracking-wide shrink-0" style={{ fontFamily: '"Raleway", sans-serif' }}>{m.label}</span>
-                          <span className="text-[10px] text-slate-400 font-normal truncate">({m.subLabel})</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                            {m.iconType === 'text' ? (
+                              <span className={`font-bold text-xs leading-none tracking-tight ${m.active ? 'text-[#EAB308]' : 'text-white/70'}`}>
+                                {m.badgeText}
+                              </span>
+                            ) : (
+                              <m.icon className={`w-4 h-4 shrink-0 ${m.active ? 'text-[#EAB308]' : 'text-white/70'}`} />
+                            )}
+                          </div>
+                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
+                            m.active ? 'font-bold text-[#EAB308]' : 'font-normal'
+                          }`}>
+                            {m.label}
+                          </span>
                         </div>
                       </button>
                     ))}

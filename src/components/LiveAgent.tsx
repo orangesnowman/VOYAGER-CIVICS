@@ -15,7 +15,7 @@ import { ChatInputBox } from './ChatInputBox';
 import { AuthModal } from './AuthModal';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -76,19 +76,6 @@ const modeDetails = [
  icon: 'Languages',
  tagEs: 'Traducción en vivo',
  tagEn: 'Live translation',
- bg: 'hover:bg-black/5'
- },
- {
- id: 'LISTEN_ONLY',
- nameEs: 'Escucha',
- nameEn: 'Listen Only',
- statusEs: 'MODO ESCUCHA',
- statusEn: 'LISTEN MODE',
- descEs: 'Escucha y ofrece correcciones por texto sin hablar.',
- descEn: 'Listens and provides text-only tips without speaking.',
- icon: 'Headphones',
- tagEs: 'Solo Escuchar',
- tagEn: 'Listen & Observe',
  bg: 'hover:bg-black/5'
  }
 ];
@@ -201,155 +188,928 @@ const countries = [
 
 interface CitizenshipCoachProps {
   selectedLang: 'EN' | 'ES';
+  userVoiceTranscription?: string;
+  chatMessages?: ChatMessage[];
   onAskVoyager: (prompt: string) => void;
   onOpenSimulator: () => void;
 }
-const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ selectedLang, onAskVoyager, onOpenSimulator }) => {
-  const [mode, setMode] = useState<'bilingual' | 'english'>('bilingual');
+const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ 
+  selectedLang, 
+  userVoiceTranscription, 
+  chatMessages = [], 
+  onAskVoyager, 
+  onOpenSimulator 
+}) => {
+  const [mode, setMode] = useState<'guide' | 'bilingual' | 'english' | 'exam'>('guide');
   const [category, setCategory] = useState<'ALL' | 'AMERICAN_GOVERNMENT' | 'AMERICAN_HISTORY' | 'INTEGRATED_CIVICS'>('ALL');
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState('');
   const [showAnswers, setShowAnswers] = useState(false);
-  const [result, setResult] = useState<'correct' | 'unsure' | 'review' | null>(null);
+  const [resultsByQuestion, setResultsByQuestion] = useState<Record<number, 'correct' | 'unsure' | 'review'>>({});
+  const questionStartTimeRef = useRef<number>(Date.now());
   const questions = useMemo(() => category === 'ALL' ? ALL_CIVICS_128_QUESTIONS : ALL_CIVICS_128_QUESTIONS.filter(q => q.category === category), [category]);
   const question = questions[index % Math.max(questions.length, 1)];
-  if (!question) return null;
-  const bilingual = mode === 'bilingual';
-  const lastQuestionPromptRef = useRef<string | null>(null);
-  useEffect(() => {
-    const promptKey = question.id + ':' + bilingual + ':' + selectedLang; if (lastQuestionPromptRef.current === promptKey) return; lastQuestionPromptRef.current = promptKey; const instruction = '[SYSTEM INSTRUCTION: You are Voyager in the Citizenship section. The learner is now on question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Read this exact question first in English, then immediately say its natural meaning in Spanish. Do not ask the learner to guess the meaning. Then wait silently for the answer. Give brief Spanish clarification only when needed. Never mention buttons, Siguiente, next questions, navigation, or internal rules.' : 'Speak only English, ask the question, accept equivalent correct answers, and after feedback tell the learner to press Next when ready.');
-    onAskVoyager(instruction);
-  }, [question.id, bilingual, selectedLang]);
-  const chooseCategory = (value: typeof category) => { setCategory(value); setIndex(0); setResult(null); setShowAnswers(false); };
-  const next = () => { setIndex(current => (current + 1) % Math.max(questions.length, 1)); setAnswer(''); setResult(null); setShowAnswers(false); };
 
-  const handleAnswerChange = (val: string) => {
-    setAnswer(val);
-    const clean = val.trim().toLowerCase();
-    if (!clean) {
-      setResult(null);
-      return;
+  // Exam state for "TOMA EXAMEN"
+  const [examFormat, setExamFormat] = useState<'10_standard' | '20_extended' | '65_20'>('10_standard');
+  const [examStarted, setExamStarted] = useState(false);
+  const [examQuestions, setExamQuestions] = useState<typeof ALL_CIVICS_128_QUESTIONS>([]);
+  const [currentExamIndex, setCurrentExamIndex] = useState(0);
+  const [examResponses, setExamResponses] = useState<Record<number, { isCorrect: boolean; userAnswer: string; question: (typeof ALL_CIVICS_128_QUESTIONS)[0] }>>({});
+  const [examInputText, setExamInputText] = useState('');
+  const [examIsListening, setExamIsListening] = useState(false);
+  const [showExamAcceptedAnswers, setShowExamAcceptedAnswers] = useState(false);
+
+  const startExamSimulation = (format: '10_standard' | '20_extended' | '65_20' = examFormat) => {
+    let pool = [...ALL_CIVICS_128_QUESTIONS];
+    if (format === '65_20') {
+      pool = ALL_CIVICS_128_QUESTIONS.filter(q => q.isExemption65_20);
+      if (pool.length === 0) pool = ALL_CIVICS_128_QUESTIONS.slice(0, 20);
     }
-    const isExactOrClose = question.answersEn.some(a => {
-      const target = a.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
-      const cleanNoPunct = clean.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
-      return cleanNoPunct === target || target.includes(cleanNoPunct) || cleanNoPunct.includes(target);
-    });
-    if (isExactOrClose) {
-      setResult('correct');
-    } else {
-      const words = clean.split(/\s+/).filter(w => w.length > 2);
-      const partial = question.answersEn.some(a => {
-        const aWords = a.toLowerCase().split(/\s+/);
-        return words.some(w => aWords.includes(w));
-      });
-      setResult(partial ? 'unsure' : 'review');
+    const count = format === '20_extended' ? 20 : 10;
+    const shuffled = [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
+    setExamQuestions(shuffled);
+    setCurrentExamIndex(0);
+    setExamResponses({});
+    setExamInputText('');
+    setExamStarted(true);
+    setShowExamAcceptedAnswers(false);
+
+    if (shuffled[0]) {
+      const q = shuffled[0];
+      const startPrompt = selectedLang === 'ES'
+        ? `[INSTRUCCIÓN DE SISTEMA: Como Officer Voyager, inicia el simulacro de examen oficial de USCIS. Saluda al candidato brevemente en 1 frase formal en inglés y haz la primera pregunta en inglés claro: "${q.questionEn}".]`
+        : `[SYSTEM INSTRUCTION: As Officer Voyager, begin the official USCIS Civics oral simulation. Give a 1-sentence formal greeting as a USCIS officer and ask question #1 clearly in English: "${q.questionEn}".]`;
+      onAskVoyager(startPrompt);
     }
   };
 
-  const cycleResult = () => {
-    setResult(prev => {
-      if (!prev) return 'correct';
-      if (prev === 'correct') return 'unsure';
-      if (prev === 'unsure') return 'review';
-      return null;
+  const handleEvaluateExamAnswer = (userAns: string) => {
+    const currentQ = examQuestions[currentExamIndex];
+    if (!currentQ) return;
+    const clean = userAns.trim().toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+    if (!clean) return;
+
+    const isMatch = currentQ.answersEn.some(a => {
+      const target = a.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+      return clean === target || target.includes(clean) || clean.includes(target);
     });
+
+    const isClose = isMatch || currentQ.answersEn.some(a => {
+      const words = clean.split(/\s+/).filter(w => w.length > 2);
+      const aWords = a.toLowerCase().split(/\s+/);
+      return words.filter(w => aWords.includes(w)).length >= Math.min(2, words.length);
+    });
+
+    const isCorrect = isMatch || isClose;
+
+    setExamResponses(prev => ({
+      ...prev,
+      [currentExamIndex]: {
+        isCorrect,
+        userAnswer: userAns.trim(),
+        question: currentQ
+      }
+    }));
+
+    const feedbackPrompt = isCorrect
+      ? (selectedLang === 'ES'
+          ? `[INSTRUCCIÓN DE SISTEMA: El usuario respondió: "${userAns}". Es correcto para la pregunta: "${currentQ.questionEn}". Como Officer Voyager, di en voz alta en inglés: "That is correct!" o "Correct!" y una breve confirmación.]`
+          : `[SYSTEM INSTRUCTION: The candidate answered: "${userAns}". This is correct for: "${currentQ.questionEn}". As Officer Voyager, say aloud: "That is correct!" or "Correct!" with brief positive feedback.]`)
+      : (selectedLang === 'ES'
+          ? `[INSTRUCCIÓN DE SISTEMA: El usuario respondió: "${userAns}". La respuesta esperada para "${currentQ.questionEn}" es: "${currentQ.answersEn[0]}". Como Officer Voyager, di en voz alta en inglés: "Not quite. The correct answer is: ${currentQ.answersEn[0]}." de forma amable y profesional.]`
+          : `[SYSTEM INSTRUCTION: The candidate answered: "${userAns}". The acceptable answer for "${currentQ.questionEn}" is: "${currentQ.answersEn[0]}". As Officer Voyager, say aloud: "Not quite. The correct answer is: ${currentQ.answersEn[0]}." professionally.]`);
+    onAskVoyager(feedbackPrompt);
+  };
+
+  const handleNextExamQuestion = () => {
+    if (currentExamIndex + 1 < examQuestions.length) {
+      const nextIdx = currentExamIndex + 1;
+      setCurrentExamIndex(nextIdx);
+      setExamInputText('');
+      setShowExamAcceptedAnswers(false);
+      const nextQ = examQuestions[nextIdx];
+      if (nextQ) {
+        const prompt = `[SYSTEM INSTRUCTION: As Officer Voyager in the oral exam simulation, ask question #${nextIdx + 1} clearly in English: "${nextQ.questionEn}".]`;
+        onAskVoyager(prompt);
+      }
+    }
+  };
+
+  // Calculator state for Guide
+  const [calcAge, setCalcAge] = useState<'under50' | '50_54' | '55_64' | '65plus'>('under50');
+  const [calcYearsGC, setCalcYearsGC] = useState<'under15' | '15_19' | '20plus'>('under15');
+
+  const calcResult = useMemo(() => {
+    if (calcAge === '65plus' && calcYearsGC === '20plus') {
+      return {
+        type: '65_20',
+        titleEn: '65/20 Special Consideration Exemption',
+        titleEs: 'Exención Especial de Consideración 65/20',
+        descEn: 'You qualify for the 65/20 Special Consideration! You only study 20 specially designated questions (marked with *). During the interview, you are asked 10 questions and must answer 6 correctly. You may also take the exam in your native language using an interpreter.',
+        descEs: '¡Calificas para la Consideración Especial 65/20! Solo debes estudiar 20 preguntas seleccionadas (marcadas con *). En la entrevista te realizarán 10 preguntas y necesitarás 6 correctas. Además, puedes presentar la prueba en tu idioma natal con un intérprete.',
+        badgeEn: 'Special 20-Question Exam + Native Language Option',
+        badgeEs: 'Examen de 20 Preguntas + Opción de Idioma Natal'
+      };
+    }
+    if (calcAge === '55_64' && calcYearsGC === '15_19') {
+      return {
+        type: '55_15',
+        titleEn: '55/15 Native Language Exception',
+        titleEs: 'Excepción de Idioma Natal 55/15',
+        descEn: 'You are exempt from the English language requirement! You take the standard Civics test in your native language with an interpreter. You study the standard question set.',
+        descEs: '¡Estás exento del requisito de idioma inglés! Presentas el examen estándar de Cívica en tu idioma natal con intérprete.',
+        badgeEn: 'Native Language Civics Test (With Interpreter)',
+        badgeEs: 'Examen de Cívica en tu Idioma Natal (Con Intérprete)'
+      };
+    }
+    if (calcAge === '50_54' && calcYearsGC === '20plus') {
+      return {
+        type: '50_20',
+        titleEn: '50/20 Native Language Exception',
+        titleEs: 'Excepción de Idioma Natal 50/20',
+        descEn: 'You are exempt from the English language requirement! You take the standard Civics test in your native language with an interpreter.',
+        descEs: '¡Estás exento del requisito de idioma inglés! Presentas el examen estándar de Cívica en tu idioma natal con intérprete.',
+        badgeEn: 'Native Language Civics Test (With Interpreter)',
+        badgeEs: 'Examen de Cívica en tu Idioma Natal (Con Intérprete)'
+      };
+    }
+    if (calcAge === '65plus' && calcYearsGC === '15_19') {
+      return {
+        type: '55_15',
+        titleEn: '55/15 Native Language Exception',
+        titleEs: 'Excepción de Idioma Natal 55/15',
+        descEn: 'You are exempt from the English language requirement! You take the standard Civics test in your native language with an interpreter.',
+        descEs: '¡Estás exento del requisito de idioma inglés! Presentas el examen estándar de Cívica en tu idioma natal con intérprete.',
+        badgeEn: 'Native Language Civics Test (With Interpreter)',
+        badgeEs: 'Examen de Cívica en tu Idioma Natal (Con Intérprete)'
+      };
+    }
+    return {
+      type: 'standard',
+      titleEn: 'Standard Naturalization Civics Test',
+      titleEs: 'Examen Estándar de Cívica y Requisito de Inglés',
+      descEn: 'You take the standard Naturalization Civics test and English test (Speaking, Reading, Writing). You study the full question bank.',
+      descEs: 'Debes presentar el examen estándar de Cívica junto a la prueba de inglés (Hablar, Leer, Escribir). Debes estudiar el banco de preguntas completo.',
+      badgeEn: 'Standard Exam (English + Civics)',
+      badgeEs: 'Examen Estándar (Inglés + Cívica)'
+    };
+  }, [calcAge, calcYearsGC]);
+
+  const result = question ? (resultsByQuestion[question.id] || null) : null;
+  const setResult = (res: 'correct' | 'unsure' | 'review' | null) => {
+    if (!question) return;
+    setResultsByQuestion(prev => {
+      if (!res) {
+        const next = { ...prev };
+        delete next[question.id];
+        return next;
+      }
+      return { ...prev, [question.id]: res };
+    });
+  };
+
+  const bilingual = mode === 'bilingual';
+  const lastQuestionPromptRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (mode === 'guide' || !question) return;
+    questionStartTimeRef.current = Date.now();
+    const promptKey = question.id + ':' + bilingual + ':' + selectedLang; 
+    if (lastQuestionPromptRef.current === promptKey) return; 
+    lastQuestionPromptRef.current = promptKey; 
+    const acceptedAnswersStr = question.answersEn.join(' | ');
+    const instruction = '[SYSTEM INSTRUCTION: You are Voyager in the Citizenship section. The learner is practicing question ' + question.id + ': "' + question.questionEn + '". ' + 
+      'Accepted correct answers: ' + acceptedAnswersStr + '. ' +
+      (bilingual 
+        ? 'Read this exact question first in English, then immediately say its natural meaning in Spanish. Then wait for the learner to answer. When the learner speaks or provides their answer, evaluate if it is correct. If the answer is correct or acceptable, clearly begin your response by saying "¡Correcto!" or "That is correct!" with encouraging feedback. If incorrect, give gentle guidance.'
+        : 'Speak only in English. Ask the question and wait for the learner response. When the learner answers, if the answer is correct or acceptable, clearly say "Correct!" or "That is correct!" with encouraging feedback.');
+    onAskVoyager(instruction);
+  }, [question?.id, bilingual, selectedLang, mode]);
+
+  // Listen to Voyager's responses in chat to detect if Voyager evaluated the answer as correct
+  useEffect(() => {
+    if (!question || !chatMessages || chatMessages.length === 0) return;
+    const latest = chatMessages[chatMessages.length - 1];
+    if (latest && latest.sender === 'splash' && latest.timeMs >= questionStartTimeRef.current - 1000) {
+      const text = latest.text.toLowerCase();
+      const isNegative = /\b(not correct|no es correcto|incorrecto|incorrect|wrong|no acertaste|falso)\b/i.test(text);
+      const isPositive = /\b(correct|correcto|that['’]s correct|that is correct|that's right|that is right|exacto|muy bien|excellent|excelente|perfecto|well done|good job|great job|you got it|así es|acertaste|es correcto)\b/i.test(text);
+      if (isPositive && !isNegative) {
+        setResultsByQuestion(prev => ({ ...prev, [question.id]: 'correct' }));
+      }
+    }
+  }, [chatMessages, question?.id]);
+
+  // Also evaluate user voice transcription directly if user spoke the answer
+  useEffect(() => {
+    if (!question || !userVoiceTranscription) return;
+    const clean = userVoiceTranscription.trim().toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+    if (clean.length < 2) return;
+    const isMatch = question.answersEn.some(a => {
+      const target = a.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+      return clean.includes(target) || target.includes(clean);
+    }) || (question.answersEs && question.answersEs.some(a => {
+      const target = a.toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()?]/g, '');
+      return clean.includes(target) || target.includes(clean);
+    }));
+    if (isMatch) {
+      setResultsByQuestion(prev => ({ ...prev, [question.id]: 'correct' }));
+    }
+  }, [userVoiceTranscription, question]);
+
+  const chooseCategory = (value: typeof category) => { setCategory(value); setIndex(0); setShowAnswers(false); };
+  const prev = () => { setIndex(current => (current - 1 + questions.length) % Math.max(questions.length, 1)); setAnswer(''); setShowAnswers(false); };
+  const next = () => { setIndex(current => (current + 1) % Math.max(questions.length, 1)); setAnswer(''); setShowAnswers(false); };
+
+  const cycleResult = () => {
+    setResult(
+      !result ? 'correct' :
+      result === 'correct' ? 'unsure' :
+      result === 'unsure' ? 'review' :
+      null
+    );
+  };
+
+  const handleReadAnswer = () => {
+    if (!question) return;
+    const prompt = '[SYSTEM INSTRUCTION: You are Voyager in the Citizenship section. Read the correct answer(s) to question ' + question.id + ': "' + question.questionEn + '". The acceptable answer(s) are: ' + question.answersEn.join(', ') + '. ' + (bilingual && question.answersEs ? 'Say the correct answer in clear American English first, then briefly say the Spanish translation: "' + question.answersEs.join(', ') + '".' : 'Say the correct answer clearly in American English.') + ']';
+    onAskVoyager(prompt);
   };
 
   const bulletColorClass = 
-    result === 'correct' ? 'bg-emerald-500' :
+    result === 'correct' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' :
     result === 'unsure' ? 'bg-amber-400' :
     result === 'review' ? 'bg-rose-500' :
-    'bg-slate-900';
+    'bg-black/50';
 
   return (
-    <div className="flex-grow min-h-0 overflow-y-auto bg-white px-4 py-5 sm:px-8">
-      <div className="mx-auto max-w-2xl space-y-4 pb-8">
-        <div className="flex items-center justify-center gap-1.5 sm:gap-2 text-slate-400">
-          <button onClick={() => { setMode('bilingual'); setResult(null); }} className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${bilingual ? 'text-red-600 underline underline-offset-4 decoration-red-600' : 'text-slate-500 hover:text-slate-800'}`}>COMPRENDE</button>
-          <ArrowRight className="w-3.5 h-3.5 text-blue-500/70 shrink-0" />
-          <button onClick={() => { setMode('english'); setResult(null); }} className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${!bilingual ? 'text-red-600 underline underline-offset-4 decoration-red-600' : 'text-slate-500 hover:text-slate-800'}`}>PRACTICA</button>
-          <ArrowRight className="w-3.5 h-3.5 text-blue-500/70 shrink-0" />
-          <button onClick={onOpenSimulator} className="px-2 py-1 text-sm font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">EXAMEN</button>
+    <div className="flex-grow min-h-0 overflow-y-auto bg-white px-4 py-3 sm:px-8 flex flex-col">
+      <div className="mx-auto max-w-3xl w-full space-y-4 py-2 my-auto">
+        {/* Submenu Tabs: GUÍA as the first option -> COMPRENDE -> PRACTICA -> TOMA EXAMEN */}
+        <div className="flex items-center justify-center gap-1 sm:gap-2 text-slate-400 flex-wrap">
+          <button 
+            onClick={() => setMode('guide')} 
+            className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'guide' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {selectedLang === 'EN' ? 'GUIDE' : 'GUÍA'}
+          </button>
+          <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
+          <button 
+            onClick={() => { setMode('bilingual'); setResult(null); }} 
+            className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'bilingual' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            COMPRENDE
+          </button>
+          <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
+          <button 
+            onClick={() => { setMode('english'); setResult(null); }} 
+            className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'english' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            PRACTICA
+          </button>
+          <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
+          <button 
+            onClick={() => { 
+              setMode('exam'); 
+              if (!examStarted) startExamSimulation(); 
+            }} 
+            className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'exam' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {selectedLang === 'EN' ? 'TAKE EXAM' : 'TOMA EXAMEN'}
+          </button>
         </div>
-        <div className="rounded-3xl bg-[#F7F4EE] border border-[#E5DFD3] p-5 shadow-xs space-y-4">
-          <div className="relative flex items-center justify-center min-h-[28px] text-xs font-bold text-slate-500">
-            <button
-              onClick={() => onAskVoyager('[SYSTEM INSTRUCTION: You are Voyager in the Citizenship coaching section. Teach question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Explain the meaning briefly in Spanish, then ask the learner to answer in English. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.' : 'Speak only English, ask the question, and wait for the learner response. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.'))}
-              className="w-7 h-7 rounded-full bg-[#0D224A] hover:bg-[#15346d] text-white transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
-              title="Escuchar y practicar con Voyager"
-              aria-label="Escuchar pregunta"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-white" />
-            </button>
-            <span className="absolute right-0">{index + 1} / {questions.length}</span>
-          </div>
 
-          <div className="py-1 text-center space-y-1.5">
-            <div className="text-lg sm:text-xl font-bold text-slate-900 leading-snug">
-              <button
-                type="button"
-                onClick={cycleResult}
-                className={`inline-block w-3.5 h-3.5 rounded-full mr-2.5 -mt-0.5 align-middle transition-all cursor-pointer hover:scale-110 active:scale-95 ${bulletColorClass}`}
-                title={
-                  result === 'correct' ? (selectedLang === 'EN' ? 'Correct (Click to change)' : 'Correcta (Clic para cambiar)') :
-                  result === 'unsure' ? (selectedLang === 'EN' ? 'Unsure / Partial (Click to change)' : 'Dudosa (Clic para cambiar)') :
-                  result === 'review' ? (selectedLang === 'EN' ? 'Incorrect (Click to change)' : 'Incorrecta (Clic para cambiar)') :
-                  (selectedLang === 'EN' ? 'Default / Unanswered (Click to change)' : 'Por responder (Clic para cambiar)')
-                }
-                aria-label="Estado de respuesta"
-              />
-              <span>{question.questionEn}</span>
-            </div>
-            {bilingual && <div className="text-sm sm:text-base text-slate-600 font-normal">{question.questionEs}</div>}
-          </div>
-
-          <div className="pt-2 border-t border-[#EAE4D8]">
-            <div className="mb-2 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => setShowAnswers(prev => !prev)}
-                className="flex flex-col items-center justify-center gap-0.5 text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-700 hover:text-[#0D224A] transition-colors cursor-pointer group select-none"
-                title="Haz clic para ver respuestas aceptables"
-              >
-                <span>RESPUESTA</span>
-                {showAnswers ? (
-                  <ChevronUp className="w-4 h-4 text-blue-600 transition-transform group-hover:-translate-y-0.5" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-blue-600 transition-transform group-hover:translate-y-0.5" />
-                )}
-              </button>
-            </div>
-
-            {showAnswers && (
-              <div className="mb-3 rounded-2xl bg-[#EFEAE0]/75 border border-[#DDD5C5] p-3.5 space-y-2 text-xs sm:text-sm animate-fadeIn text-center">
-                {question.answersEn.map((ansEn, idx) => {
-                  const ansEs = question.answersEs && question.answersEs[idx];
-                  return (
-                    <div key={idx} className="leading-snug py-0.5">
-                      <span className="font-bold text-slate-900">{ansEn}</span>
-                      {bilingual && ansEs ? (
-                        <>
-                          <span className="mx-2 text-slate-400 font-normal">/</span>
-                          <span className="text-slate-600 font-medium">{ansEs}</span>
-                        </>
-                      ) : null}
-                    </div>
-                  );
-                })}
+        {/* MODE: GUIDE / GUÍA */}
+        {mode === 'guide' && (
+          <div className="w-full space-y-5 py-2 animate-fadeIn">
+            {/* Header Hero Banner */}
+            <div className="bg-gradient-to-r from-[#0D224A] via-[#15346e] to-[#0D224A] rounded-3xl p-6 sm:p-8 text-white shadow-md relative overflow-hidden">
+              <div className="relative z-10 space-y-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-bold border border-amber-400/30">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>{selectedLang === 'EN' ? 'USCIS Civics Guide & Exam Preparation' : 'Guía de Exámenes Cívicos de USCIS'}</span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  {selectedLang === 'EN' ? 'Which Exam Do You Need to Prepare For?' : '¿Cuál Examen Te Corresponde Presentar?'}
+                </h2>
+                <p className="text-slate-200 text-xs sm:text-sm leading-relaxed max-w-2xl">
+                  {selectedLang === 'EN'
+                    ? 'The USCIS Naturalization Civics test has different versions and exemptions based on your age, length of permanent residency, and N-400 filing date. Use this guide to identify your exact exam and learn American civics for life.'
+                    : 'El examen de Cívica para la Naturalización de USCIS tiene diferentes versiones y excepciones según tu edad, años con residencia permanente y fecha de solicitud. Usa esta guía para identificar tu examen exacto y aprender cívica estadounidense para la vida.'}
+                </p>
               </div>
-            )}
+            </div>
 
-            <div className="mt-2 flex justify-end items-center">
+            {/* Interactive Qualification Finder */}
+            <div className="bg-[#FEDC89]/40 border-2 border-[#FEDC89] rounded-3xl p-5 sm:p-7 space-y-5 shadow-xs relative">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-[#0D224A] text-white rounded-2xl shadow-xs">
+                    <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-stone-900">
+                      {selectedLang === 'EN' ? 'Interactive Exam Finder' : 'Calculadora Interactiva de Examen'}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-stone-700">
+                      {selectedLang === 'EN' ? 'Select your current age and years with Green Card to check your qualification:' : 'Selecciona tu edad actual y años de residencia para consultar tu modalidad:'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const prompt = selectedLang === 'ES'
+                      ? `[INSTRUCCIÓN DE SISTEMA: Como Officer Voyager, explica verbalmente el resultado de calificación de cívica en voz alta de manera clara y motivadora: "${calcResult.titleEs}. ${calcResult.descEs}"]`
+                      : `[SYSTEM INSTRUCTION: As Officer Voyager, speak the civics qualification result out loud in clear, encouraging English: "${calcResult.titleEn}. ${calcResult.descEn}"]`;
+                    onAskVoyager(prompt);
+                  }}
+                  title={selectedLang === 'EN' ? 'Listen to Result with Voyager' : 'Escuchar Resultado con Voyager'}
+                  className="p-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-2xl transition cursor-pointer shrink-0 shadow-xs flex items-center justify-center"
+                >
+                  <Volume2 className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {/* Step 1: Age */}
+                <div className="bg-white/90 p-4 rounded-2xl border border-amber-900/10 space-y-2">
+                  <label className="text-xs font-bold text-stone-800 uppercase tracking-wider block">
+                    {selectedLang === 'EN' ? '1. Your Current Age' : '1. Tu Edad Actual'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'under50', labelEn: '< 50 yrs', labelEs: '< 50 años' },
+                      { id: '50_54', labelEn: '50 - 54 yrs', labelEs: '50 - 54 años' },
+                      { id: '55_64', labelEn: '55 - 64 yrs', labelEs: '55 - 64 años' },
+                      { id: '65plus', labelEn: '65+ yrs', labelEs: '65+ años' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setCalcAge(item.id as any)}
+                        className={`px-3 py-2 text-xs font-bold rounded-xl transition cursor-pointer border ${
+                          calcAge === item.id
+                            ? 'bg-[#0D224A] text-white border-[#0D224A] shadow-2xs'
+                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                        }`}
+                      >
+                        {selectedLang === 'EN' ? item.labelEn : item.labelEs}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 2: Years as Permanent Resident */}
+                <div className="bg-white/90 p-4 rounded-2xl border border-amber-900/10 space-y-2">
+                  <label className="text-xs font-bold text-stone-800 uppercase tracking-wider block">
+                    {selectedLang === 'EN' ? '2. Years as Permanent Resident' : '2. Años con Residencia Permanente'}
+                  </label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'under15', labelEn: '< 15 yrs', labelEs: '< 15 años' },
+                      { id: '15_19', labelEn: '15 - 19 yrs', labelEs: '15 - 19 años' },
+                      { id: '20plus', labelEn: '20+ yrs', labelEs: '20+ años' },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => setCalcYearsGC(item.id as any)}
+                        className={`px-2 py-2 text-xs font-bold rounded-xl transition cursor-pointer border ${
+                          calcYearsGC === item.id
+                            ? 'bg-[#0D224A] text-white border-[#0D224A] shadow-2xs'
+                            : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                        }`}
+                      >
+                        {selectedLang === 'EN' ? item.labelEn : item.labelEs}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Result Card */}
+              <div className="bg-white rounded-2xl p-4 sm:p-5 border border-amber-900/15 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-extrabold border border-emerald-300">
+                    {selectedLang === 'EN' ? calcResult.badgeEn : calcResult.badgeEs}
+                  </span>
+                </div>
+                <h4 className="text-base sm:text-lg font-bold text-slate-900">
+                  {selectedLang === 'EN' ? calcResult.titleEn : calcResult.titleEs}
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                  {selectedLang === 'EN' ? calcResult.descEn : calcResult.descEs}
+                </p>
+
+                <div className="pt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => setMode('bilingual')}
+                    className="px-4 py-2 bg-[#0D224A] hover:bg-[#15346e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <span>{selectedLang === 'EN' ? 'Start Bilingual Practice (COMPRENDE)' : 'Iniciar Práctica Bilingüe (COMPRENDE)'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setMode('english')}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <span>{selectedLang === 'EN' ? 'Practice in English (PRACTICA)' : 'Practicar en Inglés (PRACTICA)'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMode('exam');
+                      startExamSimulation(calcResult.type === '65_20' ? '65_20' : '10_standard');
+                    }}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <span>{selectedLang === 'EN' ? 'Take Simulated Exam (TOMA EXAMEN)' : 'Simular Examen (TOMA EXAMEN)'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* USCIS Exemption Categories Overview */}
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 space-y-4">
+              <div className="flex items-center gap-2">
+                <Compass className="w-5 h-5 text-[#0D224A]" />
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                  {selectedLang === 'EN' ? 'USCIS Civics Test Versions and Exceptions' : 'Versiones del Examen y Excepciones de USCIS'}
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* 128 Questions Bank */}
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#0D224A] text-white text-[11px] font-bold">128 Preguntas</span>
+                    <span className="text-[11px] font-extrabold text-slate-500">M-1778</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    {selectedLang === 'EN' ? '128 Civics Questions Bank (Expanded)' : 'Banco de 128 Preguntas Cívicas'}
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {selectedLang === 'EN'
+                      ? 'The expanded bank covering American Government, American History, and Integrated Civics in full depth.'
+                      : 'El banco integral ampliado que abarca Gobierno Estadounidense, Historia de EE.UU. y Cívica Integrada a profundidad.'}
+                  </p>
+                </div>
+
+                {/* 65/20 Exemption */}
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[11px] font-bold">65 / 20</span>
+                    <span className="text-[11px] font-extrabold text-slate-500">20 Preguntas</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900 text-sm">
+                    {selectedLang === 'EN' ? '65/20 Special Consideration (20 Questions)' : 'Exención Especial 65/20 (20 Preguntas)'}
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {selectedLang === 'EN'
+                      ? 'For applicants 65+ years old with 20+ years of Green Card. You only study 20 designated questions with interpreter option.'
+                      : 'Para solicitantes de 65+ años con 20+ años de residencia. Solo estudias 20 preguntas seleccionadas y puedes usar intérprete.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Ask Voyager Button */}
+            <div className="text-center pt-1 pb-3">
               <button
-                onClick={next}
-                className="px-2 py-1 text-sm font-bold text-slate-800 hover:text-slate-950 transition-colors cursor-pointer underline underline-offset-4"
+                onClick={() => {
+                  const prompt = selectedLang === 'ES'
+                    ? '[INSTRUCCIÓN DE SISTEMA: Como Officer Voyager, saluda al usuario amablemente y explícale con total claridad qué tipo de examen de cívica le corresponde según su edad y años con Green Card.]'
+                    : '[SYSTEM INSTRUCTION: As Officer Voyager, warmly explain in detail which USCIS civics exam applies to the user based on their age and permanent residency.]';
+                  onAskVoyager(prompt);
+                }}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs sm:text-sm font-bold rounded-2xl transition cursor-pointer inline-flex items-center gap-2 shadow-2xs"
               >
-                Siguiente
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span>{selectedLang === 'EN' ? 'Ask Voyager AI about your specific case' : 'Consultar a Voz Voyager sobre tu caso específico'}</span>
               </button>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* MODE: BILINGUAL (COMPRENDE) OR ENGLISH (PRACTICA) */}
+        {(mode === 'bilingual' || mode === 'english') && question && (
+          <div className="rounded-3xl bg-[#F7F4EE] border border-[#E5DFD3] p-5 shadow-xs space-y-4 relative animate-fadeIn">
+            <div className="relative flex flex-col items-center justify-center min-h-[28px] text-xs font-bold text-slate-500">
+              <button
+                onClick={() => onAskVoyager('[SYSTEM INSTRUCTION: You are Voyager in the Citizenship coaching section. Teach question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Explain the meaning briefly in Spanish, then ask the learner to answer in English. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.' : 'Speak only English, ask the question, and wait for the learner response. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.'))}
+                className="flex flex-col items-center justify-center gap-1 group cursor-pointer active:scale-95 transition-all"
+                title="Escuchar y practicar con Voyager"
+                aria-label="Escuchar pregunta"
+              >
+                <div className="w-7 h-7 rounded-full bg-blue-600 group-hover:bg-red-600 text-white transition-colors flex items-center justify-center shadow-xs">
+                  <Volume2 className="w-3.5 h-3.5 text-white" />
+                </div>
+                <span className="text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-700 group-hover:text-red-600 transition-colors">
+                  PREGUNTA
+                </span>
+              </button>
+              <span className="absolute top-0.5 right-0">{index + 1} / {questions.length}</span>
+            </div>
+
+            <div className="py-1 text-center space-y-1.5">
+              <div className="text-lg sm:text-xl font-bold text-slate-900 leading-snug">
+                <button
+                  type="button"
+                  onClick={cycleResult}
+                  className={`inline-block w-3.5 h-3.5 rounded-full mr-2.5 -mt-0.5 align-middle transition-all cursor-pointer hover:scale-110 active:scale-95 ${bulletColorClass}`}
+                  title={
+                    result === 'correct' ? (selectedLang === 'EN' ? 'Correct (Click to change)' : 'Correcta (Clic para cambiar)') :
+                    result === 'unsure' ? (selectedLang === 'EN' ? 'Unsure / Partial (Click to change)' : 'Dudosa (Clic para cambiar)') :
+                    result === 'review' ? (selectedLang === 'EN' ? 'Incorrect (Click to change)' : 'Incorrecta (Clic para cambiar)') :
+                    (selectedLang === 'EN' ? 'Default / Unanswered (Click to change)' : 'Por responder (Clic para cambiar)')
+                  }
+                  aria-label="Estado de respuesta"
+                />
+                <span>{question.questionEn}</span>
+              </div>
+              {bilingual && <div className="text-sm sm:text-base text-slate-600 font-normal">{question.questionEs}</div>}
+            </div>
+
+            <div className="pt-2 border-t border-[#EAE4D8] relative">
+              <div className="mb-2 flex flex-col items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleReadAnswer}
+                  className="w-7 h-7 rounded-full bg-blue-600 hover:bg-red-600 text-white transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
+                  title="Escuchar respuesta con Voyager"
+                  aria-label="Escuchar respuesta"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-white" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAnswers(prev => !prev)}
+                  className="flex flex-col items-center justify-center gap-0.5 text-xs sm:text-sm font-bold tracking-wider uppercase text-slate-700 hover:text-red-600 transition-colors cursor-pointer group select-none"
+                  title="Haz clic para ver respuestas aceptables"
+                >
+                  <span className="group-hover:text-red-600 transition-colors">RESPUESTA</span>
+                  {showAnswers ? (
+                    <ChevronUp className="w-4 h-4 text-black group-hover:text-red-600 stroke-[3] transition-colors group-hover:-translate-y-0.5" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-black group-hover:text-red-600 stroke-[3] transition-colors group-hover:translate-y-0.5" />
+                  )}
+                </button>
+              </div>
+
+              {showAnswers && (
+                <div className="mb-3 rounded-2xl bg-[#EFEAE0]/75 border border-[#DDD5C5] p-3.5 space-y-2 text-xs sm:text-sm animate-fadeIn text-center">
+                  {question.answersEn.map((ansEn, idx) => {
+                    const ansEs = question.answersEs && question.answersEs[idx];
+                    return (
+                      <div key={idx} className="leading-snug py-0.5">
+                        <span className="font-bold text-slate-900">{ansEn}</span>
+                        {bilingual && ansEs ? (
+                          <>
+                            <span className="mx-2 text-slate-400 font-normal">/</span>
+                            <span className="text-slate-600 font-medium">{ansEs}</span>
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Navigation arrows inside card */}
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={prev}
+                  className="p-1 -ml-1 text-black hover:text-red-600 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                  title="Pregunta anterior"
+                  aria-label="Pregunta anterior"
+                >
+                  <ChevronLeft className="w-7 h-7 stroke-[2.5]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={next}
+                  className="p-1 -mr-1 text-black hover:text-red-600 active:scale-90 transition-all cursor-pointer flex items-center justify-center"
+                  title="Siguiente pregunta"
+                  aria-label="Siguiente pregunta"
+                >
+                  <ChevronRight className="w-7 h-7 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODE: EXAM / TOMA EXAMEN */}
+        {mode === 'exam' && (() => {
+          const responsesList = Object.values(examResponses) as Array<{ isCorrect: boolean; userAnswer: string; question: (typeof ALL_CIVICS_128_QUESTIONS)[0] }>;
+          const correctCount = responsesList.filter(r => r?.isCorrect).length;
+          const passThreshold = examFormat === '20_extended' ? 12 : 6;
+          const maxQuestions = examFormat === '20_extended' ? 20 : 10;
+          const currentOralQ = examQuestions[currentExamIndex];
+          const currentResponse = examResponses[currentExamIndex];
+          const isExamFinished = examStarted && examQuestions.length > 0 && Object.keys(examResponses).length >= examQuestions.length;
+
+          if (!examStarted) {
+            return (
+              <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 space-y-6 shadow-xs text-center animate-fadeIn">
+                <div className="w-14 h-14 rounded-2xl bg-[#0D224A] text-white flex items-center justify-center mx-auto shadow-md">
+                  <Award className="w-7 h-7 text-amber-400" />
+                </div>
+                <div className="space-y-2 max-w-xl mx-auto">
+                  <span className="text-xs font-bold tracking-wider uppercase text-amber-700 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+                    {selectedLang === 'EN' ? 'Official USCIS Oral Simulation' : 'Simulacro Oficial de Entrevista Oral'}
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    {selectedLang === 'EN' ? 'USCIS Civics Oral Exam with Officer Voyager' : 'Examen Cívico Oral con Oficial Voyager'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    {selectedLang === 'EN'
+                      ? 'Simulate the exact interview experience: Officer Voyager reads questions out loud in English, and you respond verbally or type your answer. 6 out of 10 correct answers are required to pass.'
+                      : 'Simula la experiencia real de la entrevista: El Oficial Voyager lee las preguntas en voz alta en inglés y tú respondes verbalmente o escribiendo. Se requieren 6 de 10 respuestas correctas para aprobar.'}
+                  </p>
+                </div>
+
+                {/* Exam Format Selector */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+                  <button
+                    type="button"
+                    onClick={() => setExamFormat('10_standard')}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
+                      examFormat === '10_standard'
+                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                      {selectedLang === 'EN' ? 'Standard 2008' : 'Estándar 2008'}
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm">
+                      {selectedLang === 'EN' ? '10 Questions (6 to Pass)' : '10 Preguntas (6 para Aprobar)'}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {selectedLang === 'EN' ? 'Most common format.' : 'Formato más común.'}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExamFormat('65_20')}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
+                      examFormat === '65_20'
+                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                      {selectedLang === 'EN' ? '65/20 Exemption' : 'Exención 65/20'}
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm">
+                      {selectedLang === 'EN' ? '20 Designated Bank' : 'Banco de 20 Especiales'}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {selectedLang === 'EN' ? 'Age 65+ with 20+ yrs GC.' : '65+ años y 20+ de residencia.'}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExamFormat('20_extended')}
+                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
+                      examFormat === '20_extended'
+                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                      {selectedLang === 'EN' ? 'Extended 2020' : 'Extendido 2020'}
+                    </div>
+                    <div className="font-bold text-slate-900 text-sm">
+                      {selectedLang === 'EN' ? '20 Questions (12 to Pass)' : '20 Preguntas (12 para Aprobar)'}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {selectedLang === 'EN' ? '20 questions format.' : 'Versión de 20 preguntas.'}
+                    </div>
+                  </button>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => startExamSimulation(examFormat)}
+                    className="px-8 py-3.5 bg-[#0D224A] hover:bg-[#15346e] text-white font-extrabold text-sm sm:text-base rounded-2xl transition cursor-pointer shadow-md inline-flex items-center gap-2"
+                  >
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                    <span>{selectedLang === 'EN' ? 'Start Oral Exam Simulation' : 'Iniciar Simulacro de Examen'}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          if (isExamFinished) {
+            const hasPassed = correctCount >= passThreshold;
+            return (
+              <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 space-y-6 shadow-xs text-center animate-fadeIn">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-md ${hasPassed ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                  {hasPassed ? <Check className="w-8 h-8 stroke-[3]" /> : <X className="w-8 h-8 stroke-[3]" />}
+                </div>
+
+                <div className="space-y-2">
+                  <span className={`text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full border ${hasPassed ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-800 border-rose-300'}`}>
+                    {hasPassed ? (selectedLang === 'EN' ? 'PASSED USCIS CIVICS EXAM' : '¡APROBASTE EL EXAMEN DE CÍVICA!') : (selectedLang === 'EN' ? 'NEEDS PRACTICE' : 'REQUIERE MÁS PRÁCTICA')}
+                  </span>
+                  <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    {correctCount} / {examQuestions.length} {selectedLang === 'EN' ? 'Correct Answers' : 'Respuestas Correctas'}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
+                    {hasPassed
+                      ? (selectedLang === 'EN' ? `Congratulations! You achieved the ${passThreshold} required correct answers under federal USCIS standards.` : `¡Felicitaciones! Cumpliste con las ${passThreshold} respuestas correctas requeridas según los estándares de USCIS.`)
+                      : (selectedLang === 'EN' ? `You need ${passThreshold} correct answers to pass. Review with the COMPRENDE and PRACTICA modes and try again!` : `Necesitas ${passThreshold} respuestas correctas para aprobar. Repasa con los modos COMPRENDE y PRACTICA e inténtalo de nuevo.`)}
+                  </p>
+                </div>
+
+                {/* Question Breakdown List */}
+                <div className="text-left space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+                  {examQuestions.map((q, idx) => {
+                    const resp = examResponses[idx];
+                    return (
+                      <div key={idx} className={`p-3 rounded-xl border text-xs sm:text-sm flex items-start gap-2.5 ${resp?.isCorrect ? 'bg-emerald-50/70 border-emerald-200' : 'bg-rose-50/70 border-rose-200'}`}>
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${resp?.isCorrect ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+                          {resp?.isCorrect ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <X className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                        <div className="space-y-0.5 flex-1">
+                          <div className="font-bold text-slate-900">{idx + 1}. {q.questionEn}</div>
+                          <div className="text-slate-600 text-xs">
+                            <span className="font-semibold">{selectedLang === 'EN' ? 'Your Answer: ' : 'Tu Respuesta: '}</span>
+                            <span>{resp?.userAnswer || (selectedLang === 'EN' ? 'No answer' : 'Sin respuesta')}</span>
+                          </div>
+                          {!resp?.isCorrect && (
+                            <div className="text-slate-700 text-xs">
+                              <span className="font-semibold text-emerald-800">{selectedLang === 'EN' ? 'Accepted: ' : 'Aceptable: '}</span>
+                              <span>{q.answersEn[0]}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => startExamSimulation(examFormat)}
+                    className="px-6 py-2.5 bg-[#0D224A] hover:bg-[#15346e] text-white font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer shadow-xs"
+                  >
+                    {selectedLang === 'EN' ? 'Take Another Exam' : 'Tomar Otro Examen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('bilingual')}
+                    className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer border border-slate-300"
+                  >
+                    {selectedLang === 'EN' ? 'Back to COMPRENDE' : 'Volver a COMPRENDE'}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          if (!currentOralQ) return null;
+
+          return (
+            <div className="rounded-3xl bg-[#F7F4EE] border border-[#E5DFD3] p-5 sm:p-7 shadow-xs space-y-4 relative animate-fadeIn">
+              {/* Header Status Bar */}
+              <div className="flex items-center justify-between gap-2 border-b border-[#EAE4D8] pb-3 text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#0D224A] text-white text-[11px]">
+                    {selectedLang === 'EN' ? `Question ${currentExamIndex + 1} of ${examQuestions.length}` : `Pregunta ${currentExamIndex + 1} de ${examQuestions.length}`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px]">
+                    {selectedLang === 'EN' ? `Score: ${correctCount} (${passThreshold} to pass)` : `Aciertos: ${correctCount} (${passThreshold} para aprobar)`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Central Question Display */}
+              <div className="py-2 text-center space-y-2">
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prompt = `[SYSTEM INSTRUCTION: As Officer Voyager, read question #${currentExamIndex + 1} clearly in English: "${currentOralQ.questionEn}".]`;
+                      onAskVoyager(prompt);
+                    }}
+                    className="w-10 h-10 rounded-full bg-blue-600 hover:bg-red-600 text-white transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-sm"
+                    title={selectedLang === 'EN' ? 'Listen to Officer Voyager' : 'Escuchar a Oficial Voyager'}
+                  >
+                    <Volume2 className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 leading-snug max-w-xl mx-auto">
+                  {currentOralQ.questionEn}
+                </h3>
+                {selectedLang === 'ES' && (
+                  <p className="text-xs sm:text-sm text-slate-500 italic">
+                    {currentOralQ.questionEs}
+                  </p>
+                )}
+              </div>
+
+              {/* Input / Voice Response Area */}
+              <div className="bg-white rounded-2xl p-4 border border-[#DDD5C5] space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={examInputText}
+                    onChange={(e) => setExamInputText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && examInputText.trim()) {
+                        handleEvaluateExamAnswer(examInputText);
+                      }
+                    }}
+                    placeholder={
+                      selectedLang === 'EN'
+                        ? 'Type or speak your answer in English...'
+                        : 'Escribe o di tu respuesta en inglés...'
+                    }
+                    className="flex-1 px-3 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0D224A] text-slate-900"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleEvaluateExamAnswer(examInputText)}
+                    disabled={!examInputText.trim()}
+                    className="px-4 py-2.5 bg-[#0D224A] hover:bg-[#15346e] disabled:opacity-50 text-white font-bold text-xs rounded-xl transition cursor-pointer shrink-0 shadow-xs"
+                  >
+                    {selectedLang === 'EN' ? 'Check Answer' : 'Evaluar'}
+                  </button>
+                </div>
+
+                {/* Evaluation Status Banner */}
+                {currentResponse && (
+                  <div className={`p-3 rounded-xl border text-xs sm:text-sm space-y-1.5 animate-fadeIn ${currentResponse.isCorrect ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'}`}>
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="flex items-center gap-1.5">
+                        {currentResponse.isCorrect ? <Check className="w-4 h-4 text-emerald-600 stroke-[3]" /> : <X className="w-4 h-4 text-rose-600 stroke-[3]" />}
+                        {currentResponse.isCorrect ? (selectedLang === 'EN' ? 'Correct!' : '¡Correcto!') : (selectedLang === 'EN' ? 'Incorrect / Not Quite' : 'Incorrecto')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowExamAcceptedAnswers(!showExamAcceptedAnswers)}
+                        className="text-xs text-slate-600 underline cursor-pointer hover:text-slate-900"
+                      >
+                        {showExamAcceptedAnswers ? (selectedLang === 'EN' ? 'Hide Answers' : 'Ocultar Respuestas') : (selectedLang === 'EN' ? 'View Accepted Answers' : 'Ver Respuestas Aceptadas')}
+                      </button>
+                    </div>
+
+                    {showExamAcceptedAnswers && (
+                      <div className="pt-1 text-xs text-slate-700 border-t border-slate-200/60 space-y-1">
+                        <div className="font-semibold">{selectedLang === 'EN' ? 'Acceptable USCIS answers:' : 'Respuestas aceptables por USCIS:'}</div>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {currentOralQ.answersEn.map((ans, idx) => (
+                            <li key={idx}>{ans}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Navigation */}
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentExamIndex > 0) {
+                      setCurrentExamIndex(currentExamIndex - 1);
+                      setExamInputText('');
+                      setShowExamAcceptedAnswers(false);
+                    }
+                  }}
+                  disabled={currentExamIndex === 0}
+                  className="p-1 -ml-1 text-black hover:text-red-600 disabled:opacity-30 disabled:hover:text-black transition-all cursor-pointer flex items-center justify-center"
+                  title={selectedLang === 'EN' ? 'Previous Question' : 'Pregunta anterior'}
+                >
+                  <ChevronLeft className="w-7 h-7 stroke-[2.5]" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleNextExamQuestion}
+                  className="px-5 py-2 bg-[#0D224A] hover:bg-[#15346e] text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                >
+                  <span>{currentExamIndex + 1 === examQuestions.length ? (selectedLang === 'EN' ? 'Finish Exam' : 'Finalizar Examen') : (selectedLang === 'EN' ? 'Next Question' : 'Siguiente Pregunta')}</span>
+                  <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -411,6 +1171,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  const [rightPanelTab, setRightPanelTab] = useState<'home' | 'chat' | 'citizenship' | 'civics' | 'roadmap' | 'teachers' | 'progress' | 'settings' | 'shopping'>('home');
  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
+ const [isPassportModeMenuOpen, setIsPassportModeMenuOpen] = useState(false);
+ const [isInputActionsMenuOpen, setIsInputActionsMenuOpen] = useState(false);
  const [lastUserVoiceTranscription, setLastUserVoiceTranscription] = useState<string>('');
 
  const {
@@ -444,6 +1206,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  pronunciationEvents,
  chatMessages,
  setChatMessages,
+ addSystemMessage,
  addUserMessage,
  connect,
  disconnect,
@@ -465,6 +1228,36 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     const s = totalSeconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }, []);
+
+  const startOfficialCitizenshipOralExam = useCallback(() => {
+    setHasClickedConnect(true);
+    setHasInteracted(true);
+    setOnboardingStep(4);
+    setRightPanelTab('civics');
+    window.location.hash = '#/civics';
+
+    // Explicitly enforce 100% American English mode for the naturalization exam
+    setSelectedLang('EN');
+    switchMode('AMERICAN_ENGLISH', 'EN');
+    setChosenStartMode('AMERICAN_ENGLISH');
+
+    const oralExamInstruction = ConversationModePolicy.buildOfficialCitizenshipTestInstruction();
+
+    if (isPaused) {
+      resume(true);
+    }
+
+    if (isConnected) {
+      sendText(oralExamInstruction);
+    } else {
+      connect(oralExamInstruction, true, 'EN');
+    }
+
+    addSystemMessage(
+      '🏛️ USCIS Naturalization Civics Test started (20 Questions - Strictly English Only). Officer Voyager will ask questions one by one in English.',
+      `msg_sys_civics_${Date.now()}`
+    );
+  }, [isConnected, isPaused, connect, sendText, switchMode, setSelectedLang, resume, setHasInteracted, addSystemMessage]);
 
   const goToCiudadaniaDirectly = useCallback(() => {
     setHasClickedConnect(true);
@@ -879,7 +1672,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  for (let i = 0; i < numParticles; i++) {
  particles.push({
  angle: Math.random() * 2 * Math.PI,
- // Bell-curve concentration around radius 64 (56 * 1.15)
+ // Bell-curve concentration around radius 64 (100 * 1.15)
  r: 52 + Math.random() * 21 + (Math.random() - 0.5) * 9,
  speed: (Math.random() * 0.004 + 0.001) * (Math.random() < 0.5 ? 1 : -1),
  pulsePhase: Math.random() * 2 * Math.PI,
@@ -929,14 +1722,16 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  ctx.shadowBlur = 0;
  ctx.shadowColor = 'transparent';
 
- // Radial background glow (gold)
- let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, (109 + currentVolume * 0.5) * scale);
- grad.addColorStop(0, 'rgba(255, 223, 0, 0.45)');
- grad.addColorStop(0.5, 'rgba(255, 215, 0, 0.18)');
- grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+ // Radial background glow (gold) with smooth gradual falloff
+ const maxRadius = (115 + currentVolume * 0.5) * scale;
+ let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
+ grad.addColorStop(0, 'rgba(255, 223, 0, 0.40)');
+ grad.addColorStop(0.45, 'rgba(255, 215, 0, 0.15)');
+ grad.addColorStop(0.8, 'rgba(255, 215, 0, 0.04)');
+ grad.addColorStop(1, 'rgba(255, 215, 0, 0)');
  ctx.fillStyle = grad;
  ctx.beginPath();
- ctx.arc(centerX, centerY, (109 + currentVolume * 0.5) * scale, 0, 2 * Math.PI);
+ ctx.arc(centerX, centerY, maxRadius, 0, 2 * Math.PI);
  ctx.fill();
 
  // Shimmering dust particles
@@ -1594,9 +2389,19 @@ ${greetingPrompt}`;
 
   const handlePauseButtonClick = () => {
     pause();
-    if (typeof window !== "undefined" && window.speechSynthesis && window.speechSynthesis.speaking) {
-      window.speechSynthesis.pause();
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
+    setChatMessages(prev => [
+      ...prev,
+      {
+        id: `msg_sys_pause_${Date.now()}`,
+        sender: 'system',
+        text: selectedLang === 'EN' ? '⏸️ Conversation paused.' : '⏸️ Conversación en pausa.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timeMs: Date.now()
+      }
+    ]);
   };
  // Text message send
  const handleSendMessage = (e: React.FormEvent) => {
@@ -1835,76 +2640,200 @@ ${greetingPrompt}`;
 
  {/* Glowing Golden Energy Sphere */}
  <div className="relative flex-grow flex-shrink min-h-0 w-full flex items-center justify-center pt-1 pb-4 md:pt-2 md:pb-6">
- <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-tr from-yellow-500/10 via-amber-500/15 to-orange-500/10 blur-3xl animate-pulse duration-[3000ms] pointer-events-none" />
+ <div className="absolute w-52 h-52 sm:w-64 sm:h-64 rounded-full bg-amber-500/10 blur-2xl animate-pulse pointer-events-none" />
  
  <div className="relative aspect-square max-h-full max-w-full flex items-center justify-center">
  <canvas 
- ref={particleCanvasRef} 
- width={720} 
- height={720} 
- className="z-20 transition-transform duration-75 animate-float-zero-g max-h-full max-w-full object-contain"
- style={{ width: '100%', height: '100%' }}
- />
- </div>
- </div>
+  ref={particleCanvasRef} 
+  width={720} 
+  height={720} 
+  className="z-20 transition-transform duration-75 animate-float-zero-g max-h-full max-w-full object-contain"
+  style={{ width: '100%', height: '100%' }}
+  />
+  </div>
+  </div>
 
- {/* Bottom Button Panel */}
+  {/* Bottom Button Panel */}
   <div className="pb-4 md:pb-7 w-full z-10 flex items-center justify-center gap-3">
-    <div className="flex items-center justify-between gap-3.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-[#0D224A]/80 border-[1.5pt] border-white/40 hover:border-white/70 backdrop-blur-md text-white shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition-all duration-300 select-none">
-      {/* 1. Chronometer area: Session length timer */}
-      <div 
-        className="flex items-center gap-2 font-mono text-xs sm:text-sm md:text-base font-bold tracking-wider text-white cursor-pointer" 
-        title={selectedLang === "EN" ? "Session duration" : "Duración de la sesión"}
-        onClick={handlePlayButtonClick}
+    {!hasClickedConnect ? (
+      <button
+        onClick={handleConnectClick}
+        className="px-6 py-2 sm:px-8 sm:py-2.5 rounded-full bg-[#0D224A]/80 border-[1.5pt] border-white/40 hover:border-white/70 backdrop-blur-md text-white shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition-all duration-300 select-none cursor-pointer active:scale-95 hover:bg-[#15346e] flex items-center justify-center font-bold tracking-widest text-xs sm:text-sm md:text-base uppercase font-mono"
+        title={selectedLang === 'EN' ? 'Enter' : 'Entrada'}
       >
-        <Timer className={`w-3.5 h-3.5 ${(!hasClickedConnect || !isConnected || isPaused) ? "text-amber-400" : "text-emerald-400 animate-pulse"}`} />
-        <span>{formatChronometer(hasClickedConnect && isConnected ? secondsElapsed : 0)}</span>
+        <span>ENTRADA</span>
+      </button>
+    ) : (
+      <div className="relative flex items-center justify-center gap-2 sm:gap-2.5">
+        <div className="flex items-center justify-between gap-3.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-[#0D224A]/80 border-[1.5pt] border-white/40 hover:border-white/70 backdrop-blur-md text-white shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition-all duration-300 select-none">
+          {/* 1. Chronometer area: Session length timer */}
+          <div 
+            className="flex items-center font-mono text-xs sm:text-sm md:text-base font-normal tracking-wider text-white cursor-pointer" 
+            title={selectedLang === "EN" ? "Session duration" : "Duración de la sesión"}
+            onClick={handlePlayButtonClick}
+          >
+            <span>{formatChronometer(hasClickedConnect && isConnected ? secondsElapsed : 0)}</span>
+          </div>
+
+          {/* 2. Play / Pause action icon */}
+          <button
+            onClick={() => {
+              if (!hasClickedConnect || !isConnected || isPaused) {
+                handlePlayButtonClick();
+              } else {
+                handlePauseButtonClick();
+              }
+            }}
+            className={`p-1.5 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center ${
+              (!hasClickedConnect || !isConnected || isPaused)
+                ? "text-amber-300 hover:text-amber-200"
+                : "text-white hover:text-[#FFD700]"
+            }`}
+            title={
+              !hasClickedConnect || !isConnected
+                ? (selectedLang === "EN" ? "Turn on Voyager & Start Session" : "Encender Voyager e Iniciar Sesión")
+                : isPaused
+                ? (selectedLang === "EN" ? "Resume session" : "Reanudar sesión")
+                : (selectedLang === "EN" ? "Pause session" : "Pausar sesión")
+            }
+          >
+            {(!hasClickedConnect || !isConnected || isPaused) ? (
+              <Play className="w-4 h-4 fill-current text-amber-300 hover:text-amber-200" />
+            ) : (
+              <Pause className="w-4 h-4 fill-current" />
+            )}
+          </button>
+
+          {/* 3. Stop / Close action icon */}
+          <button
+            onClick={handleEndSessionClick}
+            className="p-1.5 text-white hover:text-white/80 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center"
+            title={selectedLang === "EN" ? "Finish / Close Session" : "Finalizar / Cerrar Sesión"}
+          >
+            <Square className="w-3.5 h-3.5 fill-current text-white hover:text-white/80" />
+          </button>
+        </div>
+
+        {/* Standalone Circular Plus (+) Mode Button matching image */}
+        <div className="relative">
+          <button
+            onClick={() => setIsPassportModeMenuOpen(prev => !prev)}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#15274A]/90 hover:bg-[#1E3768] border-[1.5pt] border-white/30 hover:border-white/60 shadow-[0_8px_20px_rgba(0,0,0,0.35)] backdrop-blur-md text-[#EAB308] hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center active:scale-95 ${
+              isPassportModeMenuOpen ? 'rotate-45 bg-[#1E3768] border-[#EAB308]' : ''
+            }`}
+            title={selectedLang === 'EN' ? 'Conversation Modes' : 'Modos de Conversación'}
+          >
+            <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
+          </button>
+
+          {/* Submenu Popover from Plus Button */}
+          {isPassportModeMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => setIsPassportModeMenuOpen(false)}
+              />
+              <div className="absolute bottom-full right-0 mb-2.5 z-50 w-56 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl animate-fade-in flex flex-col text-white">
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                  {modeDetails.map((mode) => {
+                    const name = mode.nameEs;
+                    const desc = mode.descEs;
+                    const effectiveMode = isPaused ? null : currentModeObj.id;
+                    const isSelected = effectiveMode === mode.id;
+
+                    const renderModeIcon = () => {
+                      const colorClass = isSelected ? 'text-[#EAB308]' : 'text-white/70';
+                      if (mode.id === 'SPANISH') {
+                        return (
+                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                            ES
+                          </span>
+                        );
+                      }
+                      if (mode.id === 'BILINGUAL') {
+                        return <RotateCw className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                      }
+                      if (mode.id === 'AMERICAN_ENGLISH') {
+                        return (
+                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                            EN
+                          </span>
+                        );
+                      }
+                      if (mode.id === 'LIVE_TRANSLATOR') {
+                        return <Languages className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                      }
+                      return <Headphones className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                    };
+
+                    return (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          if (isPaused) {
+                            resume(true);
+                          }
+                          handleModeSelection(mode.id as ConversationMode);
+                          applyChosenMode(mode.id as ConversationMode);
+                          if (isConnected) {
+                            sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${name}". Cambia tu estilo e idioma inmediatamente a este modo: "${desc}"]`);
+                          }
+                          setIsPassportModeMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
+                            : 'text-white/80 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                            {renderModeIcon()}
+                          </div>
+                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
+                            isSelected ? 'font-bold text-[#EAB308]' : 'font-normal'
+                          }`}>
+                            {name}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                  {/* PAUSA Option */}
+                  <button
+                    onClick={() => {
+                      if (!isPaused) {
+                        handlePauseButtonClick();
+                      } else {
+                        resume(true);
+                      }
+                      setIsPassportModeMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                      isPaused
+                        ? 'bg-[#EAB308]/15 text-[#EAB308]'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                        <Pause className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
+                      </div>
+                      <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
+                        isPaused ? 'font-bold text-[#EAB308]' : 'font-normal'
+                      }`}>
+                        Pausa
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-
-      {/* Divider */}
-      <div className="h-4 w-[1px] bg-white/25" />
-
-      {/* 2. Play / Pause action icon */}
-      <button
-        onClick={() => {
-          if (!hasClickedConnect || !isConnected || isPaused) {
-            handlePlayButtonClick();
-          } else {
-            handlePauseButtonClick();
-          }
-        }}
-        className={`p-1.5 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center ${
-          (!hasClickedConnect || !isConnected || isPaused)
-            ? "text-amber-300 hover:text-amber-200"
-            : "text-white hover:text-[#FFD700]"
-        }`}
-        title={
-          !hasClickedConnect || !isConnected
-            ? (selectedLang === "EN" ? "Turn on Voyager & Start Session" : "Encender Voyager e Iniciar Sesión")
-            : isPaused
-            ? (selectedLang === "EN" ? "Resume session" : "Reanudar sesión")
-            : (selectedLang === "EN" ? "Pause session" : "Pausar sesión")
-        }
-      >
-        {(!hasClickedConnect || !isConnected || isPaused) ? (
-          <Play className="w-4 h-4 fill-current text-amber-300 hover:text-amber-200" />
-        ) : (
-          <Pause className="w-4 h-4 fill-current" />
-        )}
-      </button>
-
-      {/* Divider */}
-      <div className="h-4 w-[1px] bg-white/25" />
-
-      {/* 3. Stop / Close action icon */}
-      <button
-        onClick={handleEndSessionClick}
-        className="p-1.5 text-white/80 hover:text-red-400 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center"
-        title={selectedLang === "EN" ? "Finish / Close Session" : "Finalizar / Cerrar Sesión"}
-      >
-        <Square className="w-3.5 h-3.5 fill-current text-red-500 hover:text-red-400" />
-      </button>
-    </div>
+    )}
   </div>
   </div>
 
@@ -1913,7 +2842,7 @@ ${greetingPrompt}`;
  {!hasClickedConnect ? (
  /* Disconnected Landing Screen inside the Cover */
  <>
- <div className="flex-1 flex flex-col items-center justify-center pt-2 pb-2 w-full relative z-10 gap-3">
+ <div className="flex-1 flex flex-col items-center justify-center pt-2 pb-2 w-full relative z-10">
  <img 
  src="https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k" 
  alt="Voyager USA Mascot" 
@@ -1922,18 +2851,6 @@ ${greetingPrompt}`;
  title={selectedLang === 'EN' ? 'Click to Connect' : 'Haz clic para conectar'}
  className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] max-w-[95%] max-h-[40vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply" 
  />
-
- {/* Direct American Flag Shortcut to CIUDADANÍA 128 */}
- <button
-   onClick={goToCiudadaniaDirectly}
-   className="px-5 py-2.5 bg-[#0D224A] hover:bg-[#15346e] text-white rounded-full flex items-center gap-2.5 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95 border border-amber-400/30 group z-20"
-   title={selectedLang === 'EN' ? 'Go directly to Civics 128 Study Guide' : 'Ir directamente a Ciudadanía 128'}
- >
-   <UsaFlagIcon className="w-6 h-4" />
-   <span className="font-bold text-xs sm:text-sm tracking-wider uppercase font-mono group-hover:text-amber-300 transition-colors">
-     {selectedLang === 'EN' ? 'CIUDADANÍA 128' : 'CIUDADANÍA 128'}
-   </span>
- </button>
  </div>
 
 
@@ -2026,7 +2943,9 @@ ${greetingPrompt}`;
  )}
  {rightPanelTab === 'citizenship' && (
   <span className="text-[13px] sm:text-[16px] text-slate-700 font-normal tracking-tight mt-0.5 pb-2 block truncate max-w-[360px] sm:max-w-xl">
-    Primero comprende; después practica con confianza...
+    {selectedLang === 'EN'
+      ? 'First understand, then practice, and finally take the exam.'
+      : 'Primero comprende, luego practica y finalmente toma el examen.'}
   </span>
  )}
  </div>
@@ -2045,46 +2964,59 @@ ${greetingPrompt}`;
  />
 
  {/* Column Menu Drawer */}
- <div className="absolute top-full left-2 mt-1 w-[165px] min-w-[165px] z-50 bg-[#0D224A]/50 backdrop-blur-md rounded-2xl shadow-2xl py-2 px-0 overflow-hidden flex flex-col gap-1 animate-slide-down">
+ <div className="absolute top-full left-2 mt-2 w-52 z-50 bg-[#0B1B3D]/95 border border-[#FFD700]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white">
  {[
- { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'Home' : 'Inicio', hash: '' },
- { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'Citizenship' : 'Ciudadanía', hash: '#/citizenship' },
- { id: 'civics', icon: Award, label: selectedLang === 'EN' ? 'Civics 128' : 'Tarjetas USCIS', hash: '#/civics' },
- { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'Chat' : 'Charla', hash: '' },
- { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'Teacher' : 'La Profe', hash: '' },
- { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName : (selectedLang === 'EN' ? 'Guest' : 'Invitado'), hash: '' },
- { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'Store' : 'La Tienda', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
- { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'Settings' : 'Configura', hash: '' },
+ { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'HOME' : 'INICIO', hash: '' },
+ { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'CITIZENSHIP' : 'CIUDADANÍA', hash: '#/citizenship' },
+ { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'CHAT' : 'CHARLA', hash: '' },
+ { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'TEACHER' : 'LA PROFE', hash: '' },
+ { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName.toUpperCase() : (selectedLang === 'EN' ? 'GUEST' : 'INVITADO'), hash: '' },
+ { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'STORE' : 'LA TIENDA', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
+ { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'SETTINGS' : 'CONFIGURA', hash: '' },
  ].map((item) => {
  const IconComponent = item.icon;
- const activeTab = !hasInteracted ? 'home' : rightPanelTab;
- const isActive = activeTab === item.id;
+ const isCitizenshipActive = item.id === 'citizenship' && (rightPanelTab === 'citizenship' || rightPanelTab === 'civics');
+ const isHomeActive = item.id === 'home' && rightPanelTab === 'home';
+ const isActive = isCitizenshipActive || isHomeActive || (rightPanelTab === item.id);
  return (
  <button
  key={item.id}
  onClick={() => {
- if (item.id === 'civics') {
-   goToCiudadaniaDirectly();
+ if (item.id === 'citizenship' || item.id === 'civics') {
+   setRightPanelTab('citizenship');
+   window.location.hash = '#/citizenship';
+   setHasInteracted(true);
+ } else if (item.id === 'home') {
+   setRightPanelTab('home');
+   window.location.hash = '';
  } else {
    setRightPanelTab(item.id as any);
    window.location.hash = item.hash;
+   setHasInteracted(true);
+ }
+ if (!isConnected) {
+   connect(undefined, true);
+ } else if (isPaused) {
+   resume();
  }
  setIsNavMenuOpen(false);
  }}
- className={`w-full flex items-center justify-between px-3 py-2 transition-all cursor-pointer ${
+ className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
  isActive 
- ? 'bg-[#0B1B3D] text-white font-bold border border-white/30 relative z-10 shadow-md' 
- : 'text-white/60 hover:text-white hover:bg-white/10'
+ ? 'bg-[#FFD700]/15 text-[#FFD700] font-bold' 
+ : 'text-white/80 hover:text-white hover:bg-white/10 font-semibold'
  }`}
  >
- <div className="flex items-center gap-2.5">
- <IconComponent className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? 'text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.9)]' : 'text-white/60'}`} />
- <span style={{ fontFamily: '"Allerta", sans-serif' }} className={`text-xs sm:text-sm tracking-wide ${isActive ? 'font-bold text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.9)]' : 'font-normal'}`}>
+ <div className="flex items-center gap-2.5 min-w-0">
+ <div className="w-4 h-4 flex items-center justify-center shrink-0">
+ <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FFD700]' : 'text-white/70'}`} />
+ </div>
+ <span className="text-xs uppercase tracking-wider leading-tight whitespace-nowrap">
  {item.label}
  </span>
  </div>
  {item.badge && (
- <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border-none">
+ <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
  {item.badge}
  </span>
  )}
@@ -2132,7 +3064,7 @@ ${greetingPrompt}`;
  ) : (
  <div className="flex-grow flex flex-col overflow-hidden pt-5 px-5 pb-1.5 md:pt-8 md:px-8 md:pb-2 min-h-0 bg-white">
  {/* Old sub-header bar has been removed */}
-          {(!hasInteracted && hasClickedConnect) ? (
+          {(!hasInteracted && hasClickedConnect && rightPanelTab === 'home') ? (
  <div className="flex-grow flex flex-col justify-center items-center overflow-y-auto p-4 md:p-6 tab-content-area h-full select-none">
  <div className="w-full max-w-2xl mx-auto flex flex-col justify-start p-2 sm:p-4 animate-fade-in">
  {authNotification && (
@@ -2985,20 +3917,22 @@ ${greetingPrompt}`;
 
  <div className="flex-1 px-0.5 sm:px-1.5 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0">
   {isLiveVoiceActive ? (
-    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0B1B3D] via-[#0D224A] to-[#061126] rounded-none border-none shadow-none p-3 sm:p-5 md:p-6 pb-4 sm:pb-6 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
+    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none p-3 sm:p-5 md:p-6 pb-8 sm:pb-12 md:pb-14 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
      {/* Top Left Menu Button */}
      <button
        onClick={() => setIsNavMenuOpen(!isNavMenuOpen)}
        title={selectedLang === 'EN' ? 'Menu' : 'Menú'}
        aria-label={selectedLang === 'EN' ? 'Menu' : 'Menú'}
-       className="absolute top-4 left-4 z-30 p-1.5 text-white hover:text-amber-300 bg-transparent border-none rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 outline-none"
+       className="absolute top-4 left-4 z-30 p-2 text-white hover:text-amber-300 bg-transparent border-none rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 outline-none"
      >
-       {isNavMenuOpen ? <X className="w-5 h-5 text-white" strokeWidth={3} /> : <Menu className="w-5 h-5 text-white" strokeWidth={3} />}
-       {cartCount > 0 && !isNavMenuOpen && (
-         <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 border-none">
-           {cartCount}
-         </span>
-       )}
+       <div className="relative">
+         {isNavMenuOpen ? <X className="w-6 h-6 text-white" strokeWidth={2.5} /> : <Menu className="w-6 h-6 text-white" strokeWidth={2.5} />}
+         {!isNavMenuOpen && (
+           <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] flex items-center justify-center px-0.5 border border-[#0A1838]">
+             {cartCount > 0 ? cartCount : 1}
+           </span>
+         )}
+       </div>
      </button>
 
      {/* Vertical Navigation Dropdown Menu in Live Overlay */}
@@ -3008,46 +3942,60 @@ ${greetingPrompt}`;
            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity" 
            onClick={() => setIsNavMenuOpen(false)} 
          />
-         <div className="absolute top-16 left-4 z-50 w-[165px] min-w-[165px] bg-[#0D224A]/90 border-none backdrop-blur-md rounded-2xl shadow-2xl py-2 px-0 overflow-hidden flex flex-col gap-1 animate-slide-down text-left">
+         <div className="absolute top-16 left-4 z-50 w-52 bg-[#0B1B3D]/95 border border-[#FFD700]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
            {[
-             { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'Home' : 'Inicio', hash: '' },
-             { id: 'civics', icon: Award, label: selectedLang === 'EN' ? 'Civics 128' : 'Ciudadanía 128', hash: '#/civics' },
-             { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'Chat' : 'Charla', hash: '' },
-             { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'Teacher' : 'La Profe', hash: '' },
-             { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName : (selectedLang === 'EN' ? 'Guest' : 'Invitado'), hash: '' },
-             { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'Store' : 'La Tienda', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
-             { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'Settings' : 'Configura', hash: '' },
+             { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'HOME' : 'INICIO', hash: '' },
+             { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'CITIZENSHIP' : 'CIUDADANÍA', hash: '#/citizenship' },
+             { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'CHAT' : 'CHARLA', hash: '' },
+             { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'TEACHER' : 'LA PROFE', hash: '' },
+             { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName.toUpperCase() : (selectedLang === 'EN' ? 'GUEST' : 'INVITADO'), hash: '' },
+             { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'STORE' : 'LA TIENDA', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
+             { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'SETTINGS' : 'CONFIGURA', hash: '' },
            ].map((item) => {
              const IconComponent = item.icon;
-             const activeTab = !hasInteracted ? 'home' : rightPanelTab;
-             const isActive = activeTab === item.id;
+             const isCitizenshipActive = item.id === 'citizenship' && (rightPanelTab === 'citizenship' || rightPanelTab === 'civics');
+             const isHomeActive = item.id === 'home' && rightPanelTab === 'home';
+             const isActive = isCitizenshipActive || isHomeActive || (rightPanelTab === item.id);
              return (
                <button
                  key={item.id}
                  onClick={() => {
-                   if (item.id === 'civics') {
-                     goToCiudadaniaDirectly();
+                   if (item.id === 'citizenship' || item.id === 'civics') {
+                     setRightPanelTab('citizenship');
+                     window.location.hash = '#/citizenship';
+                     setHasInteracted(true);
+                   } else if (item.id === 'home') {
+                     setRightPanelTab('home');
+                     window.location.hash = '';
                    } else {
                      setRightPanelTab(item.id as any);
                      window.location.hash = item.hash;
+                     setHasInteracted(true);
+                   }
+                   if (!isConnected) {
+                     connect(undefined, true);
+                   } else if (isPaused) {
+                     resume();
                    }
                    setIsNavMenuOpen(false);
                    setIsLiveVoiceActive(false);
                  }}
-                 className={`w-full flex items-center justify-between px-3 py-2 transition-all cursor-pointer ${
+                 className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
                    isActive 
-                     ? 'bg-[#0B1B3D] text-white font-bold border border-white/30 relative z-10 shadow-md' 
-                     : 'text-white/60 hover:text-white hover:bg-white/10'
+                     ? 'bg-[#FFD700]/15 text-[#FFD700] font-bold' 
+                     : 'text-white/80 hover:text-white hover:bg-white/10 font-semibold'
                  }`}
                >
-                 <div className="flex items-center gap-2.5">
-                   <IconComponent className={`w-4 h-4 sm:w-5 sm:h-5 ${isActive ? 'text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.9)]' : 'text-white/60'}`} />
-                   <span style={{ fontFamily: '"Allerta", sans-serif' }} className={`text-xs sm:text-sm tracking-wide ${isActive ? 'font-bold text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.9)]' : 'font-normal'}`}>
+                 <div className="flex items-center gap-2.5 min-w-0">
+                   <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                     <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FFD700]' : 'text-white/70'}`} />
+                   </div>
+                   <span className="text-xs uppercase tracking-wider leading-tight whitespace-nowrap">
                      {item.label}
                    </span>
                  </div>
                  {item.badge && (
-                   <span className="bg-red-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                   <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
                      {item.badge}
                    </span>
                  )}
@@ -3059,124 +4007,112 @@ ${greetingPrompt}`;
      )}
 
      {/* Top Center Logo */}
-     <div className="pt-1 flex flex-col items-center justify-center text-center select-none z-20">
-       <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-widest block leading-none">
+     <div className="pt-2 flex flex-col items-center justify-center text-center select-none z-20">
+       <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[11px] sm:text-xs font-bold text-white/80 uppercase tracking-widest block leading-none">
          YO SOY USA
        </span>
-       <h1 style={{ fontFamily: '"Allerta Stencil", sans-serif', textShadow: '0 2px 12px rgba(0,0,0,0.7)', letterSpacing: '0.12em' }} className="text-2xl sm:text-3xl md:text-[38px] font-black text-white mt-1 uppercase block leading-none">
-         VOYAGER<span className="text-[0.3em] font-light text-white/90 align-baseline ml-1 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span>
+       <h1 style={{ fontFamily: '"Allerta Stencil", sans-serif', textShadow: '0 2px 12px rgba(0,0,0,0.7)', letterSpacing: '0.12em' }} className="text-2xl sm:text-3xl md:text-[36px] font-black text-white mt-1.5 uppercase block leading-none">
+         VOYAGER<span className="text-[0.35em] font-light text-white/90 align-baseline ml-1 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span>
        </h1>
-       <span style={{ fontFamily: "'Raleway', 'Allerta', sans-serif", letterSpacing: '0.18em' }} className="text-[8px] sm:text-[9.5px] md:text-[10.5px] font-normal text-[#FFD700] uppercase tracking-widest mt-1.5 block leading-tight drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">
-         TU PASAPORTE AL INGLÉS AMERICANO
-       </span>
      </div>
 
      {/* Center Sound Bubble Canvas */}
-     <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center my-1 sm:my-2 w-full overflow-hidden">
-       <div className="absolute inset-0 rounded-full bg-amber-500/10 blur-3xl animate-pulse pointer-events-none" />
+     <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center my-1 sm:my-2 w-full">
+       <div className="absolute w-64 h-64 sm:w-80 sm:h-80 md:w-[420px] md:h-[420px] rounded-full bg-amber-500/10 blur-3xl animate-pulse pointer-events-none" />
        <canvas
          ref={coverParticleCanvasRef}
          width={720}
          height={720}
-         className="z-10 w-48 h-48 xs:w-64 xs:h-64 sm:w-80 sm:h-80 md:w-[380px] md:h-[380px] max-h-[36vh] max-w-full object-contain animate-float-zero-g"
+         className="z-10 w-64 h-64 xs:w-80 xs:h-80 sm:w-[420px] sm:h-[420px] md:w-[520px] md:h-[520px] max-h-[52vh] max-w-full object-contain animate-float-zero-g"
        />
-
-       {/* Audio Wave Toggle Button for Pause / Play Live Mode */}
-       <button
-         onClick={() => {
-           if (!isConnected) {
-             connect();
-           } else if (isPaused) {
-             resume();
-           } else {
-             pause();
-           }
-         }}
-         title={isPaused ? (selectedLang === 'EN' ? 'Resume Voice' : 'Activar Voz') : (selectedLang === 'EN' ? 'Pause Voice' : 'Pausar Voz')}
-         className={`z-20 mt-2 sm:mt-3 w-12 h-12 sm:w-14 sm:h-14 rounded-full shadow-lg transition-all cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 border ${
-           isPaused
-             ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50'
-             : 'bg-white text-[#0D224A] hover:bg-white/90 border-white/80 shadow-amber-500/20'
-         }`}
-       >
-         {isPaused ? (
-           <AudioLines className="w-6 h-6 sm:w-7 sm:h-7 text-amber-300 opacity-50" />
-         ) : (
-           <AudioLines className="w-6 h-6 sm:w-7 sm:h-7 text-[#0D224A] animate-pulse" />
-         )}
-       </button>
-
-       <div className="flex flex-col items-center gap-1 mt-2.5 sm:mt-3 text-center max-w-xs sm:max-w-md px-3 z-20">
-         <p className="text-xs sm:text-sm font-semibold text-amber-300 tracking-wide leading-snug">
-           {selectedLang === 'EN' ? ((currentModeObj as any).statusEn || currentModeObj.descEn) : ((currentModeObj as any).statusEs || currentModeObj.descEs)}
-         </p>
-         {isPaused ? (
-           <span className="text-[10px] sm:text-[11px] font-mono text-amber-400/80 uppercase tracking-wider block">
-             {selectedLang === 'EN' ? '• Voice paused •' : '• Voz pausada •'}
-           </span>
-         ) : volume > 15 ? (
-           <span className="text-[10px] sm:text-[11px] font-mono text-amber-200/90 uppercase tracking-wider block animate-pulse">
-             {selectedLang === 'EN' ? '• Listening to your voice... •' : '• Escuchando tu voz... •'}
-           </span>
-         ) : null}
-       </div>
      </div>
 
-      {/* Realtime Subtitle & Dictation Control Bar */}
-      <div className="w-full max-w-xl mx-auto bg-[#0D224A]/70 border border-amber-500/30 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-3 shadow-2xl animate-fade-in shrink-0 z-20">
-        <div className="flex-1 text-left min-w-0">
-          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold text-amber-400 tracking-wider uppercase">
-            {chatMessages.filter(m => !m.tab || m.tab === 'chat').slice(-1)[0]?.sender === 'user' ? (
-              <>
-                <User className="w-3 h-3 text-blue-400" />
-                <span>{selectedLang === 'EN' ? 'YOU SAID' : 'TÚ DIJISTE'}</span>
-              </>
-            ) : (
-              <>
-                <Bot className="w-3.5 h-3.5 text-amber-400" />
-                <span>{selectedLang === 'EN' ? currentModeObj.nameEn : currentModeObj.nameEs}</span>
-              </>
-            )}
-          </div>
-          <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-normal line-clamp-2">
-            {chatMessages.filter(m => !m.tab || m.tab === 'chat').slice(-1)[0]?.text || (selectedLang === 'EN' ? 'Listening...' : 'Escuchando...')}
-          </p>
-        </div>
+      {/* Middle Controls below Sphere: Audio Waveform Button & Mode Selector Dropdown */}
+      <div className="flex flex-col items-center gap-2.5 mb-8 sm:mb-10 pb-4 sm:pb-6 z-20 relative">
+        {/* Audio Wave Toggle Button for Pause / Play Live Mode */}
+        <button
+          onClick={() => {
+            if (!isConnected) {
+              connect();
+            } else if (isPaused) {
+              resume();
+            } else {
+              pause();
+            }
+          }}
+          title={isPaused ? (selectedLang === 'EN' ? 'Resume Voice' : 'Activar Voz') : (selectedLang === 'EN' ? 'Pause Voice' : 'Pausar Voz')}
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/30 hover:border-white/60 shadow-xl transition-all cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 group"
+        >
+          <AudioLines className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${isPaused ? 'text-[#EAB308]/40 group-hover:text-white/60' : 'text-[#EAB308] group-hover:text-white animate-pulse'}`} />
+        </button>
 
-        {/* Right Action Icons: Chat Modes & Open Chat */}
-        <div className="flex items-center gap-2 flex-shrink-0 relative">
+        {/* Mode Selector Dropdown Button & Popover */}
+        <div className="relative">
           <button
             onClick={() => setIsModeMenuOpen(prev => !prev)}
-            title={`${selectedLang === 'EN' ? 'Chat Mode:' : 'Modo de Charla:'} ${selectedLang === 'EN' ? currentModeObj.nameEn : currentModeObj.nameEs}`}
-            className="p-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded-full text-amber-300 transition-all cursor-pointer hover:scale-110 active:scale-95 shadow-md flex items-center justify-center"
+            className="flex items-center gap-1.5 text-[#EAB308] hover:text-white text-xs sm:text-sm font-normal tracking-normal transition-colors cursor-pointer outline-none select-none group"
           >
-            <CurrentModeIcon className="w-5 h-5 text-amber-300" />
+            <span className="transition-colors group-hover:text-white font-normal">
+              {isPaused
+                ? 'Modo Pausa'
+                : (currentModeObj.id === 'SPANISH' 
+                    ? 'Modo Español' 
+                    : currentModeObj.id === 'BILINGUAL' 
+                    ? 'Modo Bilingüe' 
+                    : currentModeObj.id === 'AMERICAN_ENGLISH' 
+                    ? 'Modo Inglés' 
+                    : 'Modo Traductor')}
+            </span>
+            <ChevronDown className="w-4 h-4 text-[#EAB308] group-hover:text-white transition-colors" />
           </button>
 
           {/* Quick Submenu Popover for Live Voice Mode */}
-          {isModeMenuOpen && isLiveVoiceActive && (
+          {isModeMenuOpen && (
             <>
               <div
                 className="fixed inset-0 z-40 bg-transparent"
                 onClick={() => setIsModeMenuOpen(false)}
               />
-              <div className="absolute bottom-full right-0 mb-3 z-50 w-40 bg-[#0B1B3D]/95 border border-amber-500/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white">
-                <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl animate-fade-in flex flex-col text-white">
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
                   {modeDetails.map((mode) => {
-                    const name = selectedLang === 'EN' ? mode.nameEn : mode.nameEs;
-                    const desc = selectedLang === 'EN' ? mode.descEn : mode.descEs;
-                    const effectiveMode = currentModeObj.id;
+                    const name = mode.nameEs;
+                    const desc = mode.descEs;
+                    const effectiveMode = isPaused ? null : currentModeObj.id;
                     const isSelected = effectiveMode === mode.id;
 
-                    const IconComp = mode.id === 'BILINGUAL' ? Sparkles :
-                                     mode.id === 'AMERICAN_ENGLISH' ? Compass :
-                                     mode.id === 'LIVE_TRANSLATOR' ? Languages :
-                                     mode.id === 'LISTEN_ONLY' ? Headphones : EspIcon;
+                    const renderModeIcon = () => {
+                      const colorClass = isSelected ? 'text-[#EAB308]' : 'text-white/70';
+                      if (mode.id === 'SPANISH') {
+                        return (
+                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                            ES
+                          </span>
+                        );
+                      }
+                      if (mode.id === 'BILINGUAL') {
+                        return <RotateCw className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                      }
+                      if (mode.id === 'AMERICAN_ENGLISH') {
+                        return (
+                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                            EN
+                          </span>
+                        );
+                      }
+                      if (mode.id === 'LIVE_TRANSLATOR') {
+                        return <Languages className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                      }
+                      return <Headphones className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                    };
 
                     return (
                       <button
                         key={mode.id}
                         onClick={() => {
+                          if (isPaused) {
+                            resume(true);
+                          }
                           handleModeSelection(mode.id as ConversationMode);
                           applyChosenMode(mode.id as ConversationMode);
                           if (isConnected) {
@@ -3184,41 +4120,175 @@ ${greetingPrompt}`;
                           }
                           setIsModeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center p-1.5 rounded-lg text-left transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
                           isSelected
-                            ? 'text-amber-300 font-extrabold'
-                            : 'text-white/70 hover:text-white hover:bg-white/5'
+                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
+                            : 'text-white/80 hover:text-white hover:bg-white/10'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-6 h-6 flex items-center justify-center flex-shrink-0 ${
-                            isSelected ? 'text-amber-300' : 'text-white/70'
-                          }`}>
-                            <IconComp className="w-4 h-4" />
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                            {renderModeIcon()}
                           </div>
-                          <span style={{ fontFamily: "'Raleway', sans-serif" }} className="text-xs font-semibold leading-tight truncate">
+                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
+                            isSelected ? 'font-bold text-[#EAB308]' : 'font-normal'
+                          }`}>
                             {name}
                           </span>
                         </div>
                       </button>
                     );
                   })}
+
+                  {/* PAUSA Option */}
+                  <button
+                    onClick={() => {
+                      if (!isPaused) {
+                        handlePauseButtonClick();
+                      } else {
+                        resume(true);
+                      }
+                      setIsModeMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                      isPaused
+                        ? 'bg-[#EAB308]/15 text-[#EAB308]'
+                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                        <Pause className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
+                      </div>
+                      <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
+                        isPaused ? 'font-bold text-[#EAB308]' : 'font-normal'
+                      }`}>
+                        Pausa
+                      </span>
+                    </div>
+                  </button>
                 </div>
               </div>
             </>
           )}
+        </div>
+      </div>
 
+      {/* Bottom Bar: Pill Input, Mic button, Close button */}
+      <div className="z-30 w-full max-w-2xl px-4 flex items-center gap-3">
+        {/* Pill Text Input */}
+        <div className="flex-1 flex items-center rounded-full border border-[#EAB308]/80 bg-[#07142e]/90 shadow-2xl px-3 py-2 sm:px-4 sm:py-2.5 transition-all focus-within:border-white focus-within:bg-[#07142e] gap-2.5">
+          {/* Plus (+) Actions Menu inside the input box */}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsInputActionsMenuOpen(prev => !prev)}
+              title={selectedLang === 'EN' ? 'Learning Tools & Quizzes' : 'Herramientas de Aprendizaje'}
+              className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-full flex items-center justify-center text-[#EAB308] hover:text-white border border-[#EAB308]/60 hover:border-white/80 bg-black/40 hover:bg-[#1E3768] transition-all cursor-pointer active:scale-95 ${
+                isInputActionsMenuOpen ? 'rotate-45 border-white text-white bg-[#1E3768]' : ''
+              }`}
+            >
+              <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
+            </button>
+
+            {/* Submenu Popover from Input Plus Button */}
+            {isInputActionsMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40 bg-transparent"
+                  onClick={() => setIsInputActionsMenuOpen(false)}
+                />
+                <div className="absolute bottom-full left-0 mb-3 z-50 w-60 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white">
+                  <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+                    {[
+                      {
+                        id: 'citizenship_test',
+                        label: 'Test de Ciudadanía',
+                        icon: BookOpen,
+                        action: () => {
+                          startOfficialCitizenshipOralExam();
+                          setIsInputActionsMenuOpen(false);
+                        }
+                      }
+                    ].map((item) => {
+                      const IconComp = item.icon;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.action}
+                          className="w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer text-white/90 hover:text-[#EAB308] hover:bg-white/10"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-5 h-5 flex items-center justify-center shrink-0 text-[#EAB308]">
+                              <IconComp className="w-4 h-4 shrink-0" />
+                            </div>
+                            <span className="text-[15px] font-medium leading-tight whitespace-nowrap tracking-normal">
+                              {item.label}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && inputText.trim()) {
+                const message = inputText.trim();
+                addUserMessage(message);
+                sendText(message);
+                setInputText('');
+              }
+            }}
+            placeholder={selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...'}
+            className="flex-1 bg-transparent text-white placeholder:text-white/45 outline-none text-sm sm:text-base font-normal min-w-0"
+          />
           <button
             onClick={() => {
-              setRightPanelTab('chat');
-              setIsLiveVoiceActive(false);
+              if (inputText.trim()) {
+                const message = inputText.trim();
+                addUserMessage(message);
+                sendText(message);
+                setInputText('');
+              }
             }}
-            title={selectedLang === 'EN' ? 'Open Chat' : 'Abrir Chat'}
-            className="p-2.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 rounded-full text-amber-300 transition-all cursor-pointer hover:scale-110 active:scale-95 shadow-md flex items-center justify-center"
+            aria-label="Send message"
+            className="shrink-0 text-[#EAB308] hover:text-white p-1 transition-colors cursor-pointer"
           >
-            <MessageSquare className="w-5 h-5 text-amber-300" />
+            <Send className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Microphone Button */}
+        <button
+          onClick={() => {
+            if (!isConnected) {
+              connect();
+            } else if (isPaused) {
+              resume();
+            }
+          }}
+          aria-label="Voice input"
+          className="w-12 h-12 sm:w-13 sm:h-13 shrink-0 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/40 hover:border-white/60 shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+        >
+          <Mic className="w-5 h-5 sm:w-6 sm:h-6" />
+        </button>
+
+        {/* Exit Live Button */}
+        <button
+          onClick={() => setIsLiveVoiceActive(false)}
+          aria-label="Exit Live"
+          className="w-12 h-12 sm:w-13 sm:h-13 shrink-0 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/40 hover:border-white/60 shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+        >
+          <X className="w-5 h-5 sm:w-6 sm:h-6" />
+        </button>
       </div>
      </div>
  ) : (
@@ -3699,7 +4769,8 @@ ${greetingPrompt}`;
    }}
    value={inputText}
    onChangeValue={setInputText}
-   placeholderText={placeholderText}
+   
+
    onOpenProfile={() => setRightPanelTab('roadmap')}
    isSpanishOnlyMode={isSpanishOnlyMode}
    setIsSpanishOnlyMode={setIsSpanishOnlyMode}
@@ -3713,6 +4784,7 @@ ${greetingPrompt}`;
    setIsListenOnly={setIsListenOnly}
    isLiveVoiceActive={isLiveVoiceActive}
    onToggleLiveVoice={() => {
+
      setIsLiveVoiceActive(prev => !prev);
      if (isConnected && isPaused) {
        resume();
@@ -3803,7 +4875,7 @@ Pregunta del usuario: "${text}"]`;
  }}
  value={inputText}
  onChangeValue={setInputText}
- onOpenProfile={() => setRightPanelTab('roadmap')}
+ 
  isSpanishOnlyMode={isSpanishOnlyMode}
  setIsSpanishOnlyMode={setIsSpanishOnlyMode}
  isBilingualMode={isBilingualMode}
@@ -3824,7 +4896,13 @@ Pregunta del usuario: "${text}"]`;
  />
  </div>
  ) : rightPanelTab === 'citizenship' ? (
- <CitizenshipCoach selectedLang={'ES'} onAskVoyager={(prompt) => { if (!isConnected) connect(prompt, true); else { if (isPaused) resume(); sendText(prompt); } }} onOpenSimulator={() => { setRightPanelTab('civics'); window.location.hash = '#/civics'; }} />
+ <CitizenshipCoach 
+ selectedLang={'ES'} 
+ userVoiceTranscription={lastUserVoiceTranscription}
+ chatMessages={chatMessages}
+ onAskVoyager={(prompt) => { if (!isConnected) connect(prompt, true); else { if (isPaused) resume(); sendText(prompt); } }} 
+ onOpenSimulator={() => { setRightPanelTab('civics'); window.location.hash = '#/civics'; }} 
+ />
  ) : rightPanelTab === 'civics' ? (
  <div className="flex-grow flex flex-col overflow-hidden h-full min-h-0">
   <Civics128Panel
