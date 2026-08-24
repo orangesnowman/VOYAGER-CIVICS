@@ -272,7 +272,7 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ selectedLang, onAsk
           <ArrowRight className="w-3.5 h-3.5 text-blue-500/70 shrink-0" />
           <button onClick={onOpenSimulator} className="px-2 py-1 text-sm font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">EXAMEN</button>
         </div>
-        <div className="rounded-3xl bg-white border border-slate-200/80 p-5 shadow-xs space-y-4">
+        <div className="rounded-3xl bg-[#F7F4EE] border border-[#E5DFD3] p-5 shadow-xs space-y-4">
           <div className="relative flex items-center justify-center min-h-[28px] text-xs font-bold text-slate-500">
             <button
               onClick={() => onAskVoyager('[SYSTEM INSTRUCTION: You are Voyager in the Citizenship coaching section. Teach question ' + question.id + ': ' + question.questionEn + '. ' + (bilingual ? 'Explain the meaning briefly in Spanish, then ask the learner to answer in English. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.' : 'Speak only English, ask the question, and wait for the learner response. Accept equivalent correct answers, not only one exact phrasing, and briefly explain why they are correct.'))}
@@ -304,7 +304,7 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ selectedLang, onAsk
             {bilingual && <div className="text-sm sm:text-base text-slate-600 font-normal">{question.questionEs}</div>}
           </div>
 
-          <div className="pt-2 border-t border-slate-100">
+          <div className="pt-2 border-t border-[#EAE4D8]">
             <div className="mb-2 flex items-center justify-center">
               <button
                 type="button"
@@ -322,7 +322,7 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({ selectedLang, onAsk
             </div>
 
             {showAnswers && (
-              <div className="mb-3 rounded-2xl bg-slate-50 border border-slate-200/80 p-3.5 space-y-2 text-xs sm:text-sm animate-fadeIn text-center">
+              <div className="mb-3 rounded-2xl bg-[#EFEAE0]/75 border border-[#DDD5C5] p-3.5 space-y-2 text-xs sm:text-sm animate-fadeIn text-center">
                 {question.answersEn.map((ansEn, idx) => {
                   const ansEs = question.answersEs && question.answersEs[idx];
                   return (
