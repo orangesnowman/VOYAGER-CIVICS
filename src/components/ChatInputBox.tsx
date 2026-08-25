@@ -525,10 +525,10 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
               type="button"
               onClick={() => setShowVoiceModeMenu((prev) => !prev)}
               title={selectedLang === 'EN' ? 'Voice mode selector' : 'Seleccionar modo de voz'}
-              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center ${
+              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center bg-transparent border-none ${
                 showVoiceModeMenu
-                  ? 'bg-[#1A365D] text-white shadow-md scale-105 rotate-45'
-                  : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95'
+                  ? 'text-[#EAB308] rotate-45'
+                  : 'text-neutral-400 hover:text-[#EAB308] active:scale-95'
               }`}
             >
               <Plus className="w-4 h-4 stroke-[2.8]" />

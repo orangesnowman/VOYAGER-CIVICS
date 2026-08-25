@@ -23,6 +23,7 @@ import { translations, getTranslatedMessageText } from './Translations';
 import { CONVERSATION_MODES, ConversationMode } from './ConversationModes';
 import { useConversationEngine } from './useConversationEngine';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
+import { CivicsExamTracker } from '../domain/CivicsExamTracker';
 import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 
 const modeDetails = [
@@ -151,7 +152,6 @@ const renderModeIcon = (iconName: string) => {
  case 'Sparkles':
  return <Sparkles className="w-5 h-5 text-yellow-600" />;
  case 'Compass':
- return <Compass className="w-5 h-5 text-blue-600" />;
  case 'Languages':
  return <Languages className="w-5 h-5 text-emerald-600" />;
  case 'Headphones':
@@ -219,6 +219,20 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
   const [examInputText, setExamInputText] = useState('');
   const [examIsListening, setExamIsListening] = useState(false);
   const [showExamAcceptedAnswers, setShowExamAcceptedAnswers] = useState(false);
+
+  const isExamFinished = examStarted && examQuestions.length > 0 && Object.keys(examResponses).length >= examQuestions.length;
+  const recordedExamRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (isExamFinished && !recordedExamRef.current) {
+      recordedExamRef.current = true;
+      const responsesList = Object.values(examResponses) as Array<{ isCorrect: boolean }>;
+      const correctCount = responsesList.filter(r => r?.isCorrect).length;
+      CivicsExamTracker.recordExam(examFormat, correctCount, examQuestions.length);
+    } else if (!isExamFinished) {
+      recordedExamRef.current = false;
+    }
+  }, [isExamFinished, examResponses, examFormat, examQuestions.length]);
 
   const startExamSimulation = (format: '10_standard' | '20_extended' | '65_20' = examFormat) => {
     let pool = [...ALL_CIVICS_128_QUESTIONS];
@@ -633,7 +647,6 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
             {/* USCIS Exemption Categories Overview */}
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 space-y-4">
               <div className="flex items-center gap-2">
-                <Compass className="w-5 h-5 text-[#0D224A]" />
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
                   {selectedLang === 'EN' ? 'USCIS Civics Test Versions and Exceptions' : 'Versiones del Examen y Excepciones de USCIS'}
                 </h3>
@@ -830,6 +843,44 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
                       : 'Simula la experiencia real de la entrevista: El Oficial Voyager lee las preguntas en voz alta en inglés y tú respondes verbalmente o escribiendo. Se requieren 6 de 10 respuestas correctas para aprobar.'}
                   </p>
                 </div>
+
+                {/* Returning Student Progress Summary Card */}
+                {(() => {
+                  const summary = CivicsExamTracker.getExerciseProgressSummary(selectedLang);
+                  return (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-left space-y-2.5 max-w-xl mx-auto shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#0D224A] uppercase tracking-wider flex items-center gap-1.5">
+                          <Award className="w-4 h-4 text-amber-500" />
+                          {selectedLang === 'EN' ? 'Student Progress & Remaining Tests' : 'Resumen de Tu Avance'}
+                        </span>
+                        <span className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full ${summary.exerciseCompleted ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'}`}>
+                          {summary.exerciseCompleted
+                            ? (selectedLang === 'EN' ? '6-Test Exercise Complete!' : '¡Ejercicio de 6 Exámenes Completado!')
+                            : (selectedLang === 'EN' ? `${summary.testsRemaining} Test(s) Left to Finish` : `Quedan ${summary.testsRemaining} Examen(es)`)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <div className="text-lg font-black text-slate-900">{summary.testsTaken}</div>
+                          <div className="text-[10px] font-bold text-slate-500 uppercase">{selectedLang === 'EN' ? 'Exams Taken' : 'Tomados'}</div>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
+                          <div className="text-lg font-black text-emerald-600">{summary.testsPassed}</div>
+                          <div className="text-[10px] font-bold text-emerald-700 uppercase">{selectedLang === 'EN' ? 'Succeeded' : 'Aprobados'}</div>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-rose-200 shadow-2xs">
+                          <div className="text-lg font-black text-rose-600">{summary.testsFailed}</div>
+                          <div className="text-[10px] font-bold text-rose-700 uppercase">{selectedLang === 'EN' ? 'Failed' : 'Reprobados'}</div>
+                        </div>
+                        <div className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs">
+                          <div className="text-lg font-black text-amber-600">{summary.testsRemaining}</div>
+                          <div className="text-[10px] font-bold text-amber-700 uppercase">{selectedLang === 'EN' ? 'Remaining' : 'Restantes'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Exam Format Selector */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
@@ -1167,12 +1218,54 @@ const UsaFlagIcon = ({ className = "w-6 h-4" }: { className?: string }) => (
   </svg>
 );
 
+interface PracticeScenario {
+  id: string;
+  category: 'GENERAL' | 'CITIZENSHIP' | 'DAILY_LIFE';
+  nameEn: string;
+  nameEs: string;
+  descEn: string;
+  descEs: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const PRACTICE_SCENARIOS: PracticeScenario[] = [
+  {
+    id: 'open',
+    category: 'GENERAL',
+    nameEn: 'Open Conversation (OPEN)',
+    nameEs: 'OPEN (Conversación Abierta)',
+    descEn: 'Free open conversation with Voyager on any topic following core guardrails.',
+    descEs: 'Conversación libre con Voyager sobre cualquier tema respetando las reglas.',
+    icon: MessageSquare,
+  },
+  {
+    id: 'citizenship',
+    category: 'CITIZENSHIP',
+    nameEn: 'Civics Exam',
+    nameEs: 'Examen Cívico',
+    descEn: 'Oral practice of the 128 naturalization civics questions.',
+    descEs: 'Examen oral de 128 preguntas de cívica USCIS.',
+    icon: GraduationCap,
+  },
+  {
+    id: 'vida_diaria',
+    category: 'DAILY_LIFE',
+    nameEn: 'Vida Diaria',
+    nameEs: 'Vida Diaria',
+    descEn: 'Interactive practice guide for Cafeterias, Diners, Hotel Receptions, Gas Stations, Supermarkets & everyday life.',
+    descEs: 'Guía práctica interactiva para Cafeterías, Diners, Recepción, Gasolineras, Supermercados y vida cotidiana.',
+    icon: Compass,
+  },
+];
+
 const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) => {
  const [rightPanelTab, setRightPanelTab] = useState<'home' | 'chat' | 'citizenship' | 'civics' | 'roadmap' | 'teachers' | 'progress' | 'settings' | 'shopping'>('home');
  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
  const [isPassportModeMenuOpen, setIsPassportModeMenuOpen] = useState(false);
+ const [isConversationalMenuOpen, setIsConversationalMenuOpen] = useState(false);
  const [isInputActionsMenuOpen, setIsInputActionsMenuOpen] = useState(false);
+ const [activeScenarioId, setActiveScenarioId] = useState<string | null>('open');
  const [lastUserVoiceTranscription, setLastUserVoiceTranscription] = useState<string>('');
 
  const {
@@ -1218,10 +1311,12 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  wsRef,
  } = useConversationEngine(rightPanelTab, (text) => {
     setLastUserVoiceTranscription(text);
-    setInputText(prev => {
-      const separator = prev && !prev.endsWith(' ') && !text.startsWith(' ') ? ' ' : '';
-      return prev + separator + text;
-    });
+    if (isDictationActive) {
+      setInputText(prev => {
+        const separator = prev && !prev.endsWith(' ') && !text.startsWith(' ') ? ' ' : '';
+        return prev + separator + text;
+      });
+    }
   });
   const formatChronometer = useCallback((totalSeconds: number) => {
     const m = Math.floor(totalSeconds / 60);
@@ -1232,9 +1327,10 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
   const startOfficialCitizenshipOralExam = useCallback(() => {
     setHasClickedConnect(true);
     setHasInteracted(true);
-    setOnboardingStep(4);
-    setRightPanelTab('civics');
-    window.location.hash = '#/civics';
+    setRightPanelTab('chat');
+    if (window.location.hash === '#/civics' || window.location.hash === '#civics') {
+      window.location.hash = '';
+    }
 
     // Explicitly enforce 100% American English mode for the naturalization exam
     setSelectedLang('EN');
@@ -1254,10 +1350,62 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     }
 
     addSystemMessage(
-      '🏛️ USCIS Naturalization Civics Test started (20 Questions - Strictly English Only). Officer Voyager will ask questions one by one in English.',
+      '🏛️ USCIS Naturalization Civics Test started right here in Live Chat (20 Questions - Strictly English Only). Officer Voyager will ask questions one by one in English.',
       `msg_sys_civics_${Date.now()}`
     );
   }, [isConnected, isPaused, connect, sendText, switchMode, setSelectedLang, resume, setHasInteracted, addSystemMessage]);
+
+  const handleSelectScenario = useCallback((scenarioId: string) => {
+    setActiveScenarioId(scenarioId);
+    setIsConversationalMenuOpen(false);
+    setIsPassportModeMenuOpen(false);
+    setIsInputActionsMenuOpen(false);
+
+    if (isPaused) {
+      resume(true);
+    }
+    setHasClickedConnect(true);
+    setHasInteracted(true);
+    setRightPanelTab('chat');
+
+    if (scenarioId === 'open') {
+      const openPrompt = `[INSTRUCCIÓN DE SISTEMA: Modo "OPEN" (Conversación Abierta) activado. Conversa libremente con el usuario sobre cualquier tema general que proponga, manteniendo tu rol como guía y tutor VOYAGER y respetando siempre los guardrails del sistema.]`;
+      if (isConnected) {
+        sendText(openPrompt);
+      } else {
+        connect(openPrompt, true, selectedLang);
+      }
+      return;
+    }
+
+    if (scenarioId === 'citizenship') {
+      startOfficialCitizenshipOralExam();
+      return;
+    }
+
+    let scenarioPrompt = '';
+    switch (scenarioId) {
+      case 'vida_diaria':
+      case 'daily_life':
+      case 'cafe':
+      case 'diner':
+      case 'hotel':
+      case 'gas_station':
+      case 'supermarket':
+      case 'subway':
+        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Misión de práctica conversacional "VIDA DIARIA" iniciada. Actúa como la guía interactiva VOYAGER para situaciones cotidianas en EE. UU.: cafeterías, diners, recepción de hotel, gasolineras, supermercados y compras. Saluda al usuario de manera cercana, preséntale brevemente estos temas cotidianos y pregúntale en cuál de ellos desea comenzar a practicar hoy.]`;
+        break;
+      default:
+        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Escenario de conversación iniciado.]`;
+        break;
+    }
+
+    if (isConnected) {
+      sendText(scenarioPrompt);
+    } else {
+      connect(scenarioPrompt, true, selectedLang);
+    }
+  }, [isPaused, resume, isConnected, sendText, connect, selectedLang, startOfficialCitizenshipOralExam, setHasInteracted]);
 
   const goToCiudadaniaDirectly = useCallback(() => {
     setHasClickedConnect(true);
@@ -1396,6 +1544,77 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  const [explanationCountdown, setExplanationCountdown] = useState<number | null>(null);
  const [showReviewScreen, setShowReviewScreen] = useState<boolean>(false);
  const [inputText, setInputText] = useState<string>('');
+ const [isDictationActive, setIsDictationActive] = useState<boolean>(false);
+ const recognitionRef = useRef<any>(null);
+ const initialDictationTextRef = useRef<string>('');
+ const wasPausedForDictationRef = useRef<boolean>(false);
+
+ useEffect(() => {
+   if (!isDictationActive) {
+     if (recognitionRef.current) {
+       try { recognitionRef.current.stop(); } catch (e) {}
+       recognitionRef.current = null;
+     }
+     return;
+   }
+
+   if (typeof window !== 'undefined' && window.speechSynthesis) {
+     window.speechSynthesis.cancel();
+   }
+   if (isConnected && !isPaused) {
+     pause();
+     wasPausedForDictationRef.current = true;
+   }
+
+   initialDictationTextRef.current = inputText;
+
+   const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+   if (!SpeechRec) return;
+
+   try {
+     const recognition = new SpeechRec();
+     recognition.continuous = true;
+     recognition.interimResults = true;
+     recognition.lang = selectedLang === 'EN' ? 'en-US' : 'es-US';
+
+     recognition.onresult = (event: any) => {
+       let accumulatedFinal = '';
+       let interim = '';
+       for (let i = 0; i < event.results.length; i++) {
+         const trans = event.results[i][0]?.transcript || '';
+         if (event.results[i].isFinal) {
+           accumulatedFinal += trans;
+         } else {
+           interim += trans;
+         }
+       }
+       const fullSpeech = (accumulatedFinal + interim).trim();
+       const base = initialDictationTextRef.current;
+       const separator = base && !base.endsWith(' ') && fullSpeech && !fullSpeech.startsWith(' ') ? ' ' : '';
+       setInputText(base + (fullSpeech ? separator + fullSpeech : ''));
+     };
+
+     recognition.onerror = () => {
+       setIsDictationActive(false);
+     };
+
+     recognition.onend = () => {
+       setIsDictationActive(false);
+     };
+
+     recognition.start();
+     recognitionRef.current = recognition;
+   } catch (e) {
+     console.warn('SpeechRecognition error:', e);
+     setIsDictationActive(false);
+   }
+
+   return () => {
+     if (recognitionRef.current) {
+       try { recognitionRef.current.stop(); } catch (e) {}
+     }
+   };
+ }, [isDictationActive, selectedLang, isConnected, isPaused, pause]);
  const [isFadingMascot, setIsFadingMascot] = useState<boolean>(false);
  const [activePolicyModal, setActivePolicyModal] = useState<'privacy' | 'terms' | 'copyright' | 'contact' | null>(null);
  const [authModalMode, setAuthModalMode] = useState<'email' | 'google' | null>(null);
@@ -1673,7 +1892,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  particles.push({
  angle: Math.random() * 2 * Math.PI,
  // Bell-curve concentration around radius 64 (100 * 1.15)
- r: 52 + Math.random() * 21 + (Math.random() - 0.5) * 9,
+ r: 86 + Math.random() * 34 + (Math.random() - 0.5) * 14,
  speed: (Math.random() * 0.004 + 0.001) * (Math.random() < 0.5 ? 1 : -1),
  pulsePhase: Math.random() * 2 * Math.PI,
  size: (0.6 + Math.random() * 1.4) * 1.25
@@ -1689,8 +1908,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  orbiters.push({
  angle: (i * 2 * Math.PI) / numOrbiters + Math.random() * 0.5,
  speed: (0.007 + (i % 3) * 0.005) * (i % 2 === 0 ? 1 : -1),
- rx: 63 * rxFactor,
- ry: 63 * ryFactor,
+ rx: 103 * rxFactor,
+ ry: 103 * ryFactor,
  size: (1.8 + (i % 4) * 0.6) * 1.25,
  alpha: 0.55 + (i % 3) * 0.12
  });
@@ -1722,8 +1941,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  ctx.shadowBlur = 0;
  ctx.shadowColor = 'transparent';
 
- // Radial background glow (gold) with smooth gradual falloff
- const maxRadius = (115 + currentVolume * 0.5) * scale;
+ // Radial background glow (gold) with smooth gradual falloff fading completely to transparent well before canvas edge
+ const maxRadius = (138 + Math.min(currentVolume, 80) * 0.5) * scale;
  let grad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, maxRadius);
  grad.addColorStop(0, 'rgba(255, 223, 0, 0.40)');
  grad.addColorStop(0.45, 'rgba(255, 215, 0, 0.15)');
@@ -1799,7 +2018,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  const speakText = (text: string) => {
  if (!window.speechSynthesis) return;
  window.speechSynthesis.cancel();
- const utterance = new SpeechSynthesisUtterance(text);
+ const cleanSpokenText = text.replace(/\bEE\.?UU\.?\b/gi, 'Estados Unidos');
+ const utterance = new SpeechSynthesisUtterance(cleanSpokenText);
  
  // Explicitly filter out any female voices to keep Voyager male
  const isFemaleVoice = (name: string) => {
@@ -2403,13 +2623,24 @@ ${greetingPrompt}`;
       }
     ]);
   };
+ const sendMessageWithDictationCheck = (msgText: string) => {
+   const trimmed = msgText.trim();
+   if (!trimmed) return;
+   setIsDictationActive(false);
+   setInputText('');
+   addUserMessage(trimmed);
+   sendText(trimmed);
+   if (wasPausedForDictationRef.current || isPaused) {
+     resume();
+     wasPausedForDictationRef.current = false;
+   }
+ };
+
  // Text message send
  const handleSendMessage = (e: React.FormEvent) => {
  e.preventDefault();
  if (!inputText.trim()) return;
- addUserMessage(inputText);
- sendText(inputText);
- setInputText('');
+ sendMessageWithDictationCheck(inputText);
  };
 
  // Suggestion pill click
@@ -2604,6 +2835,71 @@ ${greetingPrompt}`;
  ? "w-9 h-9 rounded-full border-[1.5pt] border-red-600 text-red-600 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 bg-transparent"
  : "w-9 h-9 rounded-full border-[1.5pt] border-black/40 text-black/40 hover:bg-red-600 hover:text-white hover:border-red-600 flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 bg-transparent";
 
+  const renderConversationalMenuContent = () => (
+    <div className="w-72 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
+      {/* Header Title */}
+      <div className="px-2 py-1 mb-1.5 border-b border-white/10 flex items-center justify-between">
+        <span className="text-xs font-bold tracking-wider text-[#EAB308] uppercase flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-[#EAB308]" />
+          {selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setIsConversationalMenuOpen(false);
+            setIsPassportModeMenuOpen(false);
+            setIsInputActionsMenuOpen(false);
+          }}
+          className="text-white/60 hover:text-white transition-colors cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-1 max-h-80 overflow-y-auto pr-0.5 custom-scrollbar">
+        {PRACTICE_SCENARIOS.map((scenario) => {
+          const IconComp = scenario.icon;
+          const name = selectedLang === 'EN' ? scenario.nameEn : scenario.nameEs;
+          const isSelected = activeScenarioId === scenario.id;
+
+          return (
+            <button
+              key={scenario.id}
+              type="button"
+              onClick={() => {
+                handleSelectScenario(scenario.id);
+                setIsConversationalMenuOpen(false);
+                setIsPassportModeMenuOpen(false);
+                setIsInputActionsMenuOpen(false);
+              }}
+              className={`w-full flex items-center p-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                isSelected
+                  ? 'bg-[#EAB308]/20 text-[#EAB308] font-bold'
+                  : 'text-white/85 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0 w-full">
+                <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                  isSelected ? 'bg-[#EAB308] text-[#0B1B3D]' : 'bg-white/10 text-[#EAB308]'
+                }`}>
+                  <IconComp className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-semibold leading-snug truncate">
+                    {name}
+                  </span>
+                </div>
+                {isSelected && (
+                  <Check className="w-3.5 h-3.5 shrink-0 text-[#EAB308]" />
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
  const placeholderText = selectedLang === 'EN' 
  ? 'Write or dictate...' 
  : 'Escribe o dicta...';
@@ -2617,14 +2913,13 @@ ${greetingPrompt}`;
  }}
  >
  {/* Layout Grid with 125% Passport, Adjusted Cover and Perfect Tight Gutter */}
- <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] gap-0 w-full max-w-7xl max-h-full items-stretch justify-center mx-auto md:aspect-[1.7]">
+ <div className="grid grid-cols-1 md:grid-cols-[2fr_3fr] gap-0 w-full max-w-7xl max-h-[100dvh] md:max-h-[min(100dvh,860px)] md:h-[min(96dvh,840px)] items-stretch justify-center mx-auto">
  
  {/* Left Side (Column 1): The Passport (Deep Navy Voyager Blue Console) */}
  {/* It remains CONSTANT throughout the entire session */}
- <div className="hidden md:flex md:col-span-1 bg-gradient-to-b from-[#153166] to-[#0a1833] border border-[#2563eb]/20 rounded-[16px] sm:rounded-[24px] md:rounded-[32px] px-1.5 py-2 sm:p-3 md:p-5 flex-col justify-between items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.65)] relative overflow-hidden w-full h-full min-h-[380px] sm:min-h-[420px] md:min-h-0">
- {/* Ambient Background Glow */}
- <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
- 
+  <div className="hidden md:flex md:col-span-1 bg-gradient-to-b from-[#153166] to-[#0a1833] border border-[#2563eb]/20 rounded-[16px] sm:rounded-[24px] md:rounded-[32px] px-1.5 py-2 sm:p-3 md:p-5 flex-col justify-between items-center text-center shadow-[0_20px_50px_rgba(0,0,0,0.65)] relative overflow-hidden w-full h-full min-h-[380px] sm:min-h-[420px] md:min-h-0">
+  {/* Ambient Background Glow */}
+  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
   {/* Top Logo */}
   <div className="pt-2 sm:pt-3 flex flex-col items-center justify-center text-center select-none z-20">
     <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[10px] sm:text-xs font-bold text-white/90 uppercase tracking-widest block leading-none">
@@ -2645,10 +2940,15 @@ ${greetingPrompt}`;
  <div className="relative aspect-square max-h-full max-w-full flex items-center justify-center">
  <canvas 
   ref={particleCanvasRef} 
-  width={720} 
-  height={720} 
+  width={800} 
+  height={800} 
   className="z-20 transition-transform duration-75 animate-float-zero-g max-h-full max-w-full object-contain"
-  style={{ width: '100%', height: '100%' }}
+  style={{
+    width: '100%',
+    height: '100%',
+    WebkitMaskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)',
+    maskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)'
+  }}
   />
   </div>
   </div>
@@ -2713,125 +3013,6 @@ ${greetingPrompt}`;
             <Square className="w-3.5 h-3.5 fill-current text-white hover:text-white/80" />
           </button>
         </div>
-
-        {/* Standalone Circular Plus (+) Mode Button matching image */}
-        <div className="relative">
-          <button
-            onClick={() => setIsPassportModeMenuOpen(prev => !prev)}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#15274A]/90 hover:bg-[#1E3768] border-[1.5pt] border-white/30 hover:border-white/60 shadow-[0_8px_20px_rgba(0,0,0,0.35)] backdrop-blur-md text-[#EAB308] hover:text-white transition-all duration-200 cursor-pointer flex items-center justify-center active:scale-95 ${
-              isPassportModeMenuOpen ? 'rotate-45 bg-[#1E3768] border-[#EAB308]' : ''
-            }`}
-            title={selectedLang === 'EN' ? 'Conversation Modes' : 'Modos de Conversación'}
-          >
-            <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
-          </button>
-
-          {/* Submenu Popover from Plus Button */}
-          {isPassportModeMenuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40 bg-transparent"
-                onClick={() => setIsPassportModeMenuOpen(false)}
-              />
-              <div className="absolute bottom-full right-0 mb-2.5 z-50 w-56 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl animate-fade-in flex flex-col text-white">
-                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-                  {modeDetails.map((mode) => {
-                    const name = mode.nameEs;
-                    const desc = mode.descEs;
-                    const effectiveMode = isPaused ? null : currentModeObj.id;
-                    const isSelected = effectiveMode === mode.id;
-
-                    const renderModeIcon = () => {
-                      const colorClass = isSelected ? 'text-[#EAB308]' : 'text-white/70';
-                      if (mode.id === 'SPANISH') {
-                        return (
-                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
-                            ES
-                          </span>
-                        );
-                      }
-                      if (mode.id === 'BILINGUAL') {
-                        return <RotateCw className={`w-4 h-4 shrink-0 ${colorClass}`} />;
-                      }
-                      if (mode.id === 'AMERICAN_ENGLISH') {
-                        return (
-                          <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
-                            EN
-                          </span>
-                        );
-                      }
-                      if (mode.id === 'LIVE_TRANSLATOR') {
-                        return <Languages className={`w-4 h-4 shrink-0 ${colorClass}`} />;
-                      }
-                      return <Headphones className={`w-4 h-4 shrink-0 ${colorClass}`} />;
-                    };
-
-                    return (
-                      <button
-                        key={mode.id}
-                        onClick={() => {
-                          if (isPaused) {
-                            resume(true);
-                          }
-                          handleModeSelection(mode.id as ConversationMode);
-                          applyChosenMode(mode.id as ConversationMode);
-                          if (isConnected) {
-                            sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${name}". Cambia tu estilo e idioma inmediatamente a este modo: "${desc}"]`);
-                          }
-                          setIsPassportModeMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                          isSelected
-                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
-                            : 'text-white/80 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                            {renderModeIcon()}
-                          </div>
-                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
-                            isSelected ? 'font-bold text-[#EAB308]' : 'font-normal'
-                          }`}>
-                            {name}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-
-                  {/* PAUSA Option */}
-                  <button
-                    onClick={() => {
-                      if (!isPaused) {
-                        handlePauseButtonClick();
-                      } else {
-                        resume(true);
-                      }
-                      setIsPassportModeMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                      isPaused
-                        ? 'bg-[#EAB308]/15 text-[#EAB308]'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                        <Pause className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
-                      </div>
-                      <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
-                        isPaused ? 'font-bold text-[#EAB308]' : 'font-normal'
-                      }`}>
-                        Pausa
-                      </span>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
       </div>
     )}
   </div>
@@ -2851,6 +3032,13 @@ ${greetingPrompt}`;
  title={selectedLang === 'EN' ? 'Click to Connect' : 'Haz clic para conectar'}
  className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] max-w-[95%] max-h-[40vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply" 
  />
+ <button
+   onClick={handleConnectClick}
+   className="mt-4 md:hidden px-8 py-2.5 rounded-full bg-[#0D224A] text-white font-mono font-bold text-xs uppercase tracking-widest border border-amber-400/60 shadow-xl active:scale-95 hover:bg-[#15346e] transition-all cursor-pointer"
+   title={selectedLang === 'EN' ? 'Enter' : 'Entrada'}
+ >
+   ENTRADA
+ </button>
  </div>
 
 
@@ -2858,40 +3046,40 @@ ${greetingPrompt}`;
  {/* Footer Text */}
  <div className="pb-4 z-10 px-2 flex flex-col items-center flex-shrink-0 w-full">
  {/* Footer Buttons Row */}
- <div className="flex items-center justify-center gap-4 text-xs font-mono select-none">
+ <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono select-none max-w-full">
  {/* Copyright Button */}
  <button 
  onClick={() => setActivePolicyModal('copyright')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <span style={{ fontSize: '1.65em', lineHeight: '1' }} className="font-normal">©</span>
+ <span style={{ fontSize: '1.4em', lineHeight: '1' }} className="font-normal">©</span>
   <span>{selectedLang === 'EN' ? 'Copyright' : 'Derechos'}</span>
  </button>
 
  {/* Privacy Button */}
  <button 
  onClick={() => setActivePolicyModal('privacy')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <Shield className="w-4 h-4" />
+ <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Privacy' : 'Privacidad'}</span>
  </button>
 
  {/* Terms Button */}
  <button 
  onClick={() => setActivePolicyModal('terms')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <FileText className="w-4 h-4" />
+ <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Terms' : 'Términos'}</span>
  </button>
 
  {/* Contact Button */}
  <button 
  onClick={() => setActivePolicyModal('contact')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <Mail className="w-4 h-4" />
+ <Mail className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Contact' : 'Contacto'}</span>
  </button>
  </div>
@@ -2913,7 +3101,10 @@ ${greetingPrompt}`;
  >
   {isNavMenuOpen ? <X className="w-6 h-6 text-slate-900" strokeWidth={3} /> : <Menu className="w-6 h-6 text-slate-900" strokeWidth={3} />}
  {cartCount > 0 && !isNavMenuOpen && (
- <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 border-none">
+ <span 
+ style={{ fontFamily: "'Allerta', 'Allerta Sans', sans-serif" }}
+ className="absolute -top-1.5 -right-3.5 bg-black text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border border-white/30 shadow-md"
+ >
  {cartCount}
  </span>
  )}
@@ -3016,7 +3207,9 @@ ${greetingPrompt}`;
  </span>
  </div>
  {item.badge && (
- <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
+ <span 
+ style={{ fontFamily: "'Allerta', 'Allerta Sans', sans-serif" }}
+ className="bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0 border border-white/20">
  {item.badge}
  </span>
  )}
@@ -3871,41 +4064,41 @@ ${greetingPrompt}`;
  </div>
 
  {/* BOTTOM: Footer Buttons Row */}
- <div className="pb-4 sm:pb-6 z-10 px-4 flex flex-col items-center flex-shrink-0 w-full">
- <div className="flex items-center justify-center gap-4 text-xs font-mono select-none">
+ <div className="pb-4 sm:pb-6 z-10 px-2 sm:px-4 flex flex-col items-center flex-shrink-0 w-full">
+ <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono select-none max-w-full">
  {/* Copyright Button */}
  <button 
  onClick={() => setActivePolicyModal('copyright')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <span style={{ fontSize: '1.65em', lineHeight: '1' }} className="font-normal">©</span>
+ <span style={{ fontSize: '1.4em', lineHeight: '1' }} className="font-normal">©</span>
   <span>{selectedLang === 'EN' ? 'Copyright' : 'Derechos'}</span>
  </button>
 
  {/* Privacy Button */}
  <button 
  onClick={() => setActivePolicyModal('privacy')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <Shield className="w-4 h-4" />
+ <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Privacy' : 'Privacidad'}</span>
  </button>
 
  {/* Terms Button */}
  <button 
  onClick={() => setActivePolicyModal('terms')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <FileText className="w-4 h-4" />
+ <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Terms' : 'Términos'}</span>
  </button>
 
  {/* Contact Button */}
  <button 
  onClick={() => setActivePolicyModal('contact')}
- className="flex items-center gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer"
+ className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
  >
- <Mail className="w-4 h-4" />
+ <Mail className="w-3 h-3 sm:w-4 sm:h-4" />
   <span>{selectedLang === 'EN' ? 'Contact' : 'Contacto'}</span>
  </button>
  </div>
@@ -3917,94 +4110,34 @@ ${greetingPrompt}`;
 
  <div className="flex-1 px-0.5 sm:px-1.5 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0">
   {isLiveVoiceActive ? (
-    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none p-3 sm:p-5 md:p-6 pb-8 sm:pb-12 md:pb-14 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
-     {/* Top Left Menu Button */}
-     <button
-       onClick={() => setIsNavMenuOpen(!isNavMenuOpen)}
-       title={selectedLang === 'EN' ? 'Menu' : 'Menú'}
-       aria-label={selectedLang === 'EN' ? 'Menu' : 'Menú'}
-       className="absolute top-4 left-4 z-30 p-2 text-white hover:text-amber-300 bg-transparent border-none rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 outline-none"
-     >
-       <div className="relative">
-         {isNavMenuOpen ? <X className="w-6 h-6 text-white" strokeWidth={2.5} /> : <Menu className="w-6 h-6 text-white" strokeWidth={2.5} />}
-         {!isNavMenuOpen && (
-           <span className="absolute -top-1.5 -right-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[17px] h-[17px] flex items-center justify-center px-0.5 border border-[#0A1838]">
-             {cartCount > 0 ? cartCount : 1}
-           </span>
-         )}
-       </div>
-     </button>
+    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none p-3 sm:p-4 md:p-8 lg:p-10 pb-2.5 sm:pb-3 md:pb-12 lg:pb-16 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
+     {/* Top Left Golden + Conversational Menu Button in Live Mode */}
+     <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-30">
+       <button
+         type="button"
+         onClick={() => setIsConversationalMenuOpen(prev => !prev)}
+         className={`p-1 text-[#FFD700] hover:text-white bg-transparent border-none transition-all duration-200 cursor-pointer flex items-center justify-center active:scale-95 group ${
+           isConversationalMenuOpen ? 'rotate-45' : ''
+         }`}
+         title={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
+         aria-label={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
+       >
+         <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-[#FFD700] group-hover:text-white transition-colors stroke-[2.5]" />
+       </button>
 
-     {/* Vertical Navigation Dropdown Menu in Live Overlay */}
-     {isNavMenuOpen && (
-       <>
-         <div 
-           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity" 
-           onClick={() => setIsNavMenuOpen(false)} 
-         />
-         <div className="absolute top-16 left-4 z-50 w-52 bg-[#0B1B3D]/95 border border-[#FFD700]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
-           {[
-             { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'HOME' : 'INICIO', hash: '' },
-             { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'CITIZENSHIP' : 'CIUDADANÍA', hash: '#/citizenship' },
-             { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'CHAT' : 'CHARLA', hash: '' },
-             { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'TEACHER' : 'LA PROFE', hash: '' },
-             { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName.toUpperCase() : (selectedLang === 'EN' ? 'GUEST' : 'INVITADO'), hash: '' },
-             { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'STORE' : 'LA TIENDA', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
-             { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'SETTINGS' : 'CONFIGURA', hash: '' },
-           ].map((item) => {
-             const IconComponent = item.icon;
-             const isCitizenshipActive = item.id === 'citizenship' && (rightPanelTab === 'citizenship' || rightPanelTab === 'civics');
-             const isHomeActive = item.id === 'home' && rightPanelTab === 'home';
-             const isActive = isCitizenshipActive || isHomeActive || (rightPanelTab === item.id);
-             return (
-               <button
-                 key={item.id}
-                 onClick={() => {
-                   if (item.id === 'citizenship' || item.id === 'civics') {
-                     setRightPanelTab('citizenship');
-                     window.location.hash = '#/citizenship';
-                     setHasInteracted(true);
-                   } else if (item.id === 'home') {
-                     setRightPanelTab('home');
-                     window.location.hash = '';
-                   } else {
-                     setRightPanelTab(item.id as any);
-                     window.location.hash = item.hash;
-                     setHasInteracted(true);
-                   }
-                   if (!isConnected) {
-                     connect(undefined, true);
-                   } else if (isPaused) {
-                     resume();
-                   }
-                   setIsNavMenuOpen(false);
-                   setIsLiveVoiceActive(false);
-                 }}
-                 className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                   isActive 
-                     ? 'bg-[#FFD700]/15 text-[#FFD700] font-bold' 
-                     : 'text-white/80 hover:text-white hover:bg-white/10 font-semibold'
-                 }`}
-               >
-                 <div className="flex items-center gap-2.5 min-w-0">
-                   <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                     <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FFD700]' : 'text-white/70'}`} />
-                   </div>
-                   <span className="text-xs uppercase tracking-wider leading-tight whitespace-nowrap">
-                     {item.label}
-                   </span>
-                 </div>
-                 {item.badge && (
-                   <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shrink-0">
-                     {item.badge}
-                   </span>
-                 )}
-               </button>
-             );
-           })}
-         </div>
-       </>
-     )}
+       {isConversationalMenuOpen && (
+         <>
+           <div
+             className="fixed inset-0 z-40 bg-transparent"
+             onClick={() => setIsConversationalMenuOpen(false)}
+           />
+           <div className="absolute top-full left-0 mt-2 z-50">
+             {renderConversationalMenuContent()}
+           </div>
+         </>
+       )}
+     </div>
+
 
      {/* Top Center Logo */}
      <div className="pt-2 flex flex-col items-center justify-center text-center select-none z-20">
@@ -4018,18 +4151,22 @@ ${greetingPrompt}`;
 
      {/* Center Sound Bubble Canvas */}
      <div className="relative flex-1 min-h-0 flex flex-col items-center justify-center my-1 sm:my-2 w-full">
-       <div className="absolute w-64 h-64 sm:w-80 sm:h-80 md:w-[420px] md:h-[420px] rounded-full bg-amber-500/10 blur-3xl animate-pulse pointer-events-none" />
+       <div className="absolute w-[74vw] h-[74vw] xs:w-[324px] xs:h-[324px] sm:w-[432px] sm:h-[432px] md:w-[528px] md:h-[528px] rounded-full bg-amber-500/14 blur-3xl animate-pulse pointer-events-none" />
        <canvas
          ref={coverParticleCanvasRef}
-         width={720}
-         height={720}
-         className="z-10 w-64 h-64 xs:w-80 xs:h-80 sm:w-[420px] sm:h-[420px] md:w-[520px] md:h-[520px] max-h-[52vh] max-w-full object-contain animate-float-zero-g"
+         width={800}
+         height={800}
+         className="z-10 w-[74vw] h-[74vw] xs:w-[324px] xs:h-[324px] sm:w-[432px] sm:h-[432px] md:w-[528px] md:h-[528px] max-h-[53vh] max-w-full object-contain animate-float-zero-g"
+         style={{
+           WebkitMaskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)',
+           maskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)'
+         }}
        />
      </div>
 
       {/* Middle Controls below Sphere: Audio Waveform Button & Mode Selector Dropdown */}
-      <div className="flex flex-col items-center gap-2.5 mb-8 sm:mb-10 pb-4 sm:pb-6 z-20 relative">
-        {/* Audio Wave Toggle Button for Pause / Play Live Mode */}
+      <div className="flex flex-col items-center gap-1.5 sm:gap-2 md:gap-3 mb-1 sm:mb-2 md:mb-6 lg:mb-8 pb-0 md:pb-2 z-20 relative">
+        {/* Mode Icon Toggle Button for Pause / Play Live Mode */}
         <button
           onClick={() => {
             if (!isConnected) {
@@ -4041,9 +4178,37 @@ ${greetingPrompt}`;
             }
           }}
           title={isPaused ? (selectedLang === 'EN' ? 'Resume Voice' : 'Activar Voz') : (selectedLang === 'EN' ? 'Pause Voice' : 'Pausar Voz')}
-          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/30 hover:border-white/60 shadow-xl transition-all cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 group"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/80 hover:border-white shadow-xl transition-all cursor-pointer flex items-center justify-center hover:scale-110 active:scale-95 group"
         >
-          <AudioLines className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${isPaused ? 'text-[#EAB308]/40 group-hover:text-white/60' : 'text-[#EAB308] group-hover:text-white animate-pulse'}`} />
+          {(() => {
+            const iconColor = isPaused
+              ? 'text-[#EAB308]/60 group-hover:text-white/80'
+              : 'text-[#EAB308] group-hover:text-white';
+            if (isPaused) {
+              return <Pause fill="currentColor" className={`w-6 h-6 sm:w-7 sm:h-7 shrink-0 transition-colors ${iconColor}`} />;
+            }
+            if (currentModeObj.id === 'SPANISH') {
+              return (
+                <span className={`font-bold text-base sm:text-lg leading-none tracking-tight transition-colors ${iconColor} select-none`}>
+                  ES
+                </span>
+              );
+            }
+            if (currentModeObj.id === 'BILINGUAL') {
+              return <RotateCw className={`w-6 h-6 sm:w-7 sm:h-7 shrink-0 transition-colors ${iconColor}`} />;
+            }
+            if (currentModeObj.id === 'AMERICAN_ENGLISH') {
+              return (
+                <span className={`font-bold text-base sm:text-lg leading-none tracking-tight transition-colors ${iconColor} select-none`}>
+                  EN
+                </span>
+              );
+            }
+            if (currentModeObj.id === 'LIVE_TRANSLATOR') {
+              return <Languages className={`w-6 h-6 sm:w-7 sm:h-7 shrink-0 transition-colors ${iconColor}`} />;
+            }
+            return <Headphones className={`w-6 h-6 sm:w-7 sm:h-7 shrink-0 transition-colors ${iconColor}`} />;
+          })()}
         </button>
 
         {/* Mode Selector Dropdown Button & Popover */}
@@ -4054,14 +4219,8 @@ ${greetingPrompt}`;
           >
             <span className="transition-colors group-hover:text-white font-normal">
               {isPaused
-                ? 'Modo Pausa'
-                : (currentModeObj.id === 'SPANISH' 
-                    ? 'Modo Español' 
-                    : currentModeObj.id === 'BILINGUAL' 
-                    ? 'Modo Bilingüe' 
-                    : currentModeObj.id === 'AMERICAN_ENGLISH' 
-                    ? 'Modo Inglés' 
-                    : 'Modo Traductor')}
+                ? (selectedLang === 'EN' ? 'Pause' : 'Pausa')
+                : (selectedLang === 'EN' ? currentModeObj.nameEn : currentModeObj.nameEs)}
             </span>
             <ChevronDown className="w-4 h-4 text-[#EAB308] group-hover:text-white transition-colors" />
           </button>
@@ -4158,7 +4317,7 @@ ${greetingPrompt}`;
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                        <Pause className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
+                        <Pause fill="currentColor" className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
                       </div>
                       <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
                         isPaused ? 'font-bold text-[#EAB308]' : 'font-normal'
@@ -4175,119 +4334,63 @@ ${greetingPrompt}`;
       </div>
 
       {/* Bottom Bar: Pill Input, Mic button, Close button */}
-      <div className="z-30 w-full max-w-2xl px-4 flex items-center gap-3">
+      <div className="z-30 w-full max-w-2xl px-2 sm:px-4 md:px-6 md:pb-3 lg:pb-5 flex items-center gap-1.5 sm:gap-3">
         {/* Pill Text Input */}
-        <div className="flex-1 flex items-center rounded-full border border-[#EAB308]/80 bg-[#07142e]/90 shadow-2xl px-3 py-2 sm:px-4 sm:py-2.5 transition-all focus-within:border-white focus-within:bg-[#07142e] gap-2.5">
-          {/* Plus (+) Actions Menu inside the input box */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsInputActionsMenuOpen(prev => !prev)}
-              title={selectedLang === 'EN' ? 'Learning Tools & Quizzes' : 'Herramientas de Aprendizaje'}
-              className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-full flex items-center justify-center text-[#EAB308] hover:text-white border border-[#EAB308]/60 hover:border-white/80 bg-black/40 hover:bg-[#1E3768] transition-all cursor-pointer active:scale-95 ${
-                isInputActionsMenuOpen ? 'rotate-45 border-white text-white bg-[#1E3768]' : ''
-              }`}
-            >
-              <Plus className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
-            </button>
-
-            {/* Submenu Popover from Input Plus Button */}
-            {isInputActionsMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40 bg-transparent"
-                  onClick={() => setIsInputActionsMenuOpen(false)}
-                />
-                <div className="absolute bottom-full left-0 mb-3 z-50 w-60 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white">
-                  <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
-                    {[
-                      {
-                        id: 'citizenship_test',
-                        label: 'Test de Ciudadanía',
-                        icon: BookOpen,
-                        action: () => {
-                          startOfficialCitizenshipOralExam();
-                          setIsInputActionsMenuOpen(false);
-                        }
-                      }
-                    ].map((item) => {
-                      const IconComp = item.icon;
-                      return (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={item.action}
-                          className="w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer text-white/90 hover:text-[#EAB308] hover:bg-white/10"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-5 h-5 flex items-center justify-center shrink-0 text-[#EAB308]">
-                              <IconComp className="w-4 h-4 shrink-0" />
-                            </div>
-                            <span className="text-[15px] font-medium leading-tight whitespace-nowrap tracking-normal">
-                              {item.label}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+        <div className="flex-1 min-w-0 flex items-center rounded-full border border-[#EAB308]/80 bg-transparent shadow-2xl px-2.5 py-1.5 sm:px-4 sm:py-2.5 transition-all focus-within:border-white focus-within:bg-transparent gap-1.5 sm:gap-2.5">
+          {/* Tilted Arrow (Send) button at the beginning of the input box */}
+          <button
+            onClick={() => {
+              if (inputText.trim()) {
+                sendMessageWithDictationCheck(inputText);
+              }
+            }}
+            aria-label="Send message"
+            className={`shrink-0 hover:text-white p-0.5 sm:p-1 transition-colors cursor-pointer ${
+              inputText.trim() ? 'text-[#EAB308]' : 'text-neutral-400'
+            }`}
+          >
+            <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
 
           <input
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && inputText.trim()) {
-                const message = inputText.trim();
-                addUserMessage(message);
-                sendText(message);
-                setInputText('');
+                sendMessageWithDictationCheck(inputText);
               }
             }}
             placeholder={selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...'}
-            className="flex-1 bg-transparent text-white placeholder:text-white/45 outline-none text-sm sm:text-base font-normal min-w-0"
+            className="flex-1 bg-transparent text-white placeholder:text-white/45 outline-none text-xs sm:text-base font-normal min-w-0"
           />
-          <button
-            onClick={() => {
-              if (inputText.trim()) {
-                const message = inputText.trim();
-                addUserMessage(message);
-                sendText(message);
-                setInputText('');
-              }
-            }}
-            aria-label="Send message"
-            className="shrink-0 text-[#EAB308] hover:text-white p-1 transition-colors cursor-pointer"
-          >
-            <Send className="w-5 h-5" />
-          </button>
         </div>
 
-        {/* Microphone Button */}
+        {/* Microphone / Dictation Button */}
         <button
           onClick={() => {
-            if (!isConnected) {
-              connect();
-            } else if (isPaused) {
-              resume();
-            }
+            setIsDictationActive(prev => !prev);
           }}
-          aria-label="Voice input"
-          className="w-12 h-12 sm:w-13 sm:h-13 shrink-0 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/40 hover:border-white/60 shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          title={isDictationActive ? (selectedLang === 'EN' ? 'Stop Dictation' : 'Detener Dictado') : (selectedLang === 'EN' ? 'Start Voice Dictation' : 'Iniciar Dictado por Voz')}
+          aria-label="Voice dictation"
+          className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-full bg-transparent shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer ${
+            isDictationActive
+              ? 'text-red-500 border-2 border-red-500 bg-red-500/20 animate-pulse'
+              : 'text-[#EAB308] border border-[#EAB308]/80 hover:text-white hover:border-white'
+          }`}
         >
-          <Mic className="w-5 h-5 sm:w-6 sm:h-6" />
+          <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Exit Live Button */}
         <button
-          onClick={() => setIsLiveVoiceActive(false)}
+          onClick={() => {
+            setIsDictationActive(false);
+            setIsLiveVoiceActive(false);
+          }}
           aria-label="Exit Live"
-          className="w-12 h-12 sm:w-13 sm:h-13 shrink-0 rounded-full bg-black text-[#EAB308] hover:text-white border border-[#EAB308]/40 hover:border-white/60 shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          className="w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-full bg-transparent text-[#EAB308] hover:text-white border border-[#EAB308]/80 hover:border-white shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all cursor-pointer"
         >
-          <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          <X className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
       </div>
      </div>
@@ -4935,7 +5038,7 @@ Pregunta del usuario: "${text}"]`;
     const match = text.match(/"([^"]+)"/);
     if (match) cleanText = match[1];
   }
-  const spokenText = cleanText || text;
+  const spokenText = (cleanText || text).replace(/\bEE\.?UU\.?\b/gi, 'Estados Unidos');
   const utterance = new SpeechSynthesisUtterance(spokenText);
   const isFemale = (name: string) => {
   const lower = name.toLowerCase();

@@ -6,6 +6,7 @@ import {
   searchQuestions, 
   generate20QuestionExam 
 } from '../data/civics128Data';
+import { CivicsExamTracker } from '../domain/CivicsExamTracker';
 import { 
   BookOpen, 
   Compass,
@@ -419,6 +420,7 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
     // Check if auto-passed or reached end of question pool
     if (correctCount >= requiredPass || totalAsked >= examQuestions.length) {
       setExamCompleted(true);
+      CivicsExamTracker.recordExam(examFormat === '65_20_special' ? '65_20' : examFormat, correctCount, examQuestions.length);
       return;
     }
 

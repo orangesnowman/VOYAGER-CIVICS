@@ -19,10 +19,10 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     nameEs: 'INGLÉS',
     descriptionEn: 'Pure immersion practice. Speaks only in English.',
     descriptionEs: 'Práctica de inmersión pura. Habla únicamente en inglés.',
-    systemMessage: "[SYSTEM MESSAGE: Mode changed. You are now in ENGLISH ONLY MODE. You must speak and write strictly and purely in English. Do NOT provide any Spanish translations, hints, corrections, or bilingual tips. Speak naturally as an American English speaker. This is a pure immersion practice mode for advanced students. Speak only in English. Do NOT say 'Understood' or 'Entendido'.]",
-    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Speak aloud a brief explanation in Spanish (one warm sentence) telling the user that you are now back in normal English tutor mode, teaching American English and offering cultural advice. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo inglés' (or 'English mode'). Speak strictly in English. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo inglés' (or 'English mode'). Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ English Only Mode active: Speaks strictly in English for advanced practice.',
-    chatInfoMessageEs: 'ℹ️ Modo Solo Inglés activo: Habla estrictamente en inglés para práctica avanzada.'
+    chatInfoMessageEs: 'ℹ️ Modo Solo Inglés activo: Habla strictly en inglés para práctica avanzada.'
   },
   SPANISH: {
     id: 'SPANISH',
@@ -30,8 +30,8 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     nameEs: 'ESPAÑOL',
     descriptionEn: 'Conversation purely in Spanish.',
     descriptionEs: 'Conversación puramente en español.',
-    systemMessage: "[SYSTEM MESSAGE: Mode changed. You are now in SPANISH ONLY MODE. You must speak and write strictly and purely in Spanish from now on. Discuss American English culture and language in Spanish. Do NOT teach English, evaluate grammar, or translate any text. Speak only in Spanish. Do NOT say 'Understood' or 'Entendido'.]",
-    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Speak aloud a brief explanation in Spanish (one warm sentence) telling the user that you are now back in normal English tutor mode, teaching American English and offering cultural advice. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo español'. Speak strictly in Spanish. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo español'. Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ Spanish Only Mode active: Converses with you strictly in Spanish.',
     chatInfoMessageEs: 'ℹ️ Modo Solo Español activo: Conversa contigo estrictamente en español.'
   },
@@ -41,8 +41,8 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     nameEs: 'BILINGÜE',
     descriptionEn: 'Responds first in Spanish, then repeats in English.',
     descriptionEs: 'Responde primero en español y repite en inglés.',
-    systemMessage: "[SYSTEM MESSAGE: Mode changed. You are now in BILINGUAL TRANSLATION MODE. You must immediately speak and write a brief explanation in Spanish (only one warm sentence) explaining what this mode does (that you will say all your responses first in Spanish, and then repeat them in English). Do NOT say 'Understood' or 'Entendido'.]",
-    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Speak aloud a brief explanation in Spanish (one warm sentence) telling the user that you are now back in normal English tutor mode, teaching American English and offering cultural advice. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo bilingüe' (or 'Bilingual mode'). Respond in Spanish first, then repeat in English. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo bilingüe' (or 'Bilingual mode'). Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ Bilingual Mode active: Responds in Spanish and repeats in English.',
     chatInfoMessageEs: 'ℹ️ Modo Bilingüe activo: Responderá en español y lo repetirá en inglés.'
   },
@@ -50,10 +50,10 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     id: 'LIVE_TRANSLATOR',
     nameEn: 'TRANSLATE',
     nameEs: 'TRADUCE',
-    descriptionEn: 'Instant speech translation between English and Spanish.',
-    descriptionEs: 'Traducción de voz instantánea entre inglés y español.',
-    systemMessage: "[SYSTEM MESSAGE: Mode changed. You are now in INSTANT TRANSLATION MODE. From now on, whatever you hear in English, you must translate to Spanish. If the user speaks in Spanish, you must translate to English. Output ONLY the translated words and absolutely nothing else, both in your voice and in your text transcription. Do NOT say 'Understood' or 'Entendido'. In this very first response, translate this message to Spanish: 'Instant Translation Mode is now active. I am ready to translate.']",
-    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Speak aloud a brief explanation in Spanish (one warm sentence) telling the user that you are now back in normal English tutor mode, teaching American English and offering cultural advice. Do NOT say 'Understood' or 'Entendido'.]",
+    descriptionEn: 'Instant 1-to-1 speech translation between English and Spanish.',
+    descriptionEs: 'Traducción de voz 1-a-1 instantánea entre inglés y español.',
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo traductor' (or 'Translator mode'). Perform 1-to-1 speech translation only (Spanish to English once, English to Spanish once). Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo traductor' (or 'Translator mode'). Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ Instant Translation Mode active: Translates what you say immediately.',
     chatInfoMessageEs: 'ℹ️ Modo de Traducción Instantánea activo: Traducirá lo que digas de inmediato.'
   },
@@ -63,8 +63,8 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     nameEs: 'ESCUCHA',
     descriptionEn: 'Monitors and offers text tips without speaking.',
     descriptionEs: 'Escucha y ofrece consejos por texto sin hablar.',
-    systemMessage: "[SYSTEM MESSAGE: Mode changed. You are now in Monitor/Listen-only mode. However, BEFORE you go fully silent, you MUST immediately speak and write a brief explanation in Spanish (only one warm sentence) explaining what this mode does (that you will listen only and offer tips in the text chat, and won't speak unless given permission). End your sentence by saying that you will now be quiet and listen. Do NOT say 'Understood' or 'Entendido'. after saying this explanation, you must remain silent for subsequent turns and only respond via text unless asked '¿Puedo hablar?'.]",
-    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Speak aloud a brief explanation in Spanish (one warm sentence) telling the user you are now back in normal voice mode and will speak and respond normally. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo escucha' (or 'Listen mode'). After this brief 2-word announcement, remain completely silent and respond only via text unless asked '¿Puedo hablar?'. Do NOT say 'Understood' or 'Entendido'.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo escucha' (or 'Listen mode'). Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ Monitor mode active: Listening only and will not speak. Feedback will be provided via text.',
     chatInfoMessageEs: 'ℹ️ Modo Escucha activo: Solo escuchará y no hablará. Los comentarios se proporcionarán por texto.'
   }

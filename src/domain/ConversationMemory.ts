@@ -213,17 +213,34 @@ export class ConversationMemory {
 
   private saveToStorage(): void {
     try {
+      if (this.previousConversations.length > 20) {
+        this.previousConversations = this.previousConversations.slice(-20);
+      }
       const data = {
         id: this.id,
-        goals: this.goals,
-        interests: this.interests,
-        preferences: this.preferences,
+        goals: this.goals.slice(-20),
+        interests: this.interests.slice(-20),
+        preferences: this.preferences.slice(-20),
         previousConversations: this.previousConversations,
         personalContext: this.personalContext
       };
       localStorage.setItem('voyager_conversation_memory', JSON.stringify(data));
     } catch (e) {
-      console.error('Failed to save conversation memory to storage:', e);
+      console.warn('Storage quota limit reached for conversation memory, pruning old logs...');
+      try {
+        this.previousConversations = this.previousConversations.slice(-5);
+        const trimmedData = {
+          id: this.id,
+          goals: this.goals.slice(-10),
+          interests: this.interests.slice(-10),
+          preferences: this.preferences.slice(-10),
+          previousConversations: this.previousConversations,
+          personalContext: this.personalContext
+        };
+        localStorage.setItem('voyager_conversation_memory', JSON.stringify(trimmedData));
+      } catch (innerErr) {
+        // Silently ignore if browser storage quota is completely full
+      }
     }
   }
 

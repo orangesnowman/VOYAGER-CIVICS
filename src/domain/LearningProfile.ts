@@ -53,26 +53,40 @@ export class LearningProfile {
       naturalness,
       timestamp: Date.now()
     });
+    // Cap score history to prevent uncontrolled growth
+    if (this.scoreHistory.length > 50) {
+      this.scoreHistory = this.scoreHistory.slice(-50);
+    }
     this.saveToStorage();
   }
 
   addLearnedWords(words: string[]): void {
     words.forEach(w => {
       const trimmed = w.toLowerCase().trim();
-      if (trimmed) {
+      if (trimmed && trimmed.length < 100) {
         this.learnedWords.add(trimmed);
       }
     });
+    // Cap learned words to max 300
+    if (this.learnedWords.size > 300) {
+      const arr = Array.from(this.learnedWords).slice(-300);
+      this.learnedWords = new Set(arr);
+    }
     this.saveToStorage();
   }
 
   addAccentPatterns(patterns: string[]): void {
     patterns.forEach(p => {
       const trimmed = p.trim();
-      if (trimmed) {
+      if (trimmed && trimmed.length < 200) {
         this.accentPatterns.add(trimmed);
       }
     });
+    // Cap accent patterns to max 100
+    if (this.accentPatterns.size > 100) {
+      const arr = Array.from(this.accentPatterns).slice(-100);
+      this.accentPatterns = new Set(arr);
+    }
     this.saveToStorage();
   }
 
@@ -81,13 +95,32 @@ export class LearningProfile {
       const data = {
         id: this.id,
         currentScores: this.currentScores,
-        scoreHistory: this.scoreHistory,
-        learnedWords: this.getLearnedWords(),
-        accentPatterns: this.getAccentPatterns()
+        scoreHistory: this.scoreHistory.slice(-50),
+        learnedWords: this.getLearnedWords().slice(-300),
+        accentPatterns: this.getAccentPatterns().slice(-100)
       };
       localStorage.setItem('voyager_learning_profile', JSON.stringify(data));
     } catch (e) {
-      console.error('Failed to save learning profile to storage:', e);
+      console.warn('Storage quota limit reached for learning profile, pruning old history...');
+      try {
+        // Fallback: prune heavily to fit storage quota
+        this.scoreHistory = this.scoreHistory.slice(-15);
+        const trimmedWords = this.getLearnedWords().slice(-50);
+        this.learnedWords = new Set(trimmedWords);
+        const trimmedPatterns = this.getAccentPatterns().slice(-20);
+        this.accentPatterns = new Set(trimmedPatterns);
+
+        const prunedData = {
+          id: this.id,
+          currentScores: this.currentScores,
+          scoreHistory: this.scoreHistory,
+          learnedWords: trimmedWords,
+          accentPatterns: trimmedPatterns
+        };
+        localStorage.setItem('voyager_learning_profile', JSON.stringify(prunedData));
+      } catch (innerErr) {
+        // Silently ignore if browser storage is completely blocked or restricted
+      }
     }
   }
 
