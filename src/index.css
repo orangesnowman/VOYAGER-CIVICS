@@ -57,6 +57,58 @@
       filter: brightness(1.25);
     }
   }
+
+  @keyframes auraGradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+}
+
+/* Gradient Border Effects for Chat Bubbles (Yellow/Red for Voyager, Blue/Cyan/Bright Green for User) */
+.bubble-ai-gradient-wrapper {
+  position: relative;
+  padding: 4px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #FFD700, #FF3D00, #EF4444, #F59E0B, #FFD700);
+  background-size: 300% 300%;
+  box-shadow: none;
+}
+.bubble-ai-gradient-wrapper.is-latest {
+  animation: auraGradientShift 4s linear infinite;
+}
+
+.bubble-user-gradient-wrapper {
+  position: relative;
+  padding: 4px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #2563EB, #06B6D4, #22C55E, #00F0FF, #2563EB);
+  background-size: 300% 300%;
+  box-shadow: none;
+}
+.bubble-user-gradient-wrapper.is-latest {
+  animation: auraGradientShift 4s linear infinite;
+}
+
+/* Backward compatibility aliases */
+.latest-bubble-ai-glow-wrapper {
+  position: relative;
+  padding: 4px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #FFD700, #FF3D00, #EF4444, #F59E0B, #FFD700);
+  background-size: 300% 300%;
+  animation: auraGradientShift 4s linear infinite;
+  box-shadow: none;
+}
+
+.latest-bubble-user-glow-wrapper {
+  position: relative;
+  padding: 4px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #2563EB, #06B6D4, #22C55E, #00F0FF, #2563EB);
+  background-size: 300% 300%;
+  animation: auraGradientShift 4s linear infinite;
+  box-shadow: none;
 }
 
 /* Custom Scrollbar */

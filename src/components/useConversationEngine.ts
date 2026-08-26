@@ -80,6 +80,7 @@ export function useConversationEngine(
     userLevel: profile?.levelEstimate,
     activeTab,
     onUserTranscription: (text) => {
+      updateUserVoiceTranscription(text);
       if (onUserVoiceTranscription) {
         onUserVoiceTranscription(text);
       }

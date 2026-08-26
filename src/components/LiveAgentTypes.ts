@@ -8,6 +8,7 @@ export interface ChatMessage {
   timeMs: number;
   showForm?: boolean;
   tab?: string;
+  feedback?: 'up' | 'down';
 }
 
 export interface Lead {

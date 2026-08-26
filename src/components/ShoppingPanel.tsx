@@ -405,10 +405,10 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
             >
               <div className={`max-w-[78%] flex flex-col space-y-1 ${isUser ? 'items-end' : 'items-start'}`}>
                 <div className={`
-                  px-4 py-2.5 rounded-2xl text-sm leading-snug transition-all bg-white border-[5px]
+                  px-4 py-2.5 rounded-full text-sm leading-snug transition-all bg-white border-[5px]
                   ${isUser 
-                    ? 'border-blue-600/30 text-black rounded-tr-none' 
-                    : 'border-[#FFD700] text-black rounded-tl-none font-serif'
+                    ? 'border-blue-600/30 text-black' 
+                    : 'border-[#FFD700] text-black font-serif'
                   }
                 `}>
                   {isUser ? (

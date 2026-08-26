@@ -15,7 +15,7 @@ import { ChatInputBox } from './ChatInputBox';
 import { AuthModal } from './AuthModal';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -1232,8 +1232,8 @@ const PRACTICE_SCENARIOS: PracticeScenario[] = [
   {
     id: 'open',
     category: 'GENERAL',
-    nameEn: 'Open Conversation (OPEN)',
-    nameEs: 'OPEN (Conversación Abierta)',
+    nameEn: 'OPEN',
+    nameEs: 'OPEN',
     descEn: 'Free open conversation with Voyager on any topic following core guardrails.',
     descEs: 'Conversación libre con Voyager sobre cualquier tema respetando las reglas.',
     icon: MessageSquare,
@@ -1254,12 +1254,13 @@ const PRACTICE_SCENARIOS: PracticeScenario[] = [
     nameEs: 'Vida Diaria',
     descEn: 'Interactive practice guide for Cafeterias, Diners, Hotel Receptions, Gas Stations, Supermarkets & everyday life.',
     descEs: 'Guía práctica interactiva para Cafeterías, Diners, Recepción, Gasolineras, Supermercados y vida cotidiana.',
-    icon: Compass,
+    icon: Clock,
   },
 ];
 
 const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) => {
  const [rightPanelTab, setRightPanelTab] = useState<'home' | 'chat' | 'citizenship' | 'civics' | 'roadmap' | 'teachers' | 'progress' | 'settings' | 'shopping'>('home');
+ const [isDarkMode, setIsDarkMode] = useState(false);
  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
  const [isPassportModeMenuOpen, setIsPassportModeMenuOpen] = useState(false);
@@ -1267,6 +1268,12 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  const [isInputActionsMenuOpen, setIsInputActionsMenuOpen] = useState(false);
  const [activeScenarioId, setActiveScenarioId] = useState<string | null>('open');
  const [lastUserVoiceTranscription, setLastUserVoiceTranscription] = useState<string>('');
+ const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+ const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
+ const [openFeedbackMsgId, setOpenFeedbackMsgId] = useState<string | null>(null);
+ const [msgFeedbackInput, setMsgFeedbackInput] = useState<Record<string, string>>({});
+ const [msgFeedbackLists, setMsgFeedbackLists] = useState<Record<string, { id: string; text: string; timestamp: Date }[]>>({});
+ const [msgFeedbackSent, setMsgFeedbackSent] = useState<Record<string, boolean>>({});
 
  const {
  activeMode,
@@ -2836,11 +2843,10 @@ ${greetingPrompt}`;
  : "w-9 h-9 rounded-full border-[1.5pt] border-black/40 text-black/40 hover:bg-red-600 hover:text-white hover:border-red-600 flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-95 bg-transparent";
 
   const renderConversationalMenuContent = () => (
-    <div className="w-72 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
+    <div className="w-72 bg-[#08152E]/90 backdrop-blur-md border border-[#EAB308]/80 rounded-2xl p-2.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
       {/* Header Title */}
-      <div className="px-2 py-1 mb-1.5 border-b border-white/10 flex items-center justify-between">
-        <span className="text-xs font-bold tracking-wider text-[#EAB308] uppercase flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-[#EAB308]" />
+      <div className="px-2 py-1 mb-1.5 flex items-center justify-between">
+        <span className="text-[15px] font-semibold text-white">
           {selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
         </span>
         <button
@@ -2872,26 +2878,17 @@ ${greetingPrompt}`;
                 setIsPassportModeMenuOpen(false);
                 setIsInputActionsMenuOpen(false);
               }}
-              className={`w-full flex items-center p-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+              className={`w-full flex items-center px-2 py-1.5 rounded-lg text-left transition-colors duration-150 cursor-pointer group bg-transparent ${
                 isSelected
-                  ? 'bg-[#EAB308]/20 text-[#EAB308] font-bold'
-                  : 'text-white/85 hover:text-white hover:bg-white/10'
+                  ? 'text-[#EAB308] font-bold'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0 w-full">
-                <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                  isSelected ? 'bg-[#EAB308] text-[#0B1B3D]' : 'bg-white/10 text-[#EAB308]'
-                }`}>
-                  <IconComp className="w-3.5 h-3.5" />
-                </div>
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs font-semibold leading-snug truncate">
-                    {name}
-                  </span>
-                </div>
-                {isSelected && (
-                  <Check className="w-3.5 h-3.5 shrink-0 text-[#EAB308]" />
-                )}
+                <IconComp className={`w-4 h-4 shrink-0 transition-colors ${isSelected ? 'text-[#EAB308]' : 'text-gray-400 group-hover:text-white'}`} />
+                <span className="text-xs font-semibold leading-snug truncate">
+                  {name}
+                </span>
               </div>
             </button>
           );
@@ -3019,7 +3016,7 @@ ${greetingPrompt}`;
   </div>
 
  {/* Column 2 (Right Panel): The Cover Page (White layout) */}
- <div className={`md:col-span-1 ${hasClickedConnect ? 'bg-[#0D224A]' : 'bg-white'} rounded-none md:rounded-[32px] flex flex-col justify-between items-center text-center shadow-none md:shadow-[0_15px_35px_rgba(0,0,0,0.15)] relative overflow-hidden w-full h-[100dvh] md:h-full min-h-0`}>
+ <div className={`md:col-span-1 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-[#0F172A]' : hasClickedConnect ? 'bg-[#0D224A]' : 'bg-white'} rounded-none md:rounded-[32px] flex flex-col justify-between items-center text-center shadow-none md:shadow-[0_15px_35px_rgba(0,0,0,0.15)] relative overflow-hidden w-full h-[100dvh] md:h-full min-h-0 transition-colors duration-300`}>
  {!hasClickedConnect ? (
  /* Disconnected Landing Screen inside the Cover */
  <>
@@ -3090,7 +3087,7 @@ ${greetingPrompt}`;
  <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
  {/* Header / Tabs */}
  {/* Top Header with Hamburger Button */}
- <div className={`w-full bg-white pt-[24px] ${rightPanelTab === 'civics' ? 'pb-3 sm:pb-4' : 'pb-1 sm:pb-1.5'} pl-4 sm:pl-6 pr-2 sm:pr-3 flex items-center justify-between sticky top-0 z-50 flex-shrink-0 relative`}>
+ <div className={`w-full ${isDarkMode && rightPanelTab === 'chat' ? 'bg-[#0F172A] text-white' : 'bg-white text-black'} pt-[24px] ${rightPanelTab === 'civics' ? 'pb-3 sm:pb-4' : 'pb-1 sm:pb-1.5'} pl-4 sm:pl-6 pr-4 sm:pr-6 flex items-center justify-between sticky top-0 z-50 flex-shrink-0 relative transition-colors duration-300`}>
  {/* Left: Hamburger Toggle Button, Section Indicator, ON/OFF & Timer */}
  <div className="flex items-center gap-2 sm:gap-2.5 z-10">
  <button
@@ -3099,7 +3096,7 @@ ${greetingPrompt}`;
  aria-label={selectedLang === 'EN' ? 'Menu' : 'Menú'}
  className="relative p-1 text-slate-900 hover:text-black bg-transparent border-none rounded-xl transition-all cursor-pointer flex items-center justify-center active:scale-95 outline-none"
  >
-  {isNavMenuOpen ? <X className="w-6 h-6 text-slate-900" strokeWidth={3} /> : <Menu className="w-6 h-6 text-slate-900" strokeWidth={3} />}
+  {isNavMenuOpen ? <X className={`w-6 h-6 ${isDarkMode && rightPanelTab === 'chat' ? 'text-white' : 'text-slate-900'}`} strokeWidth={3} /> : <Menu className={`w-6 h-6 ${isDarkMode && rightPanelTab === 'chat' ? 'text-white' : 'text-slate-900'}`} strokeWidth={3} />}
  {cartCount > 0 && !isNavMenuOpen && (
  <span 
  style={{ fontFamily: "'Allerta', 'Allerta Sans', sans-serif" }}
@@ -3116,13 +3113,13 @@ ${greetingPrompt}`;
  {!(!hasInteracted && hasClickedConnect) && (
  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center text-center pointer-events-none select-none pt-8 sm:pt-10 md:pt-12">
 
- <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.12em' }} className={`${(rightPanelTab === 'civics' || rightPanelTab === 'citizenship') ? 'text-base sm:text-xl md:text-2xl mb-1 sm:mb-2' : 'text-2xl sm:text-3xl md:text-[34px]'} font-black text-[#0D224A] uppercase block leading-none mt-0.5`}>
+ <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.12em' }} className={`${(rightPanelTab === 'civics' || rightPanelTab === 'citizenship') ? 'text-base sm:text-xl md:text-2xl mb-1 sm:mb-2' : 'text-2xl sm:text-3xl md:text-[34px]'} font-black ${isDarkMode && rightPanelTab === 'chat' ? 'text-white' : 'text-[#0D224A]'} uppercase block leading-none mt-0.5 transition-colors duration-300`}>
   {rightPanelTab === 'civics' ? (
    selectedLang === 'EN' ? 'USCIS CIVICS' : 'USCIS CÍVICA'
   ) : rightPanelTab === 'citizenship' ? (
    'CIUDADANÍA'
   ) : (
-   <>VOYAGER<span className="text-[0.3em] font-light text-[#0D224A]/90 align-baseline ml-1 px-1 py-0.5 inline-block select-none" style={{ fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 300, letterSpacing: "normal" }}>®</span></>
+   'CHARLA'
   )}
  </span>
  {rightPanelTab === 'civics' && (
@@ -3142,8 +3139,28 @@ ${greetingPrompt}`;
  </div>
  )}
 
- {/* Right: Spacer to maintain center alignment */}
- <div className="z-10 w-6 sm:w-10 pointer-events-none" />
+ {/* Right: Dark Mode Toggle Button opposite to hamburger menu */}
+ <div className="z-10 flex items-center gap-2">
+   {rightPanelTab === 'chat' && (
+     <button
+       type="button"
+       onClick={() => setIsDarkMode(prev => !prev)}
+       title={isDarkMode ? (selectedLang === 'EN' ? 'Light Mode' : 'Modo Claro') : (selectedLang === 'EN' ? 'Dark Mode' : 'Modo Oscuro')}
+       aria-label={isDarkMode ? (selectedLang === 'EN' ? 'Light Mode' : 'Modo Claro') : (selectedLang === 'EN' ? 'Dark Mode' : 'Modo Oscuro')}
+       className={`p-1.5 sm:p-2 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center active:scale-95 bg-transparent border-none shadow-none ${
+         isDarkMode
+           ? 'text-amber-400 hover:text-amber-300'
+           : 'text-slate-700 hover:text-black'
+       }`}
+     >
+       {isDarkMode ? (
+         <Sun className="w-5 h-5 fill-amber-400/20" strokeWidth={2.2} />
+       ) : (
+         <Moon className="w-5 h-5" strokeWidth={2.2} />
+       )}
+     </button>
+   )}
+ </div>
 
  {/* Vertical Column Bar Dropdown Menu */}
  {isNavMenuOpen && (
@@ -3255,7 +3272,9 @@ ${greetingPrompt}`;
 
  </div>
  ) : (
- <div className="flex-grow flex flex-col overflow-hidden pt-5 px-5 pb-1.5 md:pt-8 md:px-8 md:pb-2 min-h-0 bg-white">
+ <div className={`flex-grow flex flex-col overflow-hidden ${
+   rightPanelTab === 'chat' ? 'pt-1 px-4 sm:px-6 md:px-8 pb-3' : 'pt-5 px-5 pb-1.5 md:pt-8 md:px-8 md:pb-2'
+ } min-h-0 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-[#0F172A]' : 'bg-white'} transition-colors duration-300`}>
  {/* Old sub-header bar has been removed */}
           {(!hasInteracted && hasClickedConnect && rightPanelTab === 'home') ? (
  <div className="flex-grow flex flex-col justify-center items-center overflow-y-auto p-4 md:p-6 tab-content-area h-full select-none">
@@ -4106,13 +4125,13 @@ ${greetingPrompt}`;
  </div>
           
    ) : rightPanelTab === 'chat' ? (
- <div className="flex-grow flex flex-col overflow-hidden h-full">
+ <div className={`flex-grow flex flex-col overflow-hidden h-full ${isDarkMode ? 'bg-[#0F172A]' : 'bg-transparent'} transition-colors duration-300`}>
 
- <div className="flex-1 px-0.5 sm:px-1.5 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0">
+ <div className={`flex-1 px-1 sm:px-2 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0 ${isDarkMode ? 'bg-[#0F172A]' : ''}`}>
   {isLiveVoiceActive ? (
-    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none p-3 sm:p-4 md:p-8 lg:p-10 pb-2.5 sm:pb-3 md:pb-12 lg:pb-16 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
+    <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none pt-1 sm:pt-1.5 md:pt-3 lg:pt-4 px-3 sm:px-4 md:px-8 lg:px-10 pb-1 sm:pb-1.5 md:pb-6 lg:pb-8 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
      {/* Top Left Golden + Conversational Menu Button in Live Mode */}
-     <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-30">
+     <div className="absolute top-2 left-3 sm:top-2.5 sm:left-4 z-30">
        <button
          type="button"
          onClick={() => setIsConversationalMenuOpen(prev => !prev)}
@@ -4140,7 +4159,7 @@ ${greetingPrompt}`;
 
 
      {/* Top Center Logo */}
-     <div className="pt-2 flex flex-col items-center justify-center text-center select-none z-20">
+     <div className="pt-0 flex flex-col items-center justify-center text-center select-none z-20">
        <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.25em' }} className="text-[11px] sm:text-xs font-bold text-white/80 uppercase tracking-widest block leading-none">
          YO SOY USA
        </span>
@@ -4232,8 +4251,22 @@ ${greetingPrompt}`;
                 className="fixed inset-0 z-40 bg-transparent"
                 onClick={() => setIsModeMenuOpen(false)}
               />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl animate-fade-in flex flex-col text-white">
-                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 bg-[#08152E]/90 backdrop-blur-md border border-[#EAB308]/80 rounded-2xl p-2.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
+                {/* Header Title */}
+                <div className="px-2 py-1 mb-1.5 flex items-center justify-between">
+                  <span className="text-[15px] font-semibold text-white">
+                    {selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsModeMenuOpen(false)}
+                    className="text-white/60 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto pr-0.5 custom-scrollbar">
                   {modeDetails.map((mode) => {
                     const name = mode.nameEs;
                     const desc = mode.descEs;
@@ -4241,7 +4274,7 @@ ${greetingPrompt}`;
                     const isSelected = effectiveMode === mode.id;
 
                     const renderModeIcon = () => {
-                      const colorClass = isSelected ? 'text-[#EAB308]' : 'text-white/70';
+                      const colorClass = isSelected ? 'text-[#EAB308]' : 'text-gray-400 group-hover:text-white transition-colors';
                       if (mode.id === 'SPANISH') {
                         return (
                           <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
@@ -4268,6 +4301,7 @@ ${greetingPrompt}`;
                     return (
                       <button
                         key={mode.id}
+                        type="button"
                         onClick={() => {
                           if (isPaused) {
                             resume(true);
@@ -4279,18 +4313,18 @@ ${greetingPrompt}`;
                           }
                           setIsModeMenuOpen(false);
                         }}
-                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                        className={`w-full flex items-center px-2 py-1.5 rounded-lg text-left transition-colors duration-150 cursor-pointer group bg-transparent ${
                           isSelected
-                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
-                            : 'text-white/80 hover:text-white hover:bg-white/10'
+                            ? 'text-[#EAB308] font-bold'
+                            : 'text-gray-400 hover:text-white'
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-5 h-5 flex items-center justify-center shrink-0">
                             {renderModeIcon()}
                           </div>
-                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
-                            isSelected ? 'font-bold text-[#EAB308]' : 'font-normal'
+                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal transition-colors ${
+                            isSelected ? 'font-bold text-[#EAB308]' : 'font-normal text-gray-400 group-hover:text-white'
                           }`}>
                             {name}
                           </span>
@@ -4301,6 +4335,7 @@ ${greetingPrompt}`;
 
                   {/* PAUSA Option */}
                   <button
+                    type="button"
                     onClick={() => {
                       if (!isPaused) {
                         handlePauseButtonClick();
@@ -4309,20 +4344,20 @@ ${greetingPrompt}`;
                       }
                       setIsModeMenuOpen(false);
                     }}
-                    className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
+                    className={`w-full flex items-center px-2 py-1.5 rounded-lg text-left transition-colors duration-150 cursor-pointer group bg-transparent ${
                       isPaused
-                        ? 'bg-[#EAB308]/15 text-[#EAB308]'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                        ? 'text-[#EAB308] font-bold'
+                        : 'text-gray-400 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                        <Pause fill="currentColor" className={`w-4 h-4 shrink-0 ${isPaused ? 'text-[#EAB308]' : 'text-white/70'}`} />
+                        <Pause fill="currentColor" className={`w-4 h-4 shrink-0 transition-colors ${isPaused ? 'text-[#EAB308]' : 'text-gray-400 group-hover:text-white'}`} />
                       </div>
-                      <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
-                        isPaused ? 'font-bold text-[#EAB308]' : 'font-normal'
+                      <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal transition-colors ${
+                        isPaused ? 'font-bold text-[#EAB308]' : 'font-normal text-gray-400 group-hover:text-white'
                       }`}>
-                        Pausa
+                        {selectedLang === 'EN' ? 'Pause' : 'Pausa'}
                       </span>
                     </div>
                   </button>
@@ -4334,9 +4369,9 @@ ${greetingPrompt}`;
       </div>
 
       {/* Bottom Bar: Pill Input, Mic button, Close button */}
-      <div className="z-30 w-full max-w-2xl px-2 sm:px-4 md:px-6 md:pb-3 lg:pb-5 flex items-center gap-1.5 sm:gap-3">
+      <div className="z-30 w-full max-w-2xl px-2 sm:px-4 md:px-6 pb-0.5 sm:pb-1 md:pb-1.5 lg:pb-2.5 flex items-center justify-center gap-1.5 sm:gap-3">
         {/* Pill Text Input */}
-        <div className="flex-1 min-w-0 flex items-center rounded-full border border-[#EAB308]/80 bg-transparent shadow-2xl px-2.5 py-1.5 sm:px-4 sm:py-2.5 transition-all focus-within:border-white focus-within:bg-transparent gap-1.5 sm:gap-2.5">
+        <div className="w-[40%] flex items-center rounded-full border border-[#EAB308]/80 bg-transparent shadow-2xl px-2.5 py-1.5 sm:px-4 sm:py-2.5 transition-all focus-within:border-white focus-within:bg-transparent gap-1.5 sm:gap-2.5">
           {/* Tilted Arrow (Send) button at the beginning of the input box */}
           <button
             onClick={() => {
@@ -4396,26 +4431,30 @@ ${greetingPrompt}`;
      </div>
  ) : (
  <div className="min-h-full flex flex-col justify-start space-y-4">
- {chatMessages.filter(msg => !msg.tab || msg.tab === 'chat').map((msg, index) => {
- if (msg.sender === 'system') {
- return null;
- }
- if (msg.sender === 'user' && msg.text.startsWith('[')) {
- return null;
- }
- 
+ {(() => {
+   const visibleMsgs = chatMessages.filter(msg => {
+     if (msg.tab && msg.tab !== 'chat') return false;
+     if (msg.sender === 'system') return false;
+     if (msg.sender === 'user' && msg.text.startsWith('[')) return false;
+     return true;
+   });
 
- const isUser = msg.sender === 'user';
- 
- return (
+   return visibleMsgs.map((msg, index) => {
+     const isUser = msg.sender === 'user';
+     const isLatest = index === visibleMsgs.length - 1;
+
+     return (
  <div key={msg.id} className={`flex items-start ${isUser ? 'justify-end' : 'justify-start'} gap-2.5 animate-fade-in`}>
  <div className={`w-full max-w-[98%] sm:max-w-[88%] flex flex-col space-y-1 ${isUser ? 'items-end' : 'items-start'}`}>
+ <div className={
+   isUser
+     ? `bubble-user-gradient-wrapper rounded-[26px] ${isLatest ? 'is-latest' : ''}`
+     : `bubble-ai-gradient-wrapper rounded-[26px] ${isLatest ? 'is-latest' : ''}`
+ }>
  <div className={`
- px-3.5 sm:px-4 py-2.5 rounded-2xl text-sm leading-snug transition-all
- ${isUser 
- ? 'bg-white border-[5px] border-blue-600/30 backdrop-blur-md text-black rounded-tr-none font-normal' 
- : 'bg-white border-[5px] border-[#FFD700] text-black rounded-tl-none'
- }
+ px-3.5 sm:px-4 py-2.5 rounded-[22px] text-sm leading-snug transition-all shadow-md
+ ${isDarkMode ? (isUser ? 'bg-[#1A2E4B] text-blue-50 border border-blue-500/40' : 'bg-[#1E293B] text-slate-100 border border-slate-700/70') : 'bg-white text-black'}
+ ${isUser ? 'font-normal' : ''}
  `}>
  {isUser && (
  <div className="flex items-center justify-end gap-1 mb-1.5 select-none">
@@ -4513,11 +4552,13 @@ ${greetingPrompt}`;
  {m.active && (
  <Bot 
  strokeWidth={2.5}
- className="w-[18px] h-[18px] flex-shrink-0 transition-all duration-200 text-red-600 scale-110" 
+ className={`w-[18px] h-[18px] flex-shrink-0 transition-all duration-200 ${isDarkMode ? 'text-amber-400' : 'text-red-600'} scale-110`} 
  />
  )}
  <span className={`text-[7.5pt] tracking-wider uppercase whitespace-nowrap transition-colors ${
- m.active ? 'text-black font-extrabold' : 'text-black/45 font-bold group-hover:text-red-600'
+ m.active 
+   ? (isDarkMode ? 'text-amber-400 font-extrabold' : 'text-black font-extrabold')
+   : (isDarkMode ? 'text-slate-400 font-bold group-hover:text-amber-400' : 'text-black/45 font-bold group-hover:text-red-600')
  }`}>
  {m.label}
  </span>
@@ -4535,15 +4576,15 @@ ${greetingPrompt}`;
  if (parts.length >= 2) {
  return (
  <>
- <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(parts[0])}</div>
- <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="chat-message-english text-black font-semibold leading-snug mt-2">
+ <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className={`${isDarkMode ? 'text-slate-100' : 'text-black'} font-semibold leading-snug`}>{parseAndRenderEmojis(parts[0])}</div>
+ <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className={`chat-message-english ${isDarkMode ? 'text-slate-300' : 'text-black'} font-semibold leading-snug mt-2`}>
  {parseAndRenderEmojis(parts.slice(1).join(" / "))}
  </div>
  </>
  );
  }
  }
- return <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(rawText)}</div>;
+ return <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className={`${isDarkMode ? 'text-slate-100' : 'text-black'} font-semibold leading-snug`}>{parseAndRenderEmojis(rawText)}</div>;
  })()}
  </div>
  
@@ -4853,17 +4894,227 @@ ${greetingPrompt}`;
   )}
   </div>
   </div>
+   <div className="flex flex-col w-full">
+     <div className="flex items-center gap-2 mt-1 px-1.5 select-none flex-wrap">
+       {!isUser && (
+         <>
+           <button
+             type="button"
+             onClick={() => {
+               setChatMessages(prev =>
+                 prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'up' ? undefined : 'up' } : m)
+               );
+             }}
+             title={selectedLang === 'EN' ? "Helpful" : "Útil"}
+             aria-label="Thumbs up"
+             className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+               msg.feedback === 'up'
+                 ? isDarkMode ? 'text-[#FFD700] scale-110' : 'text-amber-500 scale-110'
+                 : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+             }`}
+           >
+             <ThumbsUp
+               className="w-4 h-4 transition-transform active:scale-125"
+               strokeWidth={msg.feedback === 'up' ? 2.25 : 1.75}
+               fill="none"
+             />
+           </button>
+           <button
+             type="button"
+             onClick={() => {
+               setChatMessages(prev =>
+                 prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'down' ? undefined : 'down' } : m)
+               );
+             }}
+             title={selectedLang === 'EN' ? "Not helpful" : "No útil"}
+             aria-label="Thumbs down"
+             className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+               msg.feedback === 'down'
+                 ? isDarkMode ? 'text-rose-400 scale-110' : 'text-rose-500 scale-110'
+                 : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+             }`}
+           >
+             <ThumbsDown
+               className="w-4 h-4 transition-transform active:scale-125"
+               strokeWidth={msg.feedback === 'down' ? 2.25 : 1.75}
+               fill="none"
+             />
+           </button>
+         </>
+       )}
+
+       {/* Copy Icon - copies text of the bubble */}
+       <button
+         type="button"
+         onClick={() => {
+           const cleanText = msg.text.replace(/\[.*?\]/g, '').trim();
+           if (navigator.clipboard) {
+             navigator.clipboard.writeText(cleanText);
+           }
+           setCopiedMsgId(msg.id);
+           setTimeout(() => setCopiedMsgId(null), 2000);
+         }}
+         title={copiedMsgId === msg.id ? (selectedLang === 'EN' ? 'Copied!' : '¡Copiado!') : (selectedLang === 'EN' ? 'Copy text' : 'Copiar texto')}
+         aria-label="Copy text"
+         className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+           copiedMsgId === msg.id
+             ? 'text-emerald-500 scale-110'
+             : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+         }`}
+       >
+         {copiedMsgId === msg.id ? (
+           <Check className="w-4 h-4 text-emerald-500" strokeWidth={2.25} />
+         ) : (
+           <Copy className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+         )}
+       </button>
+
+       {/* Voice Icon - reads the chat bubble when pressed */}
+       <button
+         type="button"
+         onClick={() => {
+           if ('speechSynthesis' in window) {
+             window.speechSynthesis.cancel();
+             if (speakingMsgId === msg.id) {
+               setSpeakingMsgId(null);
+               return;
+             }
+             const textToSpeak = msg.text.replace(/\[.*?\]/g, '').trim();
+             if (!textToSpeak) return;
+             const utterance = new SpeechSynthesisUtterance(textToSpeak);
+             utterance.lang = msg.switchLang === 'EN' || selectedLang === 'EN' ? 'en-US' : 'es-ES';
+             utterance.rate = 0.95;
+             utterance.onstart = () => setSpeakingMsgId(msg.id);
+             utterance.onend = () => setSpeakingMsgId(null);
+             utterance.onerror = () => setSpeakingMsgId(null);
+             window.speechSynthesis.speak(utterance);
+           } else if (speakText) {
+             speakText(msg.text.replace(/\[.*?\]/g, '').trim());
+           }
+         }}
+         title={speakingMsgId === msg.id ? (selectedLang === 'EN' ? 'Stop Speaking' : 'Detener lectura') : (selectedLang === 'EN' ? 'Read Aloud' : 'Escuchar respuesta')}
+         aria-label="Read text aloud"
+         className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+           speakingMsgId === msg.id
+             ? 'text-amber-500 scale-110 animate-pulse'
+             : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+         }`}
+       >
+         {speakingMsgId === msg.id ? (
+           <VolumeX className="w-4 h-4 text-amber-500" strokeWidth={2.25} />
+         ) : (
+           <Volume2 className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+         )}
+       </button>
+
+       {!isUser && (
+         <button
+           type="button"
+           onClick={() => setOpenFeedbackMsgId(prev => prev === msg.id ? null : msg.id)}
+           title={selectedLang === 'EN' ? "Voyager Feedback" : "Comentarios Voyager"}
+           aria-label="Voyager Feedback"
+           className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+             openFeedbackMsgId === msg.id
+               ? 'text-amber-500 scale-110'
+               : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+           }`}
+         >
+           <MessageSquarePlus className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+         </button>
+       )}
+     </div>
+
+     {/* Voyager Feedback Sub-Chat Box */}
+     {!isUser && openFeedbackMsgId === msg.id && (
+       <div className={`w-full mt-2 p-3 rounded-2xl ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80 text-white' : 'bg-slate-900 border-slate-800 text-white'} border backdrop-blur-md text-left animate-fade-in shadow-xl space-y-2`}>
+         <div className="flex items-center justify-between text-xs font-semibold text-amber-400/90 pb-1 border-b border-white/10">
+           <span className="flex items-center gap-1.5">
+             <MessageSquarePlus className="w-3.5 h-3.5 text-amber-400" />
+             {selectedLang === 'EN' ? 'Voyager Feedback Chat' : 'Chat de Comentarios Voyager'}
+           </span>
+           <button 
+             type="button"
+             onClick={() => setOpenFeedbackMsgId(null)}
+             className="text-neutral-400 hover:text-white p-0.5 rounded cursor-pointer"
+           >
+             <X className="w-3 h-3" />
+           </button>
+         </div>
+
+         {/* Previous Feedback Messages */}
+         {msgFeedbackLists[msg.id] && msgFeedbackLists[msg.id].length > 0 && (
+           <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+             {msgFeedbackLists[msg.id].map((fb) => (
+               <div key={fb.id} className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 flex justify-between items-start gap-2">
+                 <span>{fb.text}</span>
+                 <span className="text-[10px] text-amber-400/80 font-mono whitespace-nowrap">
+                   {selectedLang === 'EN' ? 'Received ✓' : 'Enviado ✓'}
+                 </span>
+               </div>
+             ))}
+           </div>
+         )}
+
+         {/* Send Feedback Form */}
+         <form
+           onSubmit={(e) => {
+             e.preventDefault();
+             const currentText = (msgFeedbackInput[msg.id] || '').trim();
+             if (!currentText) return;
+             const newFb = { id: Date.now().toString(), text: currentText, timestamp: new Date() };
+             setMsgFeedbackLists(prev => ({
+               ...prev,
+               [msg.id]: [...(prev[msg.id] || []), newFb]
+             }));
+             setMsgFeedbackInput(prev => ({ ...prev, [msg.id]: '' }));
+             setMsgFeedbackSent(prev => ({ ...prev, [msg.id]: true }));
+             setTimeout(() => {
+               setMsgFeedbackSent(prev => ({ ...prev, [msg.id]: false }));
+             }, 2500);
+           }}
+           className="flex items-center gap-2 pt-1"
+         >
+           <input
+             type="text"
+             value={msgFeedbackInput[msg.id] || ''}
+             onChange={(e) => setMsgFeedbackInput(prev => ({ ...prev, [msg.id]: e.target.value }))}
+             placeholder={selectedLang === 'EN' ? 'Send feedback about Voyager...' : 'Envía tus comentarios para Voyager...'}
+             className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-slate-950/90 border border-slate-700/70 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500/60 transition-colors"
+           />
+           <button
+             type="submit"
+             disabled={!(msgFeedbackInput[msg.id] || '').trim()}
+             className="p-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 text-slate-950 font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95"
+             title={selectedLang === 'EN' ? 'Send Feedback' : 'Enviar Comentarios'}
+           >
+             <SendHorizontal className="w-3.5 h-3.5" />
+           </button>
+         </form>
+
+         {msgFeedbackSent[msg.id] && (
+           <p className="text-[11px] text-emerald-400 font-medium animate-fade-in pl-0.5">
+             {selectedLang === 'EN' ? 'Thank you! Your feedback has been logged.' : '¡Gracias! Tus comentarios han sido registrados.'}
+           </p>
+         )}
+       </div>
+     )}
+   </div>
+  </div>
   </div>
   );
-  })}
+  });
+})()}
   <div ref={chatEndRef} />
   </div>
   )}
   </div>
   <ChatInputBox
+    isDarkMode={isDarkMode}
     selectedLang={selectedLang}
     isConnected={isConnected}
-   resume={resume}
+    isPaused={isPaused}
+    pause={pause}
+    resume={resume}
    onSubmitText={(text) => {
      const trimmed = text ? text.trim() : '';
      if (!trimmed) return;

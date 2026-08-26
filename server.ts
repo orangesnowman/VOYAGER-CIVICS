@@ -270,6 +270,31 @@ async function startServer() {
           onmessage: (message: LiveServerMessage) => {
             logToFile(`Received message from Gemini Live API: ${JSON.stringify(message).substring(0, 300)}...`);
             
+            if ((message as any).goAway || (message as any).goAwaySignal || (message as any).serverContent?.goAway) {
+              logToFile("Gemini sent explicit GoAway signal in onmessage. Gracefully closing old session and re-establishing...");
+              try {
+                if (session) {
+                  session.close();
+                  session = null;
+                }
+              } catch (e) {
+                logToFile(`Error closing old session on GoAway signal: ${e}`);
+              }
+              if (clientWs.readyState === WebSocket.OPEN && !isTransitioning) {
+                isTransitioning = true;
+                connectSession(currentModel).then(newSess => {
+                  session = newSess;
+                  isTransitioning = false;
+                  logToFile("Successfully re-established Gemini Live API session after GoAway signal.");
+                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                }).catch(err => {
+                  isTransitioning = false;
+                  logToFile(`Auto-reconnect after GoAway message failed: ${err.message || err}`);
+                });
+              }
+              return;
+            }
+
             if ((message as any).setupComplete) {
               logToFile("Gemini setupComplete received. Session is ready. Notifying client.");
               clientWs.send(JSON.stringify({ status: "connected", model: modelName }));
@@ -515,19 +540,26 @@ async function startServer() {
             }
             logToFile(`Gemini Live API connection closed callback for model ${modelName}. Code: ${code}, Reason: ${reason}`);
             
+            const isGoAwayOrTimeout = code === 1008 || 
+              reason.includes("GoAway") || 
+              reason.includes("aborted") || 
+              reason.includes("session duration") || 
+              reason.includes("normal") || 
+              code === 1000 || 
+              code === 1001;
+
+            try {
+              if (session) {
+                session.close();
+                session = null;
+              }
+            } catch (e) {}
+
             const elapsed = Date.now() - connectedTime;
-            if (elapsed < 2500 && modelName === "gemini-3.1-flash-live-preview" && !isTransitioning) {
+            if (elapsed < 2500 && modelName === "gemini-3.1-flash-live-preview" && !isTransitioning && !isGoAwayOrTimeout) {
               logToFile(`Connection closed quickly (${elapsed}ms). Initiating fallback sequence...`);
               triggerFallback();
             } else if (!isTransitioning) {
-              const isGoAwayOrTimeout = code === 1008 || 
-                reason.includes("GoAway") || 
-                reason.includes("aborted") || 
-                reason.includes("session duration") || 
-                reason.includes("normal") || 
-                code === 1000 || 
-                code === 1001;
-
               if (isGoAwayOrTimeout && clientWs.readyState === WebSocket.OPEN) {
                 logToFile(`Gemini Live session reached duration limit/GoAway (code: ${code}). Automatically re-establishing session...`);
                 isTransitioning = true;
@@ -535,6 +567,7 @@ async function startServer() {
                   session = newSess;
                   isTransitioning = false;
                   logToFile(`Successfully re-established Gemini Live API session seamlessly.`);
+                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
                 }).catch(err => {
                   isTransitioning = false;
                   logToFile(`Auto-reconnect after GoAway failed: ${err.message || err}`);
@@ -584,16 +617,33 @@ async function startServer() {
             }
             logToFile(`Gemini Live API onerror callback for model ${modelName}: ${errStr}`);
             
+            const isGoAwayOrAborted = errStr.includes("GoAway") || errStr.includes("aborted") || errStr.includes("session duration") || errStr.includes("1008");
+            if (isGoAwayOrAborted) {
+              logToFile(`Gemini Live API error handled for GoAway/session duration limit: ${errStr}`);
+              if (clientWs.readyState === WebSocket.OPEN && !isTransitioning) {
+                isTransitioning = true;
+                logToFile(`Auto-reconnecting session following GoAway onerror signal...`);
+                connectSession(currentModel).then(newSess => {
+                  session = newSess;
+                  isTransitioning = false;
+                  logToFile(`Successfully re-established Gemini Live API session after GoAway onerror.`);
+                }).catch(reconnErr => {
+                  isTransitioning = false;
+                  logToFile(`Auto-reconnect after GoAway error failed: ${reconnErr.message || reconnErr}`);
+                  if (clientWs.readyState === WebSocket.OPEN) {
+                    clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
+                    setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+                  }
+                });
+              }
+              return;
+            }
+
             if (modelName === "gemini-3.1-flash-live-preview" && !isTransitioning) {
               logToFile(`Error occurred on model ${modelName}. Initiating fallback sequence...`);
               triggerFallback();
             } else if (!isTransitioning) {
-              const clientMsg = err instanceof Error ? err.message : String(err || "Live API connection error");
-              const isGoAwayOrAborted = clientMsg.includes("GoAway") || clientMsg.includes("aborted") || clientMsg.includes("session duration");
-              if (isGoAwayOrAborted) {
-                logToFile(`Gemini Live API error ignored due to GoAway/aborted timeout: ${clientMsg}`);
-                clientWs.send(JSON.stringify({ sessionEnded: true }));
-              } else {
+              if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(JSON.stringify({ error: "La conexión con Gemini se interrumpió temporalmente." }));
               }
             }

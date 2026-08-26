@@ -4,9 +4,9 @@ import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Square, Type
 interface ChatInputBoxProps {
   selectedLang: 'EN' | 'ES';
   isConnected: boolean;
-  isPaused: boolean;
-  pause: () => void;
-  resume: () => void;
+  isPaused?: boolean;
+  pause?: () => void;
+  resume?: () => void;
   onSubmitText: (text: string) => void;
   value?: string;
   onChangeValue?: (text: string) => void;
@@ -24,15 +24,17 @@ interface ChatInputBoxProps {
   setIsListenOnly?: (v: boolean) => void;
   isLiveVoiceActive?: boolean;
   onToggleLiveVoice?: () => void;
+  isDarkMode?: boolean;
 }
 
 interface VirtualKeyboardProps {
   onKeyPress: (key: string) => void;
   onClose: () => void;
   selectedLang: 'EN' | 'ES';
+  isDarkMode?: boolean;
 }
 
-const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, selectedLang }) => {
+const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, selectedLang, isDarkMode }) => {
   const [isShift, setIsShift] = useState(false);
   const [isSymbols, setIsSymbols] = useState(false);
 
@@ -49,14 +51,14 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
   ];
 
   return (
-    <div className="w-full bg-[#EAEFF2] border-t border-slate-300 p-1 sm:p-1.5 pb-2 select-none shadow-none rounded-none animate-in slide-in-from-bottom duration-200 mt-0">
+    <div className="w-full bg-transparent p-1 sm:p-1.5 pb-2 select-none shadow-none rounded-none animate-in slide-in-from-bottom duration-200 mt-0">
       {/* Top Bar with Hide Button */}
       <div className="flex justify-between items-center px-2 py-0.5 mb-1 text-slate-500 text-xs">
         <span className="font-semibold tracking-wider text-[10px] uppercase text-slate-600 flex items-center gap-1"></span>
         <button
           type="button"
           onClick={onClose}
-          className="p-1 rounded-full hover:bg-slate-300 text-slate-600 transition-colors cursor-pointer"
+          className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-300 text-slate-600'} transition-colors cursor-pointer`}
           title={selectedLang === 'EN' ? 'Hide keyboard' : 'Ocultar teclado'}
         >
           <ChevronDown className="w-4 h-4" />
@@ -70,7 +72,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
             key={num}
             type="button"
             onClick={() => onKeyPress(num)}
-            className="flex-1 max-w-[36px] h-8 sm:h-9 bg-white hover:bg-slate-100 active:bg-slate-300 rounded-md text-slate-800 font-semibold text-sm shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+            className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
+              isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
+            } rounded-md font-semibold text-sm shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
           >
             {num}
           </button>
@@ -89,7 +93,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
                 onKeyPress(display);
                 if (isShift) setIsShift(false);
               }}
-              className="flex-1 max-w-[36px] h-8 sm:h-9 bg-white hover:bg-slate-100 active:bg-slate-300 rounded-md text-slate-800 font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
+                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
+              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
             >
               {display}
             </button>
@@ -109,7 +115,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
                 onKeyPress(display);
                 if (isShift) setIsShift(false);
               }}
-              className="flex-1 max-w-[36px] h-8 sm:h-9 bg-white hover:bg-slate-100 active:bg-slate-300 rounded-md text-slate-800 font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
+                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
+              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
             >
               {display}
             </button>
@@ -124,7 +132,7 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
             type="button"
             onClick={() => setIsShift(!isShift)}
             className={`px-2 sm:px-2.5 h-8 sm:h-9 rounded-md font-bold text-xs shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-              isShift ? 'bg-[#1A365D] text-white' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'
+              isShift ? 'bg-[#1A365D] text-white' : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'
             }`}
           >
             <ArrowUp className="w-4 h-4 stroke-[2.5]" />
@@ -141,7 +149,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
                 onKeyPress(display);
                 if (isShift) setIsShift(false);
               }}
-              className="flex-1 max-w-[36px] h-8 sm:h-9 bg-white hover:bg-slate-100 active:bg-slate-300 rounded-md text-slate-800 font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
+                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
+              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
             >
               {display}
             </button>
@@ -151,7 +161,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
         <button
           type="button"
           onClick={() => onKeyPress('BACKSPACE')}
-          className="px-2 sm:px-2.5 h-8 sm:h-9 bg-slate-300 hover:bg-slate-400 active:bg-slate-500 text-slate-700 rounded-md font-bold text-xs shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
+          className={`px-2 sm:px-2.5 h-8 sm:h-9 ${
+            isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-300 hover:bg-slate-400 text-slate-700'
+          } rounded-md font-bold text-xs shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
         >
           <Delete className="w-4 h-4" />
         </button>
@@ -162,7 +174,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
         <button
           type="button"
           onClick={() => setIsSymbols(!isSymbols)}
-          className="px-2.5 sm:px-3 h-8 sm:h-9 bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer"
+          className={`px-2.5 sm:px-3 h-8 sm:h-9 ${
+            isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-300 hover:bg-slate-400 text-slate-800'
+          } font-bold text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer`}
         >
           {isSymbols ? 'ABC' : '?123'}
         </button>
@@ -170,7 +184,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
         <button
           type="button"
           onClick={() => onKeyPress(',')}
-          className="w-8 sm:w-9 h-8 sm:h-9 bg-white hover:bg-slate-100 text-slate-800 font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer"
+          className={`w-8 sm:w-9 h-8 sm:h-9 ${
+            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-white hover:bg-slate-100 text-slate-800'
+          } font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer`}
         >
           ,
         </button>
@@ -178,7 +194,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
         <button
           type="button"
           onClick={() => onKeyPress(' ')}
-          className="flex-1 h-8 sm:h-9 bg-white hover:bg-slate-100 text-slate-500 font-medium text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer tracking-wider"
+          className={`flex-1 h-8 sm:h-9 ${
+            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white hover:bg-slate-100 text-slate-500'
+          } font-medium text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer tracking-wider`}
         >
           {selectedLang === 'EN' ? 'space' : 'espacio'}
         </button>
@@ -186,7 +204,9 @@ const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, 
         <button
           type="button"
           onClick={() => onKeyPress('.')}
-          className="w-8 sm:w-9 h-8 sm:h-9 bg-white hover:bg-slate-100 text-slate-800 font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer"
+          className={`w-8 sm:w-9 h-8 sm:h-9 ${
+            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-white hover:bg-slate-100 text-slate-800'
+          } font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer`}
         >
           .
         </button>
@@ -225,12 +245,14 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   isListenOnly,
   setIsListenOnly,
   isLiveVoiceActive,
-  onToggleLiveVoice
+  onToggleLiveVoice,
+  isDarkMode
 }) => {
   const [internalText, setInternalText] = useState('');
   const [activeMode, setActiveMode] = useState<'ESCUCHA' | 'DICTA' | 'ESCRIBE'>('ESCUCHA');
   const [isListening, setIsListening] = useState(false);
   const [isEscribeActive, setIsEscribeActive] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [showVoiceModeMenu, setShowVoiceModeMenu] = useState(false);
   const [showVirtualKeyboard, setShowVirtualKeyboard] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -372,7 +394,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
       setIsListening(false);
     } else {
       if (isConnected && !isPaused) {
-        pause();
+        if (typeof pause === 'function') pause();
       }
       baseTextRef.current = currentText;
       if (recognitionRef.current) {
@@ -398,7 +420,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     setIsEscribeActive(false);
     setActiveMode('ESCUCHA');
     if (isConnected && isPaused) {
-      resume();
+      if (typeof resume === 'function') resume();
     }
     if (onToggleLiveVoice) {
       onToggleLiveVoice();
@@ -408,7 +430,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   const handleDictaClick = () => {
     setActiveMode('DICTA');
     if (isConnected && !isPaused) {
-      pause();
+      if (typeof pause === 'function') pause();
     }
     if (isListening) {
       if (recognitionRef.current) {
@@ -460,12 +482,12 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   const handlePausaClick = () => {
     if (!isConnected) return;
     if (isPaused) {
-      resume();
+      if (typeof resume === 'function') resume();
       if (window.speechSynthesis && window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
     } else {
-      pause();
+      if (typeof pause === 'function') pause();
       if (window.speechSynthesis && window.speechSynthesis.speaking) {
         window.speechSynthesis.pause();
       }
@@ -509,14 +531,13 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
 
   return isLiveVoiceActive ? null : (
     <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2 md:pb-2.5 bg-transparent flex flex-col items-center w-full select-none">
-      <form 
-        onSubmit={handleSubmit} 
-        className={`w-full max-w-full sm:max-w-[92%] mx-auto relative rounded-[22px] rounded-tr-none transition-all bg-white border-[5px] ${
-          isListening 
-            ? 'border-emerald-500 shadow-lg shadow-emerald-500/20' 
-            : 'border-cyan-400 shadow-sm hover:shadow-md'
-        } px-3.5 py-2 flex items-center gap-2 min-h-[44px]`}
-      >
+      <div className={`w-full max-w-full sm:max-w-[92%] mx-auto bubble-user-gradient-wrapper rounded-[26px] ${
+        isFocused || isEscribeActive || isListening || currentText.trim().length > 0 ? 'is-latest' : ''
+      }`}>
+        <form 
+          onSubmit={handleSubmit} 
+          className={`w-full ${isDarkMode ? 'bg-[#1E293B] text-white border border-slate-700/60' : 'bg-white text-black'} rounded-[22px] px-3.5 py-2 flex items-center gap-2 min-h-[44px] shadow-sm transition-colors duration-300`}
+        >
         {/* Textarea or Sound Graph + Action Controls */}
         <div className="flex items-center gap-2 flex-1 min-h-[36px]">
           {/* Voice Mode Selector (+) Button & Popover */}
@@ -528,6 +549,8 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
               className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center bg-transparent border-none ${
                 showVoiceModeMenu
                   ? 'text-[#EAB308] rotate-45'
+                  : isDarkMode
+                  ? 'text-slate-400 hover:text-[#EAB308] active:scale-95'
                   : 'text-neutral-400 hover:text-[#EAB308] active:scale-95'
               }`}
             >
@@ -597,9 +620,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                         active: !!isPaused,
                         activate: () => {
                           if (isPaused) {
-                            resume();
+                            if (typeof resume === 'function') resume();
                           } else {
-                            pause();
+                            if (typeof pause === 'function') pause();
                           }
                         }
                       }
@@ -670,14 +693,20 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                 setShowVirtualKeyboard(true);
               }}
               onFocus={() => {
+                setIsFocused(true);
                 setActiveMode('ESCRIBE');
                 setIsEscribeActive(true);
                 setShowVirtualKeyboard(true);
               }}
+              onBlur={() => {
+                setIsFocused(false);
+              }}
               inputMode="text"
               placeholder={placeholderText || defaultPlaceholder}
               style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }}
-              className="w-full focus:outline-none transition-all border-none bg-transparent text-black text-right placeholder:text-right placeholder:text-black/40 font-semibold text-[14px] leading-snug p-0 resize-none min-h-[28px] max-h-[100px] overflow-y-auto pr-1"
+              className={`w-full focus:outline-none transition-all border-none bg-transparent ${
+                isDarkMode ? 'text-white placeholder:text-slate-400' : 'text-black placeholder:text-black/40'
+              } text-right placeholder:text-right font-semibold text-[14px] leading-snug p-0 resize-none min-h-[28px] max-h-[100px] overflow-y-auto pr-1`}
             />
             {/* Blinking Caret / "I" Beam Indicator when ESCRIBE is active and empty */}
             {isEscribeActive && !currentText && !isListening && (
@@ -712,7 +741,11 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                 type="button"
                 onClick={handleDictaClick}
                 title={selectedLang === 'EN' ? 'Dictate with voice' : 'Dictar por voz'}
-                className="p-1.5 rounded-full bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+                className={`p-1.5 rounded-full ${
+                  isDarkMode 
+                    ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600' 
+                    : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200'
+                } active:scale-95 transition-all flex items-center justify-center cursor-pointer`}
               >
                 <Mic className="w-4 h-4 stroke-[2.5]" />
               </button>
@@ -728,6 +761,8 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                   ? 'bg-amber-500 text-black shadow-lg scale-110 animate-pulse ring-2 ring-amber-300'
                   : activeMode === 'ESCUCHA' && isConnected && !isPaused
                   ? 'bg-[#1A365D] text-white shadow-md scale-105'
+                  : isDarkMode
+                  ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600 active:scale-95'
                   : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95'
               }`}
             >
@@ -736,6 +771,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
           </div>
         </div>
       </form>
+      </div>
 
       {/* Virtual Soft Keyboard Drawer for Smartphones / Touch Screens */}
       {showVirtualKeyboard && (
@@ -744,6 +780,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             onKeyPress={handleVirtualKeyPress}
             onClose={() => setShowVirtualKeyboard(false)}
             selectedLang={selectedLang}
+            isDarkMode={isDarkMode}
           />
         </div>
       )}
