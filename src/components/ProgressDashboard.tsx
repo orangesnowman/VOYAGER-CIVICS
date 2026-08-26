@@ -1,5 +1,15 @@
-import React from 'react';
-import { Award, BookOpen, Star, RefreshCw, BarChart2, AlertCircle, Mail, MapPin, Target, Edit3, UserCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Award, BookOpen, Star, RefreshCw, BarChart2, AlertCircle, Mail, MapPin, Target, Edit3, UserCheck, Bookmark, Trash2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+
+interface SavedChatSession {
+  id: string;
+  date: string;
+  title: string;
+  durationSeconds: number;
+  messageCount: number;
+  snippet: string;
+  messages: { sender: string; text: string; timestamp?: Date | string }[];
+}
 
 interface ProgressDashboardProps {
   selectedLang: 'EN' | 'ES';
@@ -75,6 +85,27 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
     }
     return '';
   }, [savedAccount.name]);
+
+  const [savedChats, setSavedChats] = useState<SavedChatSession[]>([]);
+  const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('voyager_saved_chats');
+      if (saved) {
+        setSavedChats(JSON.parse(saved));
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleDeleteSavedChat = (idToDelete: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = savedChats.filter(c => c.id !== idToDelete);
+    setSavedChats(updated);
+    try {
+      localStorage.setItem('voyager_saved_chats', JSON.stringify(updated));
+    } catch (e) {}
+  };
 
   const scoreMetrics = [
     { key: 'grammar', name: selectedLang === 'EN' ? 'Grammar' : 'Gramática', val: scores.grammar },
@@ -254,6 +285,93 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
               });
             })()}
           </div>
+        </div>
+
+        {/* Saved Conversations & Bookmarks Section */}
+        <div className="space-y-2">
+          <span className="block text-[9px] font-mono font-bold tracking-widest text-amber-400 uppercase flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Bookmark className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+              {selectedLang === 'EN' ? 'SAVED CHATS & BOOKMARKS' : 'CONVERSACIONES GUARDADAS Y MARCADORES'}
+            </span>
+            <span className="text-[8px] text-amber-300 font-bold bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+              {savedChats.length} {selectedLang === 'EN' ? 'saved' : 'guardadas'}
+            </span>
+          </span>
+
+          {savedChats.length === 0 ? (
+            <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-center text-xs text-neutral-400 italic flex flex-col items-center gap-1">
+              <Bookmark className="w-4 h-4 text-neutral-500 mb-0.5" />
+              <span>
+                {selectedLang === 'EN' 
+                  ? 'No bookmarked chats yet. Use the 🔖 bookmark icon in CHARLA to save practice conversations.' 
+                  : 'Aún no hay chats guardados. Usa el ícono de marcador 🔖 en CHARLA para guardar conversaciones.'}
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {savedChats.map((chat) => (
+                <div 
+                  key={chat.id}
+                  className="bg-black/40 border border-amber-500/20 hover:border-amber-400/40 rounded-xl p-3 transition-all space-y-2"
+                >
+                  <div 
+                    onClick={() => setExpandedChatId(expandedChatId === chat.id ? null : chat.id)}
+                    className="flex items-center justify-between cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Bookmark className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                      <div>
+                        <div className="text-xs font-bold text-white font-sans flex items-center gap-2">
+                          <span>{chat.title}</span>
+                          {chat.durationSeconds > 0 && (
+                            <span className="text-[9px] font-mono text-amber-300 bg-amber-500/10 px-1.5 py-0.2 rounded">
+                              {Math.floor(chat.durationSeconds / 60)}m {chat.durationSeconds % 60}s
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[9px] text-zinc-400 font-mono">
+                          {new Date(chat.date).toLocaleDateString()} • {chat.messageCount} {selectedLang === 'EN' ? 'messages' : 'mensajes'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={(e) => handleDeleteSavedChat(chat.id, e)}
+                        className="p-1 hover:bg-red-500/20 rounded text-zinc-400 hover:text-red-400 transition-colors"
+                        title={selectedLang === 'EN' ? 'Delete saved chat' : 'Eliminar conversación guardada'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      {expandedChatId === chat.id ? (
+                        <ChevronUp className="w-4 h-4 text-amber-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-zinc-400" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded transcript */}
+                  {expandedChatId === chat.id ? (
+                    <div className="border-t border-white/10 pt-2 space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {chat.messages.map((m, idx) => (
+                        <div key={idx} className={`p-1.5 rounded-lg text-xs leading-relaxed ${m.sender === 'user' ? 'bg-amber-400/10 text-amber-200 border border-amber-400/20 text-right' : 'bg-white/5 text-slate-200 border border-white/10 text-left'}`}>
+                          <span className="font-bold text-[10px] block opacity-70 mb-0.5">
+                            {m.sender === 'user' ? (selectedLang === 'EN' ? 'You' : 'Tú') : 'VOYAGER'}
+                          </span>
+                          <span>{m.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-zinc-300 line-clamp-1 italic bg-white/5 p-1.5 rounded-lg border border-white/5">
+                      "{chat.snippet}"
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Vocabulary Memory Section */}

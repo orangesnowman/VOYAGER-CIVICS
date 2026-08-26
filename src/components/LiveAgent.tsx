@@ -15,7 +15,7 @@ import { ChatInputBox } from './ChatInputBox';
 import { AuthModal } from './AuthModal';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, AlarmClock, Trophy, Target, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -1273,7 +1273,13 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  const [openFeedbackMsgId, setOpenFeedbackMsgId] = useState<string | null>(null);
  const [msgFeedbackInput, setMsgFeedbackInput] = useState<Record<string, string>>({});
  const [msgFeedbackLists, setMsgFeedbackLists] = useState<Record<string, { id: string; text: string; timestamp: Date }[]>>({});
- const [msgFeedbackSent, setMsgFeedbackSent] = useState<Record<string, boolean>>({});
+  const [msgFeedbackSent, setMsgFeedbackSent] = useState<Record<string, boolean>>({});
+
+  // Goal Settings & Communication Milestones State
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [targetGoalMinutes, setTargetGoalMinutes] = useState<number | null>(10);
+  const [hasAchievedMilestone, setHasAchievedMilestone] = useState(false);
+  const [showMilestoneToast, setShowMilestoneToast] = useState(false);
 
  const {
  activeMode,
@@ -1330,6 +1336,30 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     const s = totalSeconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }, []);
+
+  // Check when user reaches target communication goal
+  useEffect(() => {
+    if (targetGoalMinutes && secondsElapsed > 0 && secondsElapsed >= targetGoalMinutes * 60 && !hasAchievedMilestone) {
+      setHasAchievedMilestone(true);
+      setShowMilestoneToast(true);
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      } catch (e) {
+        // ignore audio context restrictions
+      }
+    }
+  }, [secondsElapsed, targetGoalMinutes, hasAchievedMilestone]);
 
   const startOfficialCitizenshipOralExam = useCallback(() => {
     setHasClickedConnect(true);
@@ -1546,6 +1576,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
   });
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showPasswordInfo, setShowPasswordInfo] = useState<boolean>(false);
+  const [showInlineEmailFields, setShowInlineEmailFields] = useState<boolean>(false);
  const [contactMessage, setContactMessage] = useState<string>('');
  const [contactSubmitted, setContactSubmitted] = useState<boolean>(false);
  const [explanationCountdown, setExplanationCountdown] = useState<number | null>(null);
@@ -1722,6 +1753,87 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  } catch (e) {}
  return '';
  }, [userName]);
+
+  const isProfileCompleted = useMemo(() => {
+    const nameVal = (visitorFullName || userName || '').trim();
+    const emailVal = (userEmail || '').trim();
+    
+    const isNameValid = Boolean(nameVal && !['Guest', 'Invitado', 'Invitado Voyager', 'Guest Voyager', 'Learner', 'Estudiante'].includes(nameVal));
+    const isEmailValid = Boolean(emailVal && emailVal.includes('@') && !emailVal.includes('learner@usavoyager.com'));
+
+    if (isNameValid || isEmailValid) return true;
+
+    try {
+      const saved = localStorage.getItem('voyager_user_account');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const pName = (parsed.name || '').trim();
+        const pEmail = (parsed.email || '').trim();
+        if (pName && !['Guest', 'Invitado', 'Invitado Voyager', 'Guest Voyager', 'Learner', 'Estudiante'].includes(pName)) return true;
+        if (pEmail && pEmail.includes('@') && !pEmail.includes('learner@usavoyager.com')) return true;
+      }
+    } catch (e) {}
+    return false;
+  }, [visitorFullName, userName, userEmail]);
+
+  const [savedChats, setSavedChats] = useState<{ id: string; date: string; title: string; durationSeconds: number; messageCount: number; snippet: string; messages: { sender: string; text: string; timestamp?: Date | string }[] }[]>(() => {
+    try {
+      const saved = localStorage.getItem('voyager_saved_chats');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [];
+  });
+
+  const [currentBookmarkedChatId, setCurrentBookmarkedChatId] = useState<string | null>(null);
+  const [showBookmarkToast, setShowBookmarkToast] = useState(false);
+  const [showRequireProfileModal, setShowRequireProfileModal] = useState(false);
+
+  const handleBookmarkChat = () => {
+    if (!isProfileCompleted) {
+      setShowRequireProfileModal(true);
+      return;
+    }
+
+    if (currentBookmarkedChatId) {
+      const updated = savedChats.filter(c => c.id !== currentBookmarkedChatId);
+      setSavedChats(updated);
+      try {
+        localStorage.setItem('voyager_saved_chats', JSON.stringify(updated));
+      } catch (e) {}
+      setCurrentBookmarkedChatId(null);
+      return;
+    }
+
+    const newId = `chat_${Date.now()}`;
+    const now = new Date();
+    const sessionTitle = selectedLang === 'EN'
+      ? `USA Voyager Session - ${now.toLocaleDateString()}`
+      : `Sesión USA Voyager - ${now.toLocaleDateString()}`;
+
+    const lastMsgSnippet = chatMessages.length > 0 
+      ? (chatMessages[chatMessages.length - 1].text || '').slice(0, 120) 
+      : (selectedLang === 'EN' ? 'Practice conversation with VOYAGER' : 'Práctica de conversación con VOYAGER');
+
+    const newEntry = {
+      id: newId,
+      date: now.toISOString(),
+      title: sessionTitle,
+      durationSeconds: secondsElapsed,
+      messageCount: chatMessages.length,
+      snippet: lastMsgSnippet,
+      messages: chatMessages.map(m => ({ sender: m.sender, text: m.text, timestamp: m.timestamp }))
+    };
+
+    const updated = [newEntry, ...savedChats];
+    setSavedChats(updated);
+    try {
+      localStorage.setItem('voyager_saved_chats', JSON.stringify(updated));
+    } catch (e) {}
+
+    setCurrentBookmarkedChatId(newId);
+    setShowBookmarkToast(true);
+    setTimeout(() => setShowBookmarkToast(false), 3500);
+  };
 
  // Auto-sync user profile & contact info to localStorage and PERFIL dynamically
  useEffect(() => {
@@ -2114,10 +2226,10 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
 
  // Speak explanation when arriving at the Teacher, Profile, or Settings section
  useEffect(() => {
- // 1. Play pin sound and pause conversation whenever we switch page sections (from any tab to any other tab)
+ // 1. Play pin sound and pause conversation whenever we switch page sections (from any tab to any other tab except chat)
  if (lastVisitedTabRef.current && lastVisitedTabRef.current !== rightPanelTab) {
  playPinSound();
- if (isConnected) {
+ if (isConnected && rightPanelTab !== 'chat') {
  pause();
  }
  }
@@ -2456,6 +2568,7 @@ NO respondas a ruidos, habla o ruidos de fondo.]`;
  applyChosenMode(modeToUse);
  setExplanationCountdown(null);
  setChatMessages([]); // Clear system option explanations from chat history
+ resume();
 
  const saved = localStorage.getItem('voyager_user_account');
  let userGoal = undefined;
@@ -2499,6 +2612,7 @@ ${greetingPrompt}`;
  setHasInteracted(true);
  window.speechSynthesis.cancel();
  setChatMessages([]); // Clear system option explanations from chat history
+ resume();
 
  const saved = localStorage.getItem('voyager_user_account');
  let userGoal = undefined;
@@ -2960,58 +3074,7 @@ ${greetingPrompt}`;
       >
         <span>ENTRADA</span>
       </button>
-    ) : (
-      <div className="relative flex items-center justify-center gap-2 sm:gap-2.5">
-        <div className="flex items-center justify-between gap-3.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-[#0D224A]/80 border-[1.5pt] border-white/40 hover:border-white/70 backdrop-blur-md text-white shadow-[0_8px_20px_rgba(0,0,0,0.35)] transition-all duration-300 select-none">
-          {/* 1. Chronometer area: Session length timer */}
-          <div 
-            className="flex items-center font-mono text-xs sm:text-sm md:text-base font-normal tracking-wider text-white cursor-pointer" 
-            title={selectedLang === "EN" ? "Session duration" : "Duración de la sesión"}
-            onClick={handlePlayButtonClick}
-          >
-            <span>{formatChronometer(hasClickedConnect && isConnected ? secondsElapsed : 0)}</span>
-          </div>
-
-          {/* 2. Play / Pause action icon */}
-          <button
-            onClick={() => {
-              if (!hasClickedConnect || !isConnected || isPaused) {
-                handlePlayButtonClick();
-              } else {
-                handlePauseButtonClick();
-              }
-            }}
-            className={`p-1.5 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center ${
-              (!hasClickedConnect || !isConnected || isPaused)
-                ? "text-amber-300 hover:text-amber-200"
-                : "text-white hover:text-[#FFD700]"
-            }`}
-            title={
-              !hasClickedConnect || !isConnected
-                ? (selectedLang === "EN" ? "Turn on Voyager & Start Session" : "Encender Voyager e Iniciar Sesión")
-                : isPaused
-                ? (selectedLang === "EN" ? "Resume session" : "Reanudar sesión")
-                : (selectedLang === "EN" ? "Pause session" : "Pausar sesión")
-            }
-          >
-            {(!hasClickedConnect || !isConnected || isPaused) ? (
-              <Play className="w-4 h-4 fill-current text-amber-300 hover:text-amber-200" />
-            ) : (
-              <Pause className="w-4 h-4 fill-current" />
-            )}
-          </button>
-
-          {/* 3. Stop / Close action icon */}
-          <button
-            onClick={handleEndSessionClick}
-            className="p-1.5 text-white hover:text-white/80 transition-all duration-200 rounded-full cursor-pointer active:scale-95 hover:bg-white/15 flex items-center justify-center"
-            title={selectedLang === "EN" ? "Finish / Close Session" : "Finalizar / Cerrar Sesión"}
-          >
-            <Square className="w-3.5 h-3.5 fill-current text-white hover:text-white/80" />
-          </button>
-        </div>
-      </div>
-    )}
+    ) : null}
   </div>
   </div>
 
@@ -3122,6 +3185,232 @@ ${greetingPrompt}`;
    'CHARLA'
   )}
  </span>
+
+ {rightPanelTab === 'chat' && hasInteracted && (
+  <div className="pointer-events-auto mt-2 flex flex-col items-center justify-center animate-fade-in relative">
+    <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 select-none">
+      {/* 0. Alarm Clock Icon Button */}
+      <button
+        type="button"
+        onClick={() => setIsGoalModalOpen(prev => !prev)}
+        className={`p-1.5 rounded-full transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center ${
+          isDarkMode && rightPanelTab === 'chat' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+        } ${
+          targetGoalMinutes 
+            ? "text-amber-500" 
+            : isDarkMode && rightPanelTab === 'chat' ? "text-slate-300" : "text-slate-600"
+        }`}
+        title={
+          selectedLang === "EN"
+            ? targetGoalMinutes ? `Goal: ${targetGoalMinutes} min (Click to set goal)` : "Set Communication Goal / Alarm"
+            : targetGoalMinutes ? `Meta: ${targetGoalMinutes} min (Haz clic para configurar)` : "Configurar Meta de Comunicación / Alarma"
+        }
+      >
+        <AlarmClock className={`w-4 h-4 ${targetGoalMinutes ? 'animate-pulse text-amber-500' : ''}`} />
+      </button>
+
+      {/* 1. Chronometer area */}
+      <div 
+        className={`flex items-center gap-1 font-mono text-sm sm:text-base font-semibold tracking-wider cursor-pointer transition-colors ${
+          isDarkMode && rightPanelTab === 'chat' ? 'text-white' : 'text-[#0D224A]'
+        }`}
+        title={selectedLang === "EN" ? "Session duration & goal" : "Duración de la sesión y meta"}
+        onClick={() => setIsGoalModalOpen(prev => !prev)}
+      >
+        <span>{formatChronometer(hasClickedConnect && isConnected ? secondsElapsed : 0)}</span>
+        {targetGoalMinutes && (
+          <span className="text-xs text-amber-500 font-sans font-bold">
+            /{targetGoalMinutes}m
+          </span>
+        )}
+      </div>
+
+      <div className={`w-[1px] h-4 mx-1 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-white/20' : 'bg-slate-300'}`} />
+
+      {/* 2. Play / Pause action icon */}
+      <button
+        type="button"
+        onClick={() => {
+          if (!hasClickedConnect || !isConnected || isPaused) {
+            handlePlayButtonClick();
+          } else {
+            handlePauseButtonClick();
+          }
+        }}
+        className={`p-1.5 transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
+          isDarkMode && rightPanelTab === 'chat' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+        } flex items-center justify-center ${
+          (!hasClickedConnect || !isConnected || isPaused)
+            ? "text-amber-500 hover:text-amber-600"
+            : isDarkMode && rightPanelTab === 'chat' ? "text-white" : "text-[#0D224A] hover:text-amber-600"
+        }`}
+        title={
+          !hasClickedConnect || !isConnected
+            ? (selectedLang === "EN" ? "Turn on Voyager & Start Session" : "Encender Voyager e Iniciar Sesión")
+            : isPaused
+            ? (selectedLang === "EN" ? "Resume session" : "Reanudar sesión")
+            : (selectedLang === "EN" ? "Pause session" : "Pausar sesión")
+        }
+      >
+        {(!hasClickedConnect || !isConnected || isPaused) ? (
+          <Play className="w-4 h-4 fill-current text-amber-500" />
+        ) : (
+          <Pause className="w-4 h-4 fill-current" />
+        )}
+      </button>
+
+      {/* 3. Bookmark / Save Chat button */}
+      <button
+        type="button"
+        onClick={handleBookmarkChat}
+        className={`p-1.5 rounded-full transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center ${
+          isDarkMode && rightPanelTab === 'chat' ? 'hover:bg-white/10' : 'hover:bg-slate-100'
+        }`}
+        title={
+          !isProfileCompleted
+            ? (selectedLang === "EN" ? "Complete profile to activate chat saving" : "Completa tu perfil para activar guardado de chat")
+            : currentBookmarkedChatId
+            ? (selectedLang === "EN" ? "Chat saved in profile! Click to remove" : "¡Conversación guardada en perfil! Clic para quitar")
+            : (selectedLang === "EN" ? "Bookmark & Save Chat to Profile" : "Guardar Conversación en el Perfil")
+        }
+      >
+        <Bookmark className={`w-4 h-4 transition-colors ${
+          currentBookmarkedChatId
+            ? "fill-amber-500 text-amber-500"
+            : isDarkMode && rightPanelTab === 'chat' ? "text-slate-300 hover:text-white" : "text-slate-400 hover:text-[#0D224A]"
+        }`} />
+      </button>
+
+      {/* 4. Stop / Close action icon */}
+      <button
+        type="button"
+        onClick={handleEndSessionClick}
+        className={`p-1.5 transition-all duration-200 rounded-full cursor-pointer active:scale-95 ${
+          isDarkMode && rightPanelTab === 'chat' ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+        } flex items-center justify-center`}
+        title={selectedLang === "EN" ? "Finish / Close Session" : "Finalizar / Cerrar Sesión"}
+      >
+        <X className="w-4 h-4" strokeWidth={2.5} />
+      </button>
+    </div>
+
+    {/* Goal & Communication Milestones Popover Dropdown */}
+    {isGoalModalOpen && (
+      <div className="absolute top-full mt-2.5 z-50 w-72 sm:w-80 p-4 rounded-2xl bg-[#0D224A] border border-white/20 text-white shadow-2xl backdrop-blur-xl animate-fade-in text-left">
+        <div className="flex items-center justify-between border-b border-white/15 pb-2.5 mb-3">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+            <AlarmClock className="w-4.5 h-4.5" />
+            <span>{selectedLang === 'EN' ? 'Communication Milestones' : 'Metas de Comunicación'}</span>
+          </div>
+          <button
+            onClick={() => setIsGoalModalOpen(false)}
+            className="text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Current Goal Progress Bar */}
+        {targetGoalMinutes ? (
+          <div className="bg-white/10 rounded-xl p-3 mb-3 border border-white/10">
+            <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
+              <span className="text-white/80">
+                {selectedLang === 'EN' ? 'Target Progress' : 'Progreso de Meta'}
+              </span>
+              <span className="text-amber-300 font-bold font-mono">
+                {formatChronometer(secondsElapsed)} / {targetGoalMinutes}:00
+              </span>
+            </div>
+            <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden p-0.5 border border-white/10">
+              <div 
+                className="h-full bg-gradient-to-r from-amber-500 to-amber-300 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, (secondsElapsed / (targetGoalMinutes * 60)) * 100)}%` }}
+              />
+            </div>
+            {secondsElapsed >= targetGoalMinutes * 60 && (
+              <div className="mt-2 text-[11px] text-emerald-400 flex items-center gap-1 font-semibold">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                <span>{selectedLang === 'EN' ? 'Goal Milestone Reached! 🎉' : '¡Hito de Meta Alcanzado! 🎉'}</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-white/70 mb-3 leading-relaxed">
+            {selectedLang === 'EN' 
+              ? 'Set a target practice duration to track goals and earn communication milestones!' 
+              : '¡Configura una duración objetivo para alcanzar hitos de comunicación!'}
+          </p>
+        )}
+
+        {/* Target Duration Selector Options */}
+        <div className="space-y-1.5 mb-3">
+          <label className="text-[11px] font-semibold text-white/60 uppercase tracking-wider block mb-1">
+            {selectedLang === 'EN' ? 'Set Target Duration' : 'Configurar Duración Objetivo'}
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[5, 10, 15, 20, 30].map(mins => (
+              <button
+                key={mins}
+                onClick={() => {
+                  setTargetGoalMinutes(mins);
+                  if (secondsElapsed < mins * 60) setHasAchievedMilestone(false);
+                }}
+                className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1 ${
+                  targetGoalMinutes === mins
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md font-bold'
+                    : 'bg-white/5 hover:bg-white/15 text-white border-white/10'
+                }`}
+              >
+                <span>{mins} m</span>
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                setTargetGoalMinutes(null);
+                setHasAchievedMilestone(false);
+              }}
+              className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center ${
+                targetGoalMinutes === null
+                  ? 'bg-rose-500/80 text-white border-rose-400'
+                  : 'bg-white/5 hover:bg-white/15 text-white/60 border-white/10'
+              }`}
+            >
+              {selectedLang === 'EN' ? 'Off' : 'Desactivar'}
+            </button>
+          </div>
+        </div>
+
+        {/* Communication Milestones */}
+        <div className="border-t border-white/10 pt-2.5">
+          <span className="text-[11px] font-semibold text-white/60 uppercase tracking-wider block mb-2">
+            {selectedLang === 'EN' ? 'Student Milestones' : 'Hitos del Estudiante'}
+          </span>
+          <div className="space-y-1.5 text-xs">
+            <div className={`flex items-center justify-between p-1.5 rounded-lg ${secondsElapsed >= 300 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-white/50 bg-white/5'}`}>
+              <span className="flex items-center gap-1.5 font-medium">
+                <Target className="w-3.5 h-3.5 text-amber-400" /> 5m: {selectedLang === 'EN' ? 'Warm-up Sprint' : 'Calentamiento Inicial'}
+              </span>
+              {secondsElapsed >= 300 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </div>
+            <div className={`flex items-center justify-between p-1.5 rounded-lg ${secondsElapsed >= 600 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-white/50 bg-white/5'}`}>
+              <span className="flex items-center gap-1.5 font-medium">
+                <Target className="w-3.5 h-3.5 text-amber-400" /> 10m: {selectedLang === 'EN' ? 'Fluency Builder' : 'Constructor de Fluidez'}
+              </span>
+              {secondsElapsed >= 600 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </div>
+            <div className={`flex items-center justify-between p-1.5 rounded-lg ${secondsElapsed >= 900 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-white/50 bg-white/5'}`}>
+              <span className="flex items-center gap-1.5 font-medium">
+                <Trophy className="w-3.5 h-3.5 text-amber-400" /> 15m: {selectedLang === 'EN' ? 'Mastery Milestone' : 'Hito de Maestría'}
+              </span>
+              {secondsElapsed >= 900 && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+ )}
+
  {rightPanelTab === 'civics' && (
   <span className="text-[14px] sm:text-[17px] text-black font-normal tracking-tight mt-0.5 pb-2 block truncate max-w-[360px] sm:max-w-xl">
     {selectedLang === 'EN' 
@@ -3305,15 +3594,15 @@ ${greetingPrompt}`;
  {/* Header */}
  <div className="w-full mb-3 flex flex-col gap-1">
  <div className="flex items-center justify-between gap-4">
- <h2 style={{ fontFamily: "'Raleway', sans-serif" }} className="text-xl md:text-2xl font-bold text-[#1A365D] leading-tight flex-1">
+ <h2 style={{ fontFamily: "'Raleway', sans-serif" }} className={onboardingStep === 4 ? "text-3xl sm:text-4xl font-extrabold text-[#1A365D] tracking-tight leading-tight mb-1" : "text-xl md:text-2xl font-bold text-[#1A365D] leading-tight flex-1"}>
  {getOnboardingStepTitle(onboardingStep, selectedLang)}
  </h2>
  </div>
  {onboardingStep === 4 && (
- <p className="text-xs text-black font-semibold leading-relaxed mt-0.5">
+ <p className="text-sm sm:text-base text-neutral-800 font-medium leading-snug mb-6">
  {selectedLang === 'EN'
- ? 'Use your Google account or email to log in to your account'
- : 'Utiliza tu cuenta de Google o tu correo electrónico para entrar a tu cuenta'}
+ ? 'Use your Google account, your email or enter as a guest.'
+ : 'Utiliza tu cuenta de Google, tu correo electronico o entra como invitado.'}
  </p>
  )}
  </div>
@@ -3708,202 +3997,210 @@ ${greetingPrompt}`;
       )}
 
   {onboardingStep === 4 && (
-    <div className="space-y-3.5 w-full pt-0" style={{ fontFamily: "'Raleway', sans-serif" }}>
+    <div className="flex flex-col items-start text-left w-full max-w-sm pt-0" style={{ fontFamily: "'Raleway', sans-serif" }}>
 
-      {/* Blue dotted line separator above Google button */}
-      <div className="py-1">
-        <div className="w-full border-t-[3px] border-dotted border-[#0D224A]"></div>
-      </div>
-
-      {/* Buttons: Continuar como Invitado & Continuar con Google */}
-      <div className="flex flex-col gap-2.5">
-        <button
-          type="button"
-          onClick={handleGuestLogin}
-          className="w-full py-2.5 px-4 rounded-full border-2 border-[#0D224A] hover:bg-neutral-50 bg-white text-neutral-800 font-bold text-sm flex items-center justify-center gap-2.5 transition-all duration-200 shadow-2xs cursor-pointer active:scale-[0.98]"
-        >
-          <UserCheck className="w-5 h-5 text-[#0D224A] shrink-0" />
-          <span>{selectedLang === 'EN' ? 'Enter as Guest' : 'Continuar como Invitado'}</span>
-        </button>
-
+      {/* 3 Circular Action Buttons */}
+      <div className="flex items-center gap-4 mb-4">
+        {/* Google */}
         <button
           type="button"
           onClick={handleGoogleLogin}
-          className="w-full py-2.5 px-4 rounded-full border-2 border-[#0D224A] hover:bg-neutral-50 bg-white text-neutral-800 font-bold text-sm flex items-center justify-center gap-2.5 transition-all duration-200 shadow-2xs cursor-pointer active:scale-[0.98]"
+          title={selectedLang === 'EN' ? 'Continue with Google' : 'Continuar con Google'}
+          className="w-12 h-12 rounded-full border-[2.5px] border-black bg-white hover:bg-neutral-50 flex items-center justify-center active:scale-95 transition-transform cursor-pointer shadow-xs shrink-0"
         >
-          <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+          <svg className="w-6 h-6" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
           </svg>
-          <span>{selectedLang === 'EN' ? 'Continue with Google' : 'Continuar con Google'}</span>
+        </button>
+
+        {/* Email */}
+        <button
+          type="button"
+          onClick={() => setShowInlineEmailFields(!showInlineEmailFields)}
+          title={selectedLang === 'EN' ? 'Sign in with Email' : 'Entrar con correo'}
+          className={`w-12 h-12 rounded-full border-[2.5px] ${showInlineEmailFields ? 'border-[#1A365D] bg-neutral-100 ring-2 ring-[#1A365D]/20' : 'border-black bg-white'} hover:bg-neutral-50 flex items-center justify-center active:scale-95 transition-all cursor-pointer shadow-xs shrink-0`}
+        >
+          <svg className="w-6 h-6 text-[#1A365D]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+        </button>
+
+        {/* Guest */}
+        <button
+          type="button"
+          onClick={handleGuestLogin}
+          title={selectedLang === 'EN' ? 'Enter as Guest' : 'Continuar como Invitado'}
+          className="w-12 h-12 rounded-full border-[2.5px] border-black bg-white hover:bg-neutral-50 flex items-center justify-center active:scale-95 transition-transform cursor-pointer shadow-xs shrink-0"
+        >
+          <svg className="w-6 h-6 text-[#1A365D]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+          </svg>
         </button>
       </div>
 
-      {/* Blue dotted line separator */}
-      <div className="py-2.5">
-        <div className="w-full border-t-[3px] border-dotted border-[#0D224A]"></div>
-      </div>
-
-
-      {/* Field 1 & 2: PRIMER NOMBRE & APELLIDO */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="text-left">
-          <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
-            {selectedLang === 'EN' ? 'FIRST NAME' : 'PRIMER NOMBRE'}
-          </label>
-          <input 
-            type="text"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-            placeholder={selectedLang === 'EN' ? 'e.g. Maria' : 'ej. María'}
-            className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
-          />
-        </div>
-        <div className="text-left">
-          <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
-            {selectedLang === 'EN' ? 'LAST NAME' : 'APELLIDO'}
-          </label>
-          <input 
-            type="text"
-            value={userLastName}
-            onChange={(e) => setUserLastName(e.target.value)}
-            placeholder={selectedLang === 'EN' ? 'e.g. Gonzalez' : 'ej. González'}
-            className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
-          />
-        </div>
-      </div>
-
-      {/* Field 2: CORREO ELECTRÓNICO */}
-      <div className="text-left">
-        <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
-          {selectedLang === 'EN' ? 'EMAIL ADDRESS' : 'CORREO ELECTRÓNICO'}
-        </label>
-        <input 
-          type="email"
-          value={userEmail}
-          onChange={(e) => setUserEmail(e.target.value)}
-          placeholder="email@example.com"
-          className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
-        />
-      </div>
-
-      {/* Field 3: CONTRASEÑA */}
-      <div className="text-left">
-        <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
-          {selectedLang === 'EN' ? 'PASSWORD' : 'CONTRASEÑA'}
-        </label>
-        <div className="relative flex items-center">
-          <input 
-            type={showPassword ? 'text' : 'password'}
-            value={userPassword}
-            onChange={(e) => setUserPassword(e.target.value)}
-            placeholder="● ● ● ● ● ● ● ●"
-            className={`w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs ${
-              !showPassword ? 'text-lg tracking-widest' : 'text-sm'
-            }`}
-          />
-        </div>
-
-        {/* Info Icon, Requisitos de la clave & Ver / Show Toggle Button */}
-        <div className="mt-1.5 px-1">
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setShowPasswordInfo(!showPasswordInfo)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-[#0D224A] transition-colors cursor-pointer select-none"
-            >
-              <Info className="w-4 h-4 text-neutral-500" />
-              <span className="text-[11px]">{selectedLang === 'EN' ? 'Password requirements' : 'Requisitos de la clave'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="text-xs font-bold text-gray-500 hover:text-gray-800 transition-colors select-none cursor-pointer"
-            >
-              {showPassword ? (selectedLang === 'EN' ? 'Hide' : 'Ocultar') : (selectedLang === 'EN' ? 'Show' : 'Ver')}
-            </button>
+      {/* Expandable Email Fields */}
+      {showInlineEmailFields && (
+        <div className="w-full space-y-3.5 pt-2 animate-fade-in border-t border-neutral-200">
+          {/* Field 1 & 2: PRIMER NOMBRE & APELLIDO */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="text-left">
+              <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
+                {selectedLang === 'EN' ? 'FIRST NAME' : 'PRIMER NOMBRE'}
+              </label>
+              <input 
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder={selectedLang === 'EN' ? 'e.g. Maria' : 'ej. María'}
+                className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
+              />
+            </div>
+            <div className="text-left">
+              <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
+                {selectedLang === 'EN' ? 'LAST NAME' : 'APELLIDO'}
+              </label>
+              <input 
+                type="text"
+                value={userLastName}
+                onChange={(e) => setUserLastName(e.target.value)}
+                placeholder={selectedLang === 'EN' ? 'e.g. Gonzalez' : 'ej. González'}
+                className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
+              />
+            </div>
           </div>
 
-          {showPasswordInfo && (
-            <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200/90 rounded-xl animate-fade-in text-left shadow-2xs">
-              <p className="text-[12px] font-bold text-neutral-800 mb-1.5">
-                {selectedLang === 'EN' ? 'Password requirements:' : 'Requisitos de la clave:'}
-              </p>
-              <ul className="space-y-1.5 text-[11px] text-neutral-600 font-medium">
-                <li className="flex items-center gap-2">
-                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                    userPassword.length >= 8 ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
-                  }`}>
-                    {userPassword.length >= 8 ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                    )}
-                  </span>
-                  <span>{selectedLang === 'EN' ? 'At least 8 characters' : 'Mínimo 8 caracteres'}</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                    /\d/.test(userPassword) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
-                  }`}>
-                    {/\d/.test(userPassword) ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                    )}
-                  </span>
-                  <span>{selectedLang === 'EN' ? 'At least one number' : 'Al menos un número'}</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                    /[A-Z]/.test(userPassword) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
-                  }`}>
-                    {/[A-Z]/.test(userPassword) ? (
-                      <Check className="w-2.5 h-2.5 stroke-[3]" />
-                    ) : (
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
-                    )}
-                  </span>
-                  <span>{selectedLang === 'EN' ? 'At least one uppercase letter' : 'Al menos una letra mayúscula'}</span>
-                </li>
-              </ul>
+          {/* Field 3: CORREO ELECTRÓNICO */}
+          <div className="text-left">
+            <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
+              {selectedLang === 'EN' ? 'EMAIL ADDRESS' : 'CORREO ELECTRÓNICO'}
+            </label>
+            <input 
+              type="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              placeholder="email@example.com"
+              className="w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs"
+            />
+          </div>
+
+          {/* Field 4: CONTRASEÑA */}
+          <div className="text-left">
+            <label className="block text-[11px] font-extrabold text-neutral-600 uppercase tracking-wider mb-1">
+              {selectedLang === 'EN' ? 'PASSWORD' : 'CONTRASEÑA'}
+            </label>
+            <div className="relative flex items-center">
+              <input 
+                type={showPassword ? 'text' : 'password'}
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+                placeholder="● ● ● ● ● ● ● ●"
+                className={`w-full px-4 py-2.5 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold focus:outline-none transition-all placeholder:text-neutral-400 placeholder:font-normal shadow-2xs ${
+                  !showPassword ? 'text-lg tracking-widest' : 'text-sm'
+                }`}
+              />
             </div>
-          )}
+
+            {/* Info Icon & Toggle */}
+            <div className="mt-1.5 px-1">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordInfo(!showPasswordInfo)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-500 hover:text-[#0D224A] transition-colors cursor-pointer select-none"
+                >
+                  <Info className="w-4 h-4 text-neutral-500" />
+                  <span className="text-[11px]">{selectedLang === 'EN' ? 'Password requirements' : 'Requisitos de la clave'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-xs font-bold text-gray-500 hover:text-gray-800 transition-colors select-none cursor-pointer"
+                >
+                  {showPassword ? (selectedLang === 'EN' ? 'Hide' : 'Ocultar') : (selectedLang === 'EN' ? 'Show' : 'Ver')}
+                </button>
+              </div>
+
+              {showPasswordInfo && (
+                <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200/90 rounded-xl animate-fade-in text-left shadow-2xs">
+                  <p className="text-[12px] font-bold text-neutral-800 mb-1.5">
+                    {selectedLang === 'EN' ? 'Password requirements:' : 'Requisitos de la clave:'}
+                  </p>
+                  <ul className="space-y-1.5 text-[11px] text-neutral-600 font-medium">
+                    <li className="flex items-center gap-2">
+                      <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        userPassword.length >= 8 ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
+                      }`}>
+                        {userPassword.length >= 8 ? (
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                        )}
+                      </span>
+                      <span>{selectedLang === 'EN' ? 'At least 8 characters' : 'Mínimo 8 caracteres'}</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        /\d/.test(userPassword) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
+                      }`}>
+                        {/\d/.test(userPassword) ? (
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                        )}
+                      </span>
+                      <span>{selectedLang === 'EN' ? 'At least one number' : 'Al menos un número'}</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                        /[A-Z]/.test(userPassword) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-200'
+                      }`}>
+                        {/[A-Z]/.test(userPassword) ? (
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />
+                        )}
+                      </span>
+                      <span>{selectedLang === 'EN' ? 'At least one uppercase letter' : 'Al menos una letra mayúscula'}</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Button: Continuar con E-mail */}
+          <div className="pt-1">
+            {(() => {
+              const isFormFilled = userName.trim() !== '' && userLastName.trim() !== '' && userEmail.trim() !== '' && userPassword.trim() !== '';
+              return (
+                <button
+                  type="button"
+                  onClick={handleOnboardingNext}
+                  disabled={!isFormFilled}
+                  className={`w-full py-2.5 px-4 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm flex items-center justify-center gap-2.5 transition-all duration-200 shadow-2xs ${
+                    isFormFilled
+                      ? 'hover:bg-neutral-50 active:scale-[0.98] cursor-pointer'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                >
+                  <svg className="w-5 h-5 shrink-0 rounded-full shadow-2xs overflow-hidden" viewBox="0 0 36 36">
+                    <path fill="#ED1C24" d="M36 27a9 9 0 0 1-9 9H9a9 9 0 0 1-9-9v-4h36v4z"/>
+                    <path fill="#FFF" d="M0 23h36v-3H0v3zm0-6h36v-3H0v3zm0-6h36V8H0v3z"/>
+                    <path fill="#ED1C24" d="M0 20h36v-3H0v3zm0-6h36v-3H0v3z"/>
+                    <path fill="#00205B" d="M0 9a9 9 0 0 1 9-9h9v18H0V9z"/>
+                    <path fill="#FFF" d="M13.5 14.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM4.5 14.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM13.5 5.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM4.5 5.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM9 9.75l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855z"/>
+                  </svg>
+                  <span>{selectedLang === 'EN' ? 'Continue with Email' : 'Continuar con Correo'}</span>
+                </button>
+              );
+            })()}
+          </div>
         </div>
-      </div>
-
-      {/* Button: Continuar con E-mail */}
-      <div className="pt-1">
-        {(() => {
-          const isFormFilled = userName.trim() !== '' && userLastName.trim() !== '' && userEmail.trim() !== '' && userPassword.trim() !== '';
-          return (
-            <button
-              type="button"
-              onClick={handleOnboardingNext}
-              disabled={!isFormFilled}
-              className={`w-full py-2.5 px-4 rounded-full border-2 border-[#0D224A] bg-white text-neutral-800 font-bold text-sm flex items-center justify-center gap-2.5 transition-all duration-200 shadow-2xs ${
-                isFormFilled
-                  ? 'hover:bg-neutral-50 active:scale-[0.98] cursor-pointer'
-                  : 'opacity-50 cursor-not-allowed'
-              }`}
-            >
-              <svg className="w-5 h-5 shrink-0 rounded-full shadow-2xs overflow-hidden" viewBox="0 0 36 36">
-                <path fill="#ED1C24" d="M36 27a9 9 0 0 1-9 9H9a9 9 0 0 1-9-9v-4h36v4z"/>
-                <path fill="#FFF" d="M0 23h36v-3H0v3zm0-6h36v-3H0v3zm0-6h36V8H0v3z"/>
-                <path fill="#ED1C24" d="M0 20h36v-3H0v3zm0-6h36v-3H0v3z"/>
-                <path fill="#00205B" d="M0 9a9 9 0 0 1 9-9h9v18H0V9z"/>
-                <path fill="#FFF" d="M13.5 14.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM4.5 14.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM13.5 5.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM4.5 5.25l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855zM9 9.75l.882 2.715h2.855l-2.31 1.678.882 2.715-2.309-1.678-2.309 1.678.882-2.715-2.31-1.678h2.855z"/>
-              </svg>
-              <span>{selectedLang === 'EN' ? 'Continue with Email' : 'Continuar con Correo'}</span>
-            </button>
-          );
-        })()}
-      </div>
-
-
+      )}
     </div>
   )}
 
@@ -4430,7 +4727,7 @@ ${greetingPrompt}`;
       </div>
      </div>
  ) : (
- <div className="min-h-full flex flex-col justify-start space-y-4">
+ <div className="min-h-full flex flex-col justify-start space-y-4 pt-12 sm:pt-14 md:pt-16">
  {(() => {
    const visibleMsgs = chatMessages.filter(msg => {
      if (msg.tab && msg.tab !== 'chat') return false;
@@ -4894,54 +5191,51 @@ ${greetingPrompt}`;
   )}
   </div>
   </div>
+   {!isUser && (
    <div className="flex flex-col w-full">
      <div className="flex items-center gap-2 mt-1 px-1.5 select-none flex-wrap">
-       {!isUser && (
-         <>
-           <button
-             type="button"
-             onClick={() => {
-               setChatMessages(prev =>
-                 prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'up' ? undefined : 'up' } : m)
-               );
-             }}
-             title={selectedLang === 'EN' ? "Helpful" : "Útil"}
-             aria-label="Thumbs up"
-             className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
-               msg.feedback === 'up'
-                 ? isDarkMode ? 'text-[#FFD700] scale-110' : 'text-amber-500 scale-110'
-                 : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
-             }`}
-           >
-             <ThumbsUp
-               className="w-4 h-4 transition-transform active:scale-125"
-               strokeWidth={msg.feedback === 'up' ? 2.25 : 1.75}
-               fill="none"
-             />
-           </button>
-           <button
-             type="button"
-             onClick={() => {
-               setChatMessages(prev =>
-                 prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'down' ? undefined : 'down' } : m)
-               );
-             }}
-             title={selectedLang === 'EN' ? "Not helpful" : "No útil"}
-             aria-label="Thumbs down"
-             className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
-               msg.feedback === 'down'
-                 ? isDarkMode ? 'text-rose-400 scale-110' : 'text-rose-500 scale-110'
-                 : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
-             }`}
-           >
-             <ThumbsDown
-               className="w-4 h-4 transition-transform active:scale-125"
-               strokeWidth={msg.feedback === 'down' ? 2.25 : 1.75}
-               fill="none"
-             />
-           </button>
-         </>
-       )}
+       <button
+         type="button"
+         onClick={() => {
+           setChatMessages(prev =>
+             prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'up' ? undefined : 'up' } : m)
+           );
+         }}
+         title={selectedLang === 'EN' ? "Helpful" : "Útil"}
+         aria-label="Thumbs up"
+         className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+           msg.feedback === 'up'
+             ? isDarkMode ? 'text-[#FFD700] scale-110' : 'text-amber-500 scale-110'
+             : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+         }`}
+       >
+         <ThumbsUp
+           className="w-4 h-4 transition-transform active:scale-125"
+           strokeWidth={msg.feedback === 'up' ? 2.25 : 1.75}
+           fill="none"
+         />
+       </button>
+       <button
+         type="button"
+         onClick={() => {
+           setChatMessages(prev =>
+             prev.map(m => m.id === msg.id ? { ...m, feedback: m.feedback === 'down' ? undefined : 'down' } : m)
+           );
+         }}
+         title={selectedLang === 'EN' ? "Not helpful" : "No útil"}
+         aria-label="Thumbs down"
+         className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+           msg.feedback === 'down'
+             ? isDarkMode ? 'text-rose-400 scale-110' : 'text-rose-500 scale-110'
+             : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+         }`}
+       >
+         <ThumbsDown
+           className="w-4 h-4 transition-transform active:scale-125"
+           strokeWidth={msg.feedback === 'down' ? 2.25 : 1.75}
+           fill="none"
+         />
+       </button>
 
        {/* Copy Icon - copies text of the bubble */}
        <button
@@ -5007,25 +5301,23 @@ ${greetingPrompt}`;
          )}
        </button>
 
-       {!isUser && (
-         <button
-           type="button"
-           onClick={() => setOpenFeedbackMsgId(prev => prev === msg.id ? null : msg.id)}
-           title={selectedLang === 'EN' ? "Voyager Feedback" : "Comentarios Voyager"}
-           aria-label="Voyager Feedback"
-           className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
-             openFeedbackMsgId === msg.id
-               ? 'text-amber-500 scale-110'
-               : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
-           }`}
-         >
-           <MessageSquarePlus className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
-         </button>
-       )}
+       <button
+         type="button"
+         onClick={() => setOpenFeedbackMsgId(prev => prev === msg.id ? null : msg.id)}
+         title={selectedLang === 'EN' ? "Voyager Feedback" : "Comentarios Voyager"}
+         aria-label="Voyager Feedback"
+         className={`p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer ${
+           openFeedbackMsgId === msg.id
+             ? 'text-amber-500 scale-110'
+             : isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+         }`}
+       >
+         <MessageSquarePlus className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+       </button>
      </div>
 
      {/* Voyager Feedback Sub-Chat Box */}
-     {!isUser && openFeedbackMsgId === msg.id && (
+     {openFeedbackMsgId === msg.id && (
        <div className={`w-full mt-2 p-3 rounded-2xl ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80 text-white' : 'bg-slate-900 border-slate-800 text-white'} border backdrop-blur-md text-left animate-fade-in shadow-xl space-y-2`}>
          <div className="flex items-center justify-between text-xs font-semibold text-amber-400/90 pb-1 border-b border-white/10">
            <span className="flex items-center gap-1.5">
@@ -5099,6 +5391,7 @@ ${greetingPrompt}`;
        </div>
      )}
    </div>
+   )}
   </div>
   </div>
   );
@@ -5596,6 +5889,101 @@ Pregunta del usuario: "${text}"]`;
  </div>
  </div>
  )}
+
+  {/* Milestone Goal Reached Celebration Modal */}
+  {showMilestoneToast && targetGoalMinutes && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-[#0D224A] border-2 border-amber-400 text-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative">
+        <div className="w-16 h-16 bg-amber-400/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-400/40">
+          <Trophy className="w-8 h-8 text-amber-400 animate-pulse" />
+        </div>
+        <h3 className="text-xl font-extrabold text-amber-300 mb-2">
+          {selectedLang === 'EN' ? 'Milestone Achieved! 🎉' : '¡Hito Alcanzado! 🎉'}
+        </h3>
+        <p className="text-sm text-slate-200 mb-5 leading-relaxed">
+          {selectedLang === 'EN'
+            ? `Awesome job! You reached your ${targetGoalMinutes}-minute communication goal with USA Voyager!`
+            : `¡Excelente trabajo! ¡Alcanzaste tu meta de ${targetGoalMinutes} minutos de conversación con USA Voyager!`}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setShowMilestoneToast(false);
+              setTargetGoalMinutes(targetGoalMinutes + 5);
+              setHasAchievedMilestone(false);
+            }}
+            className="flex-1 py-2.5 px-3 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-colors shadow-lg cursor-pointer"
+          >
+            {selectedLang === 'EN' ? '+5 Min Goal' : '+5 Min Meta'}
+          </button>
+          <button
+            onClick={() => setShowMilestoneToast(false)}
+            className="flex-1 py-2.5 px-3 rounded-xl bg-white/10 text-white font-semibold text-xs hover:bg-white/20 transition-colors border border-white/20 cursor-pointer"
+          >
+            {selectedLang === 'EN' ? 'Keep Going' : 'Continuar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* Require Profile Modal for Unregistered Users */}
+  {showRequireProfileModal && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-[#0D224A] border-2 border-amber-400 text-white rounded-3xl p-6 max-w-sm w-full text-center shadow-2xl relative">
+        <button
+          onClick={() => setShowRequireProfileModal(false)}
+          className="absolute top-4 right-4 text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="w-14 h-14 bg-amber-400/20 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-400/40">
+          <Bookmark className="w-7 h-7 text-amber-400" />
+        </div>
+        <h3 className="text-lg font-bold text-amber-300 mb-2">
+          {selectedLang === 'EN' ? 'Profile Completion Required' : 'Perfil Completo Requerido'}
+        </h3>
+        <p className="text-xs text-slate-200 mb-5 leading-relaxed">
+          {selectedLang === 'EN'
+            ? 'Saving chats and conversation bookmarks to your Profile is exclusively available to registered learners with a completed profile.'
+            : 'Guardar conversaciones y marcadores en tu Perfil es una función exclusiva para estudiantes registrados con perfil completo.'}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setShowRequireProfileModal(false);
+              setRightPanelTab('settings');
+            }}
+            className="flex-1 py-2.5 px-3 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition-colors shadow-lg cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <UserCheck className="w-4 h-4" />
+            <span>{selectedLang === 'EN' ? 'Complete Profile' : 'Completar Perfil'}</span>
+          </button>
+          <button
+            onClick={() => setShowRequireProfileModal(false)}
+            className="py-2.5 px-3 rounded-xl bg-white/10 text-white font-semibold text-xs hover:bg-white/20 transition-colors border border-white/20 cursor-pointer"
+          >
+            {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* Bookmark Saved Success Toast */}
+  {showBookmarkToast && (
+    <div className="fixed top-16 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#0D224A] border-2 border-amber-400 text-white shadow-2xl animate-fade-in">
+      <BookmarkCheck className="w-5 h-5 text-amber-400 animate-bounce" />
+      <div className="text-xs">
+        <span className="font-bold text-amber-300 block">
+          {selectedLang === 'EN' ? 'Chat Saved to Profile! 🔖' : '¡Conversación Guardada en Perfil! 🔖'}
+        </span>
+        <span className="text-slate-300 text-[11px]">
+          {selectedLang === 'EN' ? 'View saved chats in your PERFIL tab.' : 'Consulta tus chats en la pestaña PERFIL.'}
+        </span>
+      </div>
+    </div>
+  )}
 
  {/* Email / Google / Guest Auth Modal */}
   <AuthModal 
