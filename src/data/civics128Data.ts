@@ -2,6 +2,7 @@ import { CivicsQuestion, CivicsCategory } from './civicsTypes';
 import { CIVICS_GOVERNMENT_QUESTIONS } from './civicsGovernment';
 import { CIVICS_HISTORY_QUESTIONS } from './civicsHistory';
 import { CIVICS_INTEGRATED_QUESTIONS } from './civicsIntegrated';
+import { CIVICS_SHEET_CONTEXTS } from './civicsSheetContexts';
 
 export * from './civicsTypes';
 
@@ -9,7 +10,18 @@ export const ALL_CIVICS_128_QUESTIONS: CivicsQuestion[] = [
   ...CIVICS_GOVERNMENT_QUESTIONS,
   ...CIVICS_HISTORY_QUESTIONS,
   ...CIVICS_INTEGRATED_QUESTIONS
-];
+].map(q => {
+  const ctx = CIVICS_SHEET_CONTEXTS[q.id];
+  if (ctx) {
+    return {
+      ...q,
+      daySection: ctx.daySection,
+      dayNumber: ctx.dayNumber,
+      contextEn: ctx.contextEn
+    };
+  }
+  return q;
+});
 
 // Verify we have all 128 questions indexed 1-128
 export const TOTAL_QUESTIONS_COUNT = ALL_CIVICS_128_QUESTIONS.length;

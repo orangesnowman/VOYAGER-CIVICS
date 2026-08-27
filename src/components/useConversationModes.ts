@@ -13,6 +13,7 @@ export function useConversationModes(initialMode: ConversationMode = 'BILINGUAL'
   const isListenOnly = activeMode === 'LISTEN_ONLY';
   const isSpanishOnlyMode = activeMode === 'SPANISH';
   const isEnglishOnlyMode = activeMode === 'AMERICAN_ENGLISH';
+  const isAdaptiveMode = activeMode === 'ADAPTIVE';
 
   const activeModeRef = useRef<ConversationMode>(activeMode);
   useEffect(() => {
@@ -124,6 +125,14 @@ export function useConversationModes(initialMode: ConversationMode = 'BILINGUAL'
     }
   }, [switchMode]);
 
+  const setIsAdaptiveMode = useCallback((val: boolean) => {
+    if (val) {
+      switchMode('ADAPTIVE', 'ES');
+    } else if (activeModeRef.current === 'ADAPTIVE') {
+      switchMode('BILINGUAL', 'ES');
+    }
+  }, [switchMode]);
+
   return {
     activeMode,
     switchMode,
@@ -135,12 +144,14 @@ export function useConversationModes(initialMode: ConversationMode = 'BILINGUAL'
     isListenOnly,
     isSpanishOnlyMode,
     isEnglishOnlyMode,
+    isAdaptiveMode,
 
     setIsBilingualMode,
     setIsTranslateMode,
     setIsListenOnly,
     setIsSpanishOnlyMode,
-    setIsEnglishOnlyMode
+    setIsEnglishOnlyMode,
+    setIsAdaptiveMode
   };
 }
 

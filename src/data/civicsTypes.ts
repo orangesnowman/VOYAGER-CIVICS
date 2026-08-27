@@ -29,6 +29,10 @@ export interface CivicsQuestion {
   uscisCitation: string;
   notesEn?: string;
   notesEs?: string;
+  daySection?: 'Day 1' | 'Day 2' | 'Day 3' | 'Day 4' | 'Day 5' | 'Day 6';
+  dayNumber?: number; // 1 to 6
+  contextEn?: string;
+  contextEs?: string;
 }
 
 export interface CivicsExamSession {

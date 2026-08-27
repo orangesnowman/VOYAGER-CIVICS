@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Square, Type, Headphones, AudioLines, Keyboard, ChevronDown, Delete, CornerDownLeft, RotateCw, Languages } from 'lucide-react';
+import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Send, SendHorizontal, Square, Type, Headphones, AudioLines, Keyboard, ChevronDown, Delete, CornerDownLeft, RotateCw, Languages } from 'lucide-react';
 
 interface ChatInputBoxProps {
   selectedLang: 'EN' | 'ES';
@@ -530,138 +530,94 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     : (selectedLang === 'EN' ? 'Write or dictate...' : 'Escribe o dicta...');
 
   return isLiveVoiceActive ? null : (
-    <div className="flex-shrink-0 px-2 sm:px-3 pt-2 pb-2 md:pb-2.5 bg-transparent flex flex-col items-center w-full select-none">
-      <div className={`w-full max-w-full sm:max-w-[92%] mx-auto bubble-user-gradient-wrapper rounded-[26px] ${
-        isFocused || isEscribeActive || isListening || currentText.trim().length > 0 ? 'is-latest' : ''
-      }`}>
-        <form 
-          onSubmit={handleSubmit} 
-          className={`w-full ${isDarkMode ? 'bg-[#1E293B] text-white border border-slate-700/60' : 'bg-white text-black'} rounded-[22px] px-3.5 py-2 flex items-center gap-2 min-h-[44px] shadow-sm transition-colors duration-300`}
-        >
+    <div className="flex justify-end w-full my-2 animate-fade-in select-none z-20">
+      <div className="w-full max-w-[98%] sm:max-w-[88%] flex flex-col items-end ml-auto">
+        <div className={`w-full bubble-user-gradient-wrapper rounded-[26px] ${
+          isFocused || isEscribeActive || isListening || currentText.trim().length > 0 ? 'is-latest' : ''
+        }`}>
+          <form 
+            onSubmit={handleSubmit} 
+            className={`w-full ${isDarkMode ? 'bg-[#1E293B] text-white border border-slate-700/60' : 'bg-white text-black'} rounded-[22px] px-3.5 py-2 flex items-center gap-2 min-h-[44px] shadow-sm transition-colors duration-300`}
+          >
         {/* Textarea or Sound Graph + Action Controls */}
         <div className="flex items-center gap-2 flex-1 min-h-[36px]">
-          {/* Voice Mode Selector (+) Button & Popover */}
-          <div className="relative flex-shrink-0">
+          {/* Action buttons on the Left */}
+          <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
+            {/* Human icon matching the human speech bubble */}
+            {onOpenProfile ? (
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                title={selectedLang === 'EN' ? 'User Profile' : 'Perfil de Usuario'}
+                aria-label="User Profile"
+                className="p-1 rounded-full hover:bg-blue-500/10 active:scale-95 transition-all flex items-center justify-center cursor-pointer select-none"
+              >
+                <User strokeWidth={2.5} className="w-4 h-4 text-[#5382eb]" />
+              </button>
+            ) : (
+              <div className="p-1 flex items-center justify-center select-none" title={selectedLang === 'EN' ? 'User' : 'Usuario'}>
+                <User strokeWidth={2.5} className="w-4 h-4 text-[#5382eb]" />
+              </div>
+            )}
+
+            {/* Secondary Button: Voice interaction mode (Go Live) */}
             <button
               type="button"
-              onClick={() => setShowVoiceModeMenu((prev) => !prev)}
-              title={selectedLang === 'EN' ? 'Voice mode selector' : 'Seleccionar modo de voz'}
-              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center bg-transparent border-none ${
-                showVoiceModeMenu
-                  ? 'text-[#EAB308] rotate-45'
+              onClick={handleEscuchaClick}
+              title={selectedLang === 'EN' ? 'Go Live Voice Mode (ChatGPT style)' : 'Modo de Voz en Vivo (Estilo ChatGPT)'}
+              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center ${
+                isLiveVoiceActive
+                  ? 'bg-amber-500 text-black shadow-lg scale-110 animate-pulse ring-2 ring-amber-300'
+                  : activeMode === 'ESCUCHA' && isConnected && !isPaused
+                  ? 'bg-[#1A365D] text-white shadow-md scale-105'
                   : isDarkMode
-                  ? 'text-slate-400 hover:text-[#EAB308] active:scale-95'
-                  : 'text-neutral-400 hover:text-[#EAB308] active:scale-95'
+                  ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600 active:scale-95'
+                  : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95'
               }`}
             >
-              <Plus className="w-4 h-4 stroke-[2.8]" />
+              <AudioLines className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* Voice Mode Popover Menu */}
-            {showVoiceModeMenu && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40 bg-transparent" 
-                  onClick={() => setShowVoiceModeMenu(false)} 
-                />
-                <div className="absolute left-0 bottom-full mb-2 bg-[#0B1B3D]/95 border border-[#EAB308]/40 backdrop-blur-xl rounded-2xl p-2 shadow-2xl w-56 z-50 animate-fade-in flex flex-col text-white">
-                  {/* List of Voice Modes */}
-                  <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-                    {[
-                      {
-                        id: 'spanish',
-                        label: 'Español',
-                        iconType: 'text',
-                        badgeText: 'ES',
-                        active: !!isSpanishOnlyMode,
-                        activate: () => {
-                          setIsSpanishOnlyMode?.(true);
-                          if (isPaused) resume();
-                        }
-                      },
-                      {
-                        id: 'bilingual',
-                        label: 'Bilingüe',
-                        iconType: 'icon',
-                        icon: RotateCw,
-                        active: !!isBilingualMode,
-                        activate: () => {
-                          setIsBilingualMode?.(true);
-                          if (isPaused) resume();
-                        }
-                      },
-                      {
-                        id: 'english',
-                        label: 'Inglés',
-                        iconType: 'text',
-                        badgeText: 'EN',
-                        active: !!isEnglishOnlyMode,
-                        activate: () => {
-                          setIsEnglishOnlyMode?.(true);
-                          if (isPaused) resume();
-                        }
-                      },
-                      {
-                        id: 'translate',
-                        label: 'Traductor',
-                        iconType: 'icon',
-                        icon: Languages,
-                        active: !!isTranslateMode,
-                        activate: () => {
-                          setIsTranslateMode?.(true);
-                          if (isPaused) resume();
-                        }
-                      },
-                      {
-                        id: 'pause',
-                        label: 'Pausa',
-                        iconType: 'icon',
-                        icon: Pause,
-                        active: !!isPaused,
-                        activate: () => {
-                          if (isPaused) {
-                            if (typeof resume === 'function') resume();
-                          } else {
-                            if (typeof pause === 'function') pause();
-                          }
-                        }
-                      }
-                    ].map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          m.activate();
-                          setShowVoiceModeMenu(false);
-                        }}
-                        className={`w-full flex items-center p-2.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                          m.active
-                            ? 'bg-[#EAB308]/15 text-[#EAB308]'
-                            : 'text-white/80 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                            {m.iconType === 'text' ? (
-                              <span className={`font-bold text-xs leading-none tracking-tight ${m.active ? 'text-[#EAB308]' : 'text-white/70'}`}>
-                                {m.badgeText}
-                              </span>
-                            ) : (
-                              <m.icon className={`w-4 h-4 shrink-0 ${m.active ? 'text-[#EAB308]' : 'text-white/70'}`} />
-                            )}
-                          </div>
-                          <span className={`text-[15px] leading-tight whitespace-nowrap tracking-normal ${
-                            m.active ? 'font-bold text-[#EAB308]' : 'font-normal'
-                          }`}>
-                            {m.label}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </>
+            {/* Dictate / Mic Button */}
+            {isListening ? (
+              <button
+                type="button"
+                onClick={handleDictaClick}
+                title={selectedLang === 'EN' ? 'Stop dictating' : 'Detener dictado'}
+                className="p-1.5 rounded-full bg-red-600 text-white shadow-md shadow-red-500/40 animate-pulse scale-105 hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
+              >
+                <Square className="w-3.5 h-3.5 fill-current stroke-none text-white" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDictaClick}
+                title={selectedLang === 'EN' ? 'Dictate with voice' : 'Dictar por voz'}
+                className={`p-1.5 rounded-full ${
+                  isDarkMode 
+                    ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600' 
+                    : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200'
+                } active:scale-95 transition-all flex items-center justify-center cursor-pointer`}
+              >
+                <Mic className="w-4 h-4 stroke-[2.5]" />
+              </button>
             )}
+
+            {/* Paper Plane Send Button */}
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              title={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
+              className={`p-1.5 rounded-full transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
+                currentText.trim().length > 0
+                  ? 'bg-[#5A8DF8] hover:bg-blue-600 text-white shadow-md scale-105'
+                  : isDarkMode
+                  ? 'bg-slate-700/80 text-slate-400 hover:text-amber-400 hover:bg-slate-600'
+                  : 'bg-neutral-100 text-neutral-500 hover:text-[#1A365D] hover:bg-neutral-200'
+              }`}
+            >
+              <Send className="w-4 h-4 stroke-[2.2]" />
+            </button>
           </div>
 
           {/* Listening Waveform Indicator (Onda Visualizer) - visible when isListening is true */}
@@ -706,68 +662,14 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
               style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }}
               className={`w-full focus:outline-none transition-all border-none bg-transparent ${
                 isDarkMode ? 'text-white placeholder:text-slate-400' : 'text-black placeholder:text-black/40'
-              } text-right placeholder:text-right font-semibold text-[14px] leading-snug p-0 resize-none min-h-[28px] max-h-[100px] overflow-y-auto pr-1`}
+              } text-left placeholder:text-left font-semibold text-[14px] leading-snug p-0 resize-none min-h-[28px] max-h-[100px] overflow-y-auto pl-1`}
             />
             {/* Blinking Caret / "I" Beam Indicator when ESCRIBE is active and empty */}
             {isEscribeActive && !currentText && !isListening && (
-              <span className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center pointer-events-none pr-0.5">
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center pointer-events-none pl-0.5">
                 <span className="w-[2px] h-[16px] bg-blue-600 animate-pulse inline-block" />
               </span>
             )}
-          </div>
-
-          <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
-            {/* Primary Action Button: Mic -> Square (Stop) -> ArrowUp (Send) */}
-            {isListening ? (
-              <button
-                type="button"
-                onClick={handleDictaClick}
-                title={selectedLang === 'EN' ? 'Stop dictating' : 'Detener dictado'}
-                className="p-1.5 rounded-full bg-red-600 text-white shadow-md shadow-red-500/40 animate-pulse scale-105 hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5 fill-current stroke-none text-white" />
-              </button>
-            ) : currentText.trim().length > 0 ? (
-              <button
-                type="submit"
-                onClick={handleSubmit}
-                title={selectedLang === 'EN' ? 'Send message to Voyager' : 'Enviar mensaje a Voyager'}
-                className="p-1.5 rounded-full bg-[#5A8DF8] hover:bg-blue-600 text-white shadow-md active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              >
-                <ArrowUp className="w-4 h-4 stroke-[2.8]" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleDictaClick}
-                title={selectedLang === 'EN' ? 'Dictate with voice' : 'Dictar por voz'}
-                className={`p-1.5 rounded-full ${
-                  isDarkMode 
-                    ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600' 
-                    : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200'
-                } active:scale-95 transition-all flex items-center justify-center cursor-pointer`}
-              >
-                <Mic className="w-4 h-4 stroke-[2.5]" />
-              </button>
-            )}
-
-            {/* Secondary Button: Voice interaction mode (Go Live) */}
-            <button
-              type="button"
-              onClick={handleEscuchaClick}
-              title={selectedLang === 'EN' ? 'Go Live Voice Mode (ChatGPT style)' : 'Modo de Voz en Vivo (Estilo ChatGPT)'}
-              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center ${
-                isLiveVoiceActive
-                  ? 'bg-amber-500 text-black shadow-lg scale-110 animate-pulse ring-2 ring-amber-300'
-                  : activeMode === 'ESCUCHA' && isConnected && !isPaused
-                  ? 'bg-[#1A365D] text-white shadow-md scale-105'
-                  : isDarkMode
-                  ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600 active:scale-95'
-                  : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95'
-              }`}
-            >
-              <AudioLines className="w-4 h-4 stroke-[2.2]" />
-            </button>
           </div>
         </div>
       </form>
@@ -784,6 +686,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
           />
         </div>
       )}
+      </div>
     </div>
   );
 };

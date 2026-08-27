@@ -11,11 +11,12 @@ import { TeacherInsightsPanel } from './TeacherInsightsPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { ShoppingPanel } from './ShoppingPanel';
 import { Civics128Panel } from './Civics128Panel';
+import { EnglishAssessment, AssessmentScores } from './EnglishAssessment';
 import { ChatInputBox } from './ChatInputBox';
 import { AuthModal } from './AuthModal';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, AlarmClock, Trophy, Target, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, AlarmClock, Trophy, Target, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal, Bookmark, BookmarkCheck, Trash2, Maximize, Minimize, Zap } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -24,6 +25,7 @@ import { CONVERSATION_MODES, ConversationMode } from './ConversationModes';
 import { useConversationEngine } from './useConversationEngine';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
 import { CivicsExamTracker } from '../domain/CivicsExamTracker';
+import { CivicsProgressTracker, QuestionMasteryStatus } from '../domain/CivicsProgressTracker';
 import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 
 const modeDetails = [
@@ -38,6 +40,19 @@ const modeDetails = [
  icon: 'MessageSquare',
  tagEs: 'Español',
  tagEn: 'Spanish',
+ bg: 'hover:bg-black/5'
+ },
+ {
+ id: 'ADAPTIVE',
+ nameEs: 'Adaptivo',
+ nameEn: 'Adaptive',
+ statusEs: 'MODO ADAPTIVO',
+ statusEn: 'ADAPTIVE MODE',
+ descEs: 'Ajusta dinámicamente el idioma, velocidad y apoyo según tus respuestas.',
+ descEn: 'Dynamically adapts language, speed, and scaffolding based on your responses.',
+ icon: 'Zap',
+ tagEs: 'Flexibilidad Total',
+ tagEn: 'Flexible Support',
  bg: 'hover:bg-black/5'
  },
  {
@@ -86,6 +101,8 @@ const getModeExplanationText = (mode: ConversationMode, lang: 'EN' | 'ES'): stri
  switch (mode) {
  case 'SPANISH':
  return "Spanish Mode. We will converse strictly in Spanish.";
+ case 'ADAPTIVE':
+ return "Adaptive Mode. I will dynamically adjust my language, speed, and support based on your responses.";
  case 'BILINGUAL':
  return "Bilingual Mode. I will respond to you in Spanish and repeat my answer in English to help you learn.";
  case 'AMERICAN_ENGLISH':
@@ -101,6 +118,8 @@ const getModeExplanationText = (mode: ConversationMode, lang: 'EN' | 'ES'): stri
  switch (mode) {
  case 'SPANISH':
  return "Modo Español. Conversaremos estrictamente en español.";
+ case 'ADAPTIVE':
+ return "Modo Adaptativo. Ajustaré dinámicamente mi idioma, velocidad y apoyo según la fluidez de tus respuestas.";
  case 'BILINGUAL':
  return "Modo Bilingüe. Te responderé primero en español y luego repetiré la respuesta en inglés para ayudarte a aprender.";
  case 'AMERICAN_ENGLISH':
@@ -149,6 +168,8 @@ const sphereParticles = [
 
 const renderModeIcon = (iconName: string) => {
  switch (iconName) {
+ case 'Zap':
+ return <Zap className="w-5 h-5 text-amber-500" />;
  case 'Sparkles':
  return <Sparkles className="w-5 h-5 text-yellow-600" />;
  case 'Compass':
@@ -211,7 +232,7 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
   const question = questions[index % Math.max(questions.length, 1)];
 
   // Exam state for "TOMA EXAMEN"
-  const [examFormat, setExamFormat] = useState<'10_standard' | '20_extended' | '65_20'>('10_standard');
+  const [examFormat, setExamFormat] = useState<'10_standard' | '20_extended' | '65_20' | 'Day 1' | 'Day 2' | 'Day 3' | 'Day 4' | 'Day 5' | 'Day 6' | 'personalized_review'>('10_standard');
   const [examStarted, setExamStarted] = useState(false);
   const [examQuestions, setExamQuestions] = useState<typeof ALL_CIVICS_128_QUESTIONS>([]);
   const [currentExamIndex, setCurrentExamIndex] = useState(0);
@@ -226,34 +247,70 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
   useEffect(() => {
     if (isExamFinished && !recordedExamRef.current) {
       recordedExamRef.current = true;
-      const responsesList = Object.values(examResponses) as Array<{ isCorrect: boolean }>;
+      const responsesList = Object.values(examResponses) as Array<{ isCorrect: boolean; question: typeof ALL_CIVICS_128_QUESTIONS[0] }>;
       const correctCount = responsesList.filter(r => r?.isCorrect).length;
-      CivicsExamTracker.recordExam(examFormat, correctCount, examQuestions.length);
+      const incorrectCount = responsesList.filter(r => r && !r.isCorrect).length;
+
+      // Update CivicsProgressTracker question status dictionary
+      const updates: Record<number, QuestionMasteryStatus> = {};
+      responsesList.forEach(r => {
+        if (r?.question) {
+          updates[r.question.id] = r.isCorrect ? 'known' : 'review';
+        }
+      });
+
+      const activeDay = (examFormat.startsWith('Day ') ? examFormat : 'Day 1') as any;
+      CivicsProgressTracker.recordDaySession(
+        activeDay,
+        correctCount,
+        0,
+        incorrectCount,
+        examQuestions.length,
+        updates
+      );
+      CivicsExamTracker.recordExam(examFormat as any, correctCount, examQuestions.length);
     } else if (!isExamFinished) {
       recordedExamRef.current = false;
     }
-  }, [isExamFinished, examResponses, examFormat, examQuestions.length]);
+  }, [isExamFinished, examResponses, examFormat, examQuestions]);
 
-  const startExamSimulation = (format: '10_standard' | '20_extended' | '65_20' = examFormat) => {
+  const handleSubTabChange = (newMode: 'guide' | 'bilingual' | 'english' | 'exam', customExamFormat?: typeof examFormat) => {
+    setMode(newMode);
+    setResult(null);
+    if (newMode === 'exam') {
+      const targetFormat = customExamFormat || examFormat;
+      startExamSimulation(targetFormat);
+    }
+    const updatedPrompt = ConversationModePolicy.getCivicsSystemInstructions(selectedLang, newMode);
+    onAskVoyager(updatedPrompt);
+  };
+  const startExamSimulation = (format: typeof examFormat = examFormat) => {
     let pool = [...ALL_CIVICS_128_QUESTIONS];
     if (format === '65_20') {
       pool = ALL_CIVICS_128_QUESTIONS.filter(q => q.isExemption65_20);
       if (pool.length === 0) pool = ALL_CIVICS_128_QUESTIONS.slice(0, 20);
+    } else if (format.startsWith('Day ')) {
+      pool = ALL_CIVICS_128_QUESTIONS.filter(q => q.daySection === format);
+    } else if (format === 'personalized_review') {
+      pool = CivicsProgressTracker.getQuestionsForPersonalizedReview();
+      if (pool.length === 0) pool = ALL_CIVICS_128_QUESTIONS;
     }
-    const count = format === '20_extended' ? 20 : 10;
-    const shuffled = [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
-    setExamQuestions(shuffled);
+
+    const count = (format.startsWith('Day ') || format === 'personalized_review') ? pool.length : (format === '20_extended' ? 20 : 10);
+    const selectedList = (format.startsWith('Day ') || format === 'personalized_review') ? pool : [...pool].sort(() => 0.5 - Math.random()).slice(0, count);
+
+    setExamQuestions(selectedList);
     setCurrentExamIndex(0);
     setExamResponses({});
     setExamInputText('');
     setExamStarted(true);
     setShowExamAcceptedAnswers(false);
 
-    if (shuffled[0]) {
-      const q = shuffled[0];
+    if (selectedList[0]) {
+      const q = selectedList[0];
       const startPrompt = selectedLang === 'ES'
-        ? `[INSTRUCCIÓN DE SISTEMA: Como Officer Voyager, inicia el simulacro de examen oficial de USCIS. Saluda al candidato brevemente en 1 frase formal en inglés y haz la primera pregunta en inglés claro: "${q.questionEn}".]`
-        : `[SYSTEM INSTRUCTION: As Officer Voyager, begin the official USCIS Civics oral simulation. Give a 1-sentence formal greeting as a USCIS officer and ask question #1 clearly in English: "${q.questionEn}".]`;
+        ? `[INSTRUCCIÓN DE SISTEMA: Como Officer Voyager, inicia el simulacro de entrevista cívica de USCIS (${format}). Saluda formalmente en 1 frase corta y haz la primera pregunta en inglés claro: "${q.questionEn}".]`
+        : `[SYSTEM INSTRUCTION: As Officer Voyager, begin the official USCIS Civics oral simulation (${format}). Give a 1-sentence formal greeting as a USCIS officer and ask question #1 clearly in English: "${q.questionEn}".]`;
       onAskVoyager(startPrompt);
     }
   };
@@ -276,6 +333,9 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
     });
 
     const isCorrect = isMatch || isClose;
+
+    // Update Live Progress Tracker
+    CivicsProgressTracker.setQuestionStatus(currentQ.id, isCorrect ? 'known' : 'review');
 
     setExamResponses(prev => ({
       ...prev,
@@ -463,31 +523,28 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
         {/* Submenu Tabs: GUÍA as the first option -> COMPRENDE -> PRACTICA -> TOMA EXAMEN */}
         <div className="flex items-center justify-center gap-1 sm:gap-2 text-slate-400 flex-wrap">
           <button 
-            onClick={() => setMode('guide')} 
+            onClick={() => handleSubTabChange('guide')} 
             className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'guide' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
           >
             {selectedLang === 'EN' ? 'GUIDE' : 'GUÍA'}
           </button>
           <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
           <button 
-            onClick={() => { setMode('bilingual'); setResult(null); }} 
+            onClick={() => handleSubTabChange('bilingual')} 
             className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'bilingual' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
           >
             COMPRENDE
           </button>
           <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
           <button 
-            onClick={() => { setMode('english'); setResult(null); }} 
+            onClick={() => handleSubTabChange('english')} 
             className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'english' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
           >
             PRACTICA
           </button>
           <ArrowRight className="w-4 h-4 text-black stroke-[3] shrink-0" />
           <button 
-            onClick={() => { 
-              setMode('exam'); 
-              if (!examStarted) startExamSimulation(); 
-            }} 
+            onClick={() => handleSubTabChange('exam')} 
             className={`px-2 py-1 text-sm font-bold uppercase tracking-wider transition-colors cursor-pointer ${mode === 'exam' ? 'text-red-600' : 'text-slate-500 hover:text-slate-800'}`}
           >
             {selectedLang === 'EN' ? 'TAKE EXAM' : 'TOMA EXAMEN'}
@@ -617,24 +674,21 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
 
                 <div className="pt-2 flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => setMode('bilingual')}
+                    onClick={() => handleSubTabChange('bilingual')}
                     className="px-4 py-2 bg-[#0D224A] hover:bg-[#15346e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
                     <span>{selectedLang === 'EN' ? 'Start Bilingual Practice (COMPRENDE)' : 'Iniciar Práctica Bilingüe (COMPRENDE)'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => setMode('english')}
+                    onClick={() => handleSubTabChange('english')}
                     className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
                     <span>{selectedLang === 'EN' ? 'Practice in English (PRACTICA)' : 'Practicar en Inglés (PRACTICA)'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => {
-                      setMode('exam');
-                      startExamSimulation(calcResult.type === '65_20' ? '65_20' : '10_standard');
-                    }}
+                    onClick={() => handleSubTabChange('exam', calcResult.type === '65_20' ? '65_20' : '10_standard')}
                     className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
                   >
                     <span>{selectedLang === 'EN' ? 'Take Simulated Exam (TOMA EXAMEN)' : 'Simular Examen (TOMA EXAMEN)'}</span>
@@ -818,8 +872,8 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
         {mode === 'exam' && (() => {
           const responsesList = Object.values(examResponses) as Array<{ isCorrect: boolean; userAnswer: string; question: (typeof ALL_CIVICS_128_QUESTIONS)[0] }>;
           const correctCount = responsesList.filter(r => r?.isCorrect).length;
-          const passThreshold = examFormat === '20_extended' ? 12 : 6;
-          const maxQuestions = examFormat === '20_extended' ? 20 : 10;
+          const maxQuestions = examQuestions.length > 0 ? examQuestions.length : (examFormat === '20_extended' ? 20 : 10);
+          const passThreshold = Math.ceil(maxQuestions * 0.6);
           const currentOralQ = examQuestions[currentExamIndex];
           const currentResponse = examResponses[currentExamIndex];
           const isExamFinished = examStarted && examQuestions.length > 0 && Object.keys(examResponses).length >= examQuestions.length;
@@ -882,67 +936,67 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
                   );
                 })()}
 
-                {/* Exam Format Selector */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
-                  <button
-                    type="button"
-                    onClick={() => setExamFormat('10_standard')}
-                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
-                      examFormat === '10_standard'
-                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
-                      {selectedLang === 'EN' ? 'Standard 2008' : 'Estándar 2008'}
-                    </div>
-                    <div className="font-bold text-slate-900 text-sm">
-                      {selectedLang === 'EN' ? '10 Questions (6 to Pass)' : '10 Preguntas (6 para Aprobar)'}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {selectedLang === 'EN' ? 'Most common format.' : 'Formato más común.'}
-                    </div>
-                  </button>
+                {/* 6-Day Study Plan & Mode Format Selector */}
+                <div className="space-y-3 text-left">
+                  <div className="text-xs font-extrabold text-[#0D224A] uppercase tracking-wider">
+                    {selectedLang === 'EN' ? 'Voyager 6-Day Study Plan Sessions (~21 Qs Each):' : 'Sesiones del Plan de 6 Días Voyager (~21 Preguntas):'}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { id: 'Day 1', labelEn: 'Day 1 (Q1-21)', labelEs: 'Día 1 (P1-21)' },
+                      { id: 'Day 2', labelEn: 'Day 2 (Q22-42)', labelEs: 'Día 2 (P22-42)' },
+                      { id: 'Day 3', labelEn: 'Day 3 (Q43-63)', labelEs: 'Día 3 (P43-63)' },
+                      { id: 'Day 4', labelEn: 'Day 4 (Q64-84)', labelEs: 'Día 4 (P64-84)' },
+                      { id: 'Day 5', labelEn: 'Day 5 (Q85-105)', labelEs: 'Día 5 (P85-105)' },
+                      { id: 'Day 6', labelEn: 'Day 6 (Q106-128)', labelEs: 'Día 6 (P106-128)' }
+                    ].map(dayItem => (
+                      <button
+                        key={dayItem.id}
+                        type="button"
+                        onClick={() => setExamFormat(dayItem.id as any)}
+                        className={`p-2.5 rounded-xl border-2 transition cursor-pointer flex flex-col justify-between text-xs ${
+                          examFormat === dayItem.id
+                            ? 'border-indigo-900 bg-indigo-50/80 font-bold shadow-2xs'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <span className="font-extrabold text-slate-900">
+                          {selectedLang === 'EN' ? dayItem.labelEn : dayItem.labelEs}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">60% Voyager Goal</span>
+                      </button>
+                    ))}
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setExamFormat('65_20')}
-                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
-                      examFormat === '65_20'
-                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
-                      {selectedLang === 'EN' ? '65/20 Exemption' : 'Exención 65/20'}
-                    </div>
-                    <div className="font-bold text-slate-900 text-sm">
-                      {selectedLang === 'EN' ? '20 Designated Bank' : 'Banco de 20 Especiales'}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {selectedLang === 'EN' ? 'Age 65+ with 20+ yrs GC.' : '65+ años y 20+ de residencia.'}
-                    </div>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setExamFormat('personalized_review')}
+                      className={`flex-1 p-3 rounded-xl border-2 transition cursor-pointer flex items-center justify-between text-xs ${
+                        examFormat === 'personalized_review'
+                          ? 'border-purple-600 bg-purple-50 font-bold shadow-2xs text-purple-950'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-800'
+                      }`}
+                    >
+                      <span className="font-extrabold flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        {selectedLang === 'EN' ? '🔍 Personalized Review (🟡 Unsure + 🔴 Review)' : '🔍 Repaso Personalizado (🟡 Dudosas + 🔴 Repaso)'}
+                      </span>
+                      <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold">Filtered</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setExamFormat('20_extended')}
-                    className={`p-4 rounded-2xl border-2 transition cursor-pointer flex flex-col justify-between space-y-1.5 ${
-                      examFormat === '20_extended'
-                        ? 'border-[#0D224A] bg-slate-50 shadow-xs'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
-                      {selectedLang === 'EN' ? 'Extended 2020' : 'Extendido 2020'}
-                    </div>
-                    <div className="font-bold text-slate-900 text-sm">
-                      {selectedLang === 'EN' ? '20 Questions (12 to Pass)' : '20 Preguntas (12 para Aprobar)'}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      {selectedLang === 'EN' ? '20 questions format.' : 'Versión de 20 preguntas.'}
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setExamFormat('10_standard')}
+                      className={`p-3 rounded-xl border-2 transition cursor-pointer text-xs font-bold ${
+                        examFormat === '10_standard'
+                          ? 'border-[#0D224A] bg-slate-50 text-[#0D224A]'
+                          : 'border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      {selectedLang === 'EN' ? 'Standard 10 Qs' : 'Estándar 10 Preguntas'}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="pt-2">
@@ -1018,7 +1072,7 @@ const CitizenshipCoach: React.FC<CitizenshipCoachProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMode('bilingual')}
+                    onClick={() => handleSubTabChange('bilingual')}
                     className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl transition cursor-pointer border border-slate-300"
                   >
                     {selectedLang === 'EN' ? 'Back to COMPRENDE' : 'Volver a COMPRENDE'}
@@ -1239,6 +1293,15 @@ const PRACTICE_SCENARIOS: PracticeScenario[] = [
     icon: MessageSquare,
   },
   {
+    id: 'assessment',
+    category: 'GENERAL',
+    nameEn: 'English Level Assessment',
+    nameEs: 'Evaluación de Nivel de Inglés',
+    descEn: 'Live voice-first diagnostic assessment (A1-C2) evaluating listening, fluency, vocabulary, grammar, and pronunciation.',
+    descEs: 'Evaluación diagnóstica por voz (A1-C2) evaluando escucha, fluidez, vocabulario, gramática y pronunciación.',
+    icon: Target,
+  },
+  {
     id: 'citizenship',
     category: 'CITIZENSHIP',
     nameEn: 'Civics Exam',
@@ -1369,10 +1432,10 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
       window.location.hash = '';
     }
 
-    // Explicitly enforce 100% American English mode for the naturalization exam
+    // Set mode to ADAPTIVE for conversational flexibility during the exam
     setSelectedLang('EN');
-    switchMode('AMERICAN_ENGLISH', 'EN');
-    setChosenStartMode('AMERICAN_ENGLISH');
+    switchMode('ADAPTIVE', 'EN');
+    setChosenStartMode('ADAPTIVE');
 
     const oralExamInstruction = ConversationModePolicy.buildOfficialCitizenshipTestInstruction();
 
@@ -1398,6 +1461,10 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     setIsPassportModeMenuOpen(false);
     setIsInputActionsMenuOpen(false);
 
+    // Automatically switch communication mode to ADAPTIVE for any conversational menu selection
+    switchMode('ADAPTIVE', selectedLang);
+    setChosenStartMode('ADAPTIVE');
+
     if (isPaused) {
       resume(true);
     }
@@ -1406,12 +1473,28 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     setRightPanelTab('chat');
 
     if (scenarioId === 'open') {
-      const openPrompt = `[INSTRUCCIÓN DE SISTEMA: Modo "OPEN" (Conversación Abierta) activado. Conversa libremente con el usuario sobre cualquier tema general que proponga, manteniendo tu rol como guía y tutor VOYAGER y respetando siempre los guardrails del sistema.]`;
+      const openPrompt = `[INSTRUCCIÓN DE SISTEMA: Modo "OPEN" (Conversación Abierta - Modo Adaptativo) activado. Conversa libremente con el usuario sobre cualquier tema general que proponga en Modo Adaptativo, manteniendo tu rol como guía y tutor VOYAGER y adaptando el idioma, velocidad y apoyo según la fluidez del usuario.]`;
       if (isConnected) {
         sendText(openPrompt);
       } else {
         connect(openPrompt, true, selectedLang);
       }
+      return;
+    }
+
+    if (scenarioId === 'assessment') {
+      const assessmentInstructions = ConversationModePolicy.getEnglishAssessmentSystemInstructions(selectedLang);
+      if (isConnected) {
+        sendText(assessmentInstructions);
+      } else {
+        connect(assessmentInstructions, true, selectedLang);
+      }
+      addSystemMessage(
+        selectedLang === 'EN'
+          ? '🎯 English Level Assessment Started (Adaptive Mode)! Voyager will now conduct a live voice-first diagnostic conversation to evaluate your proficiency on the international A1-C2 scale.'
+          : '🎯 ¡Evaluación de Nivel de Inglés Iniciada (Modo Adaptativo)! Voyager realizará una conversación diagnóstica por voz en vivo para determinar tu nivel en la escala A1-C2.',
+        `msg_sys_assessment_${Date.now()}`
+      );
       return;
     }
 
@@ -1430,10 +1513,10 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
       case 'gas_station':
       case 'supermarket':
       case 'subway':
-        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Misión de práctica conversacional "VIDA DIARIA" iniciada. Actúa como la guía interactiva VOYAGER para situaciones cotidianas en EE. UU.: cafeterías, diners, recepción de hotel, gasolineras, supermercados y compras. Saluda al usuario de manera cercana, preséntale brevemente estos temas cotidianos y pregúntale en cuál de ellos desea comenzar a practicar hoy.]`;
+        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Misión de práctica conversacional "VIDA DIARIA" iniciada en Modo Adaptativo. Actúa como la guía interactiva VOYAGER para situaciones cotidianas en EE. UU.: cafeterías, diners, recepción de hotel, gasolineras, supermercados y compras. Adapta dinámicamente tu idioma, velocidad y apoyo según la fluidez del usuario. Saluda al usuario de manera cercana y pregúntale en cuál tema desea comenzar.]`;
         break;
       default:
-        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Escenario de conversación iniciado.]`;
+        scenarioPrompt = `[INSTRUCCIÓN DE SISTEMA: Escenario de conversación iniciado en Modo Adaptativo.]`;
         break;
     }
 
@@ -1442,7 +1525,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     } else {
       connect(scenarioPrompt, true, selectedLang);
     }
-  }, [isPaused, resume, isConnected, sendText, connect, selectedLang, startOfficialCitizenshipOralExam, setHasInteracted]);
+  }, [isPaused, resume, isConnected, sendText, connect, selectedLang, switchMode, startOfficialCitizenshipOralExam, setHasInteracted, addSystemMessage]);
 
   const goToCiudadaniaDirectly = useCallback(() => {
     setHasClickedConnect(true);
@@ -1486,6 +1569,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
 
  const CurrentModeIcon = useMemo(() => {
    switch (currentModeObj.id) {
+     case 'ADAPTIVE':
+       return Zap;
      case 'BILINGUAL':
        return Sparkles;
      case 'AMERICAN_ENGLISH':
@@ -1978,10 +2063,35 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
 
  const chatEndRef = useRef<HTMLDivElement>(null);
 
- // Particle visualizer canvas refs & loop
- const particleCanvasRef = useRef<HTMLCanvasElement | null>(null);
- const coverParticleCanvasRef = useRef<HTMLCanvasElement | null>(null);
- const [isLiveVoiceActive, setIsLiveVoiceActive] = useState<boolean>(true);
+  // Particle visualizer canvas refs & loop
+  const particleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const coverParticleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fullScreenParticleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isLiveFullScreen, setIsLiveFullScreen] = useState<boolean>(false);
+  const [isLiveVoiceActive, setIsLiveVoiceActive] = useState<boolean>(true);
+  const [fullScreenInput, setFullScreenInput] = useState<string>('');
+
+  const handleSendFullScreenText = () => {
+    if (!fullScreenInput.trim()) return;
+    const textToSend = fullScreenInput.trim();
+    setFullScreenInput('');
+    if (isConnected) {
+      sendText(textToSend);
+    } else {
+      connectToGemini(textToSend, false);
+    }
+  };
+
+  // Keyboard shortcut listener for Escape key to exit full screen mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isLiveFullScreen) {
+        setIsLiveFullScreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLiveFullScreen]);
 
   // Sync Live Voice Active mode with WebSocket pause/resume
   useEffect(() => {
@@ -2035,7 +2145,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  }
 
  const renderLoop = () => {
- const activeCanvases = [particleCanvasRef.current, coverParticleCanvasRef.current].filter(Boolean) as HTMLCanvasElement[];
+  const activeCanvases = [particleCanvasRef.current, coverParticleCanvasRef.current, fullScreenParticleCanvasRef.current].filter(Boolean) as HTMLCanvasElement[];
  if (activeCanvases.length === 0) {
  animationFrameId = requestAnimationFrame(renderLoop);
  return;
@@ -2123,15 +2233,30 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
 
  // Auto-scroll chat
  useEffect(() => {
- if (chatEndRef.current) {
- if (chatEndRef.current.parentElement) {
-        chatEndRef.current.parentElement.scrollTo({
-          top: chatEndRef.current.parentElement.scrollHeight,
-          behavior: 'smooth'
-        });
-      }
- }
- }, [chatMessages]);
+   const scrollToBottom = () => {
+     if (chatEndRef.current) {
+       try {
+         chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+       } catch {
+         // fallback
+       }
+       if (chatEndRef.current.parentElement) {
+         chatEndRef.current.parentElement.scrollTo({
+           top: chatEndRef.current.parentElement.scrollHeight,
+           behavior: 'smooth'
+         });
+       }
+     }
+   };
+
+   scrollToBottom();
+   const timer1 = setTimeout(scrollToBottom, 80);
+   const timer2 = setTimeout(scrollToBottom, 250);
+   return () => {
+     clearTimeout(timer1);
+     clearTimeout(timer2);
+   };
+ }, [chatMessages, isLiveVoiceActive, rightPanelTab]);
 
  // Voice TTS Helper
  const speakText = (text: string) => {
@@ -3065,7 +3190,7 @@ ${greetingPrompt}`;
   </div>
 
   {/* Bottom Button Panel */}
-  <div className="pb-4 md:pb-7 w-full z-10 flex items-center justify-center gap-3">
+  <div className="pb-3 md:pb-6 w-full z-10 flex flex-col items-center justify-center gap-3">
     {!hasClickedConnect ? (
       <button
         onClick={handleConnectClick}
@@ -3075,6 +3200,28 @@ ${greetingPrompt}`;
         <span>ENTRADA</span>
       </button>
     ) : null}
+
+    <div className="flex items-center justify-center">
+      <button
+        type="button"
+        onClick={() => {
+          setHasClickedConnect(true);
+          setRightPanelTab('chat');
+          setIsLiveVoiceActive(true);
+          if (isPaused) {
+            resume(true);
+          }
+          if (!isConnected) {
+            connect();
+          }
+        }}
+        title={selectedLang === 'EN' ? 'Go to Live Section' : 'Ir a la Sección Live'}
+        aria-label="Live Chat"
+        className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-amber-500/20 hover:bg-amber-500/40 border border-amber-400/70 text-amber-300 hover:text-white transition-all cursor-pointer shadow-lg active:scale-95 flex items-center justify-center hover:scale-110"
+      >
+        <AudioLines className="w-5 h-5 stroke-[2.2]" />
+      </button>
+    </div>
   </div>
   </div>
 
@@ -3189,7 +3336,125 @@ ${greetingPrompt}`;
  {rightPanelTab === 'chat' && hasInteracted && (
   <div className="pointer-events-auto mt-2 flex flex-col items-center justify-center animate-fade-in relative">
     <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1 select-none">
-      {/* 0. Alarm Clock Icon Button */}
+      {/* Mode Selector Dropdown Button & Popover in CHARLA Header (First Position) */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsModeMenuOpen(prev => !prev)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer outline-none select-none group ${
+            isDarkMode && rightPanelTab === 'chat'
+              ? 'text-[#EAB308] hover:bg-white/10'
+              : 'text-[#0D224A] hover:bg-slate-100'
+          }`}
+          title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+        >
+          <span className="font-bold tracking-tight text-[#EAB308]">
+            {isPaused
+              ? (selectedLang === 'EN' ? 'Pause' : 'Pausa')
+              : (selectedLang === 'EN' ? currentModeObj.nameEn : currentModeObj.nameEs)}
+          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#EAB308] group-hover:scale-110 transition-transform" />
+        </button>
+
+        {/* Quick Submenu Popover shared with Live Mode */}
+        {isModeMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-transparent"
+              onClick={() => setIsModeMenuOpen(false)}
+            />
+            <div className="absolute top-full left-0 mt-2 z-50 w-64 bg-[#08152E]/95 backdrop-blur-md border border-[#EAB308]/80 rounded-2xl p-2.5 shadow-2xl animate-fade-in flex flex-col text-white text-left">
+              <div className="px-2 py-1 mb-1.5 flex items-center justify-between border-b border-white/10">
+                <span className="text-sm font-semibold text-white">
+                  {selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsModeMenuOpen(false)}
+                  className="text-white/60 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1 max-h-64 overflow-y-auto pr-0.5 custom-scrollbar">
+                {modeDetails.map((mode) => {
+                  const name = mode.nameEs;
+                  const desc = mode.descEs;
+                  const effectiveMode = isPaused ? null : currentModeObj.id;
+                  const isSelected = effectiveMode === mode.id;
+
+                  const renderModeIcon = () => {
+                    const colorClass = isSelected ? 'text-[#EAB308]' : 'text-gray-400 group-hover:text-white transition-colors';
+                    if (mode.id === 'SPANISH') {
+                      return (
+                        <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                          ES
+                        </span>
+                      );
+                    }
+                    if (mode.id === 'BILINGUAL') {
+                      return <RotateCw className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                    }
+                    if (mode.id === 'ADAPTIVE') {
+                      return <Zap className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                    }
+                    if (mode.id === 'AMERICAN_ENGLISH') {
+                      return (
+                        <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
+                          EN
+                        </span>
+                      );
+                    }
+                    if (mode.id === 'LIVE_TRANSLATOR') {
+                      return <Languages className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                    }
+                    return <Headphones className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                  };
+
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => {
+                        if (isPaused) {
+                          resume(true);
+                        }
+                        handleModeSelection(mode.id as ConversationMode);
+                        applyChosenMode(mode.id as ConversationMode);
+                        if (isConnected) {
+                          sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${name}". Cambia tu estilo e idioma inmediatamente a este modo: "${desc}"]`);
+                        }
+                        setIsModeMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center px-2 py-1.5 rounded-lg text-left transition-colors duration-150 cursor-pointer group bg-transparent ${
+                        isSelected
+                          ? 'text-[#EAB308] font-bold'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                          {renderModeIcon()}
+                        </div>
+                        <span className={`text-sm leading-tight whitespace-nowrap tracking-normal transition-colors ${
+                          isSelected ? 'font-bold text-[#EAB308]' : 'font-normal text-gray-400 group-hover:text-white'
+                        }`}>
+                          {name}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className={`w-[1px] h-4 mx-1 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-white/20' : 'bg-slate-300'}`} />
+
+      {/* Alarm Clock Icon Button */}
       <button
         type="button"
         onClick={() => setIsGoalModalOpen(prev => !prev)}
@@ -3209,7 +3474,7 @@ ${greetingPrompt}`;
         <AlarmClock className={`w-4 h-4 ${targetGoalMinutes ? 'animate-pulse text-amber-500' : ''}`} />
       </button>
 
-      {/* 1. Chronometer area */}
+      {/* Chronometer area */}
       <div 
         className={`flex items-center gap-1 font-mono text-sm sm:text-base font-semibold tracking-wider cursor-pointer transition-colors ${
           isDarkMode && rightPanelTab === 'chat' ? 'text-white' : 'text-[#0D224A]'
@@ -3562,7 +3827,7 @@ ${greetingPrompt}`;
  </div>
  ) : (
  <div className={`flex-grow flex flex-col overflow-hidden ${
-   rightPanelTab === 'chat' ? 'pt-1 px-4 sm:px-6 md:px-8 pb-3' : 'pt-5 px-5 pb-1.5 md:pt-8 md:px-8 md:pb-2'
+   rightPanelTab === 'chat' ? 'pt-1 px-2.5 sm:px-4 md:px-5 pb-1' : 'pt-5 px-5 pb-1.5 md:pt-8 md:px-8 md:pb-2'
  } min-h-0 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-[#0F172A]' : 'bg-white'} transition-colors duration-300`}>
  {/* Old sub-header bar has been removed */}
           {(!hasInteracted && hasClickedConnect && rightPanelTab === 'home') ? (
@@ -4228,6 +4493,7 @@ ${greetingPrompt}`;
  }`}>
  {(() => {
    const ModeItemIcon = mode.id === 'BILINGUAL' ? Sparkles :
+                        mode.id === 'ADAPTIVE' ? Zap :
                         mode.id === 'AMERICAN_ENGLISH' ? Compass :
                         mode.id === 'LIVE_TRANSLATOR' ? Languages :
                         mode.id === 'LISTEN_ONLY' ? Headphones : EspIcon;
@@ -4424,7 +4690,13 @@ ${greetingPrompt}`;
    ) : rightPanelTab === 'chat' ? (
  <div className={`flex-grow flex flex-col overflow-hidden h-full ${isDarkMode ? 'bg-[#0F172A]' : 'bg-transparent'} transition-colors duration-300`}>
 
- <div className={`flex-1 px-1 sm:px-2 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0 ${isDarkMode ? 'bg-[#0F172A]' : ''}`}>
+ <div 
+   className={`flex-1 px-1 sm:px-2 pt-1 pb-2 tab-content-area overflow-y-auto min-h-0 ${isDarkMode ? 'bg-[#0F172A]' : ''}`}
+   style={!isLiveVoiceActive ? {
+     WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, transparent 30px, black 160px, black calc(100% - 16px), transparent 100%)',
+     maskImage: 'linear-gradient(to bottom, transparent 0px, transparent 30px, black 160px, black calc(100% - 16px), transparent 100%)'
+   } : undefined}
+ >
   {isLiveVoiceActive ? (
     <div className="fixed inset-0 z-50 w-screen h-[100dvh] bg-gradient-to-b from-[#0A1838] via-[#08152e] to-[#040b17] rounded-none border-none shadow-none pt-1 sm:pt-1.5 md:pt-3 lg:pt-4 px-3 sm:px-4 md:px-8 lg:px-10 pb-1 sm:pb-1.5 md:pb-6 lg:pb-8 flex flex-col items-center justify-between text-center overflow-hidden animate-fade-in">
      {/* Top Left Golden + Conversational Menu Button in Live Mode */}
@@ -4582,6 +4854,9 @@ ${greetingPrompt}`;
                       if (mode.id === 'BILINGUAL') {
                         return <RotateCw className={`w-4 h-4 shrink-0 ${colorClass}`} />;
                       }
+                      if (mode.id === 'ADAPTIVE') {
+                        return <Zap className={`w-4 h-4 shrink-0 ${colorClass}`} />;
+                      }
                       if (mode.id === 'AMERICAN_ENGLISH') {
                         return (
                           <span className={`w-5 h-5 flex items-center justify-center font-bold text-xs leading-none tracking-tight ${colorClass}`}>
@@ -4728,6 +5003,33 @@ ${greetingPrompt}`;
      </div>
  ) : (
  <div className="min-h-full flex flex-col justify-start space-y-4 pt-12 sm:pt-14 md:pt-16">
+  {(activeScenarioId === 'assessment' || currentModeObj.id === 'ENGLISH_ASSESSMENT') && (
+    <EnglishAssessment
+      selectedLang={selectedLang}
+      isConnected={isConnected}
+      isPaused={isPaused}
+      onAskVoyager={(text) => {
+        if (isConnected) {
+          sendText(text);
+        } else {
+          connect(text, true, selectedLang);
+        }
+      }}
+      onApplyLevelToProfile={(level, assessmentScores) => {
+        setSelectedLevel(level as any);
+        setScores(prev => ({
+          ...prev,
+          grammar: assessmentScores.grammar,
+          pronunciation: assessmentScores.pronunciation,
+          confidence: assessmentScores.interaction,
+          naturalness: assessmentScores.fluency
+        }));
+      }}
+      onClose={() => {
+        setActiveScenarioId('open');
+      }}
+    />
+  )}
  {(() => {
    const visibleMsgs = chatMessages.filter(msg => {
      if (msg.tab && msg.tab !== 'chat') return false;
@@ -4759,110 +5061,8 @@ ${greetingPrompt}`;
  </div>
  )}
  {!isUser && (
- <div className="flex items-center gap-1.5 sm:gap-4 flex-wrap mb-2.5 select-none">
- {/* Embedded Mode Selectors */}
- <div className="flex items-center gap-1.5 sm:gap-4 flex-wrap">
- {(() => {
- const modes = [
- {
- id: 'spanish',
- label: selectedLang === 'EN' ? 'SPANISH' : 'ESPAÑOL',
- active: isSpanishOnlyMode,
- activate: () => {
- setIsSpanishOnlyMode(true);
- if (isPaused) {
- resume();
- if (window.speechSynthesis && window.speechSynthesis.paused) {
- window.speechSynthesis.resume();
- }
- }
- }
- },
- {
- id: 'bilingual',
- label: 'BILINGÜE',
- active: isBilingualMode,
- activate: () => {
- setIsBilingualMode(true);
- if (isPaused) {
- resume();
- if (window.speechSynthesis && window.speechSynthesis.paused) {
- window.speechSynthesis.resume();
- }
- }
- }
- },
- {
- id: 'english',
- label: selectedLang === 'EN' ? 'ENGLISH' : 'INGLÉS',
- active: isEnglishOnlyMode,
- activate: () => {
- setIsEnglishOnlyMode(true);
- if (isPaused) {
- resume();
- if (window.speechSynthesis && window.speechSynthesis.paused) {
- window.speechSynthesis.resume();
- }
- }
- }
- },
- {
- id: 'translate',
- label: selectedLang === 'EN' ? 'TRANSLATOR' : 'TRADUCTOR',
- active: isTranslateMode,
- activate: () => {
- setIsTranslateMode(true);
- if (isPaused) {
- resume();
- if (window.speechSynthesis && window.speechSynthesis.paused) {
- window.speechSynthesis.resume();
- }
- }
- }
- },
- {
- id: 'listen',
- label: selectedLang === 'EN' ? 'LISTEN' : 'ESCUCHA',
- active: isListenOnly,
- activate: () => {
- setIsListenOnly(true);
- if (isPaused) {
- resume();
- if (window.speechSynthesis && window.speechSynthesis.paused) {
- window.speechSynthesis.resume();
- }
- }
- }
- }
- ];
-
- // Sort so active mode is first
- const sortedModes = [...modes].sort((a, b) => (a.active ? -1 : b.active ? 1 : 0));
-
- return sortedModes.map((m) => (
- <button 
- key={m.id}
- onClick={m.activate}
- style={{ fontFamily: "'Raleway', sans-serif" }}
- className="flex items-center gap-1 cursor-pointer group select-none"
- >
- {m.active && (
- <Bot 
- strokeWidth={2.5}
- className={`w-[18px] h-[18px] flex-shrink-0 transition-all duration-200 ${isDarkMode ? 'text-amber-400' : 'text-red-600'} scale-110`} 
- />
- )}
- <span className={`text-[7.5pt] tracking-wider uppercase whitespace-nowrap transition-colors ${
- m.active 
-   ? (isDarkMode ? 'text-amber-400 font-extrabold' : 'text-black font-extrabold')
-   : (isDarkMode ? 'text-slate-400 font-bold group-hover:text-amber-400' : 'text-black/45 font-bold group-hover:text-red-600')
- }`}>
- {m.label}
- </span>
- </button>
- ));
- })()}
- </div>
+ <div className="flex items-center gap-1 mb-1.5 select-none">
+ <Bot strokeWidth={2.5} className={`w-[18px] h-[18px] flex-shrink-0 ${isDarkMode ? "text-amber-400" : "text-red-600"}`} />
  </div>
  )}
  <div className={`chat-message-text whitespace-pre-line tracking-wider leading-snug ${isUser ? 'text-right' : 'text-left'}`}>
@@ -5392,52 +5592,157 @@ ${greetingPrompt}`;
      )}
    </div>
    )}
+    {isUser && (
+    <div className="flex flex-col w-full items-end">
+      <div className="flex items-center gap-2 mt-1 px-1.5 select-none flex-wrap justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            const cleanText = msg.text.replace(/\[.*?\]/g, '').trim();
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(cleanText);
+            }
+            setCopiedMsgId(msg.id);
+            setTimeout(() => setCopiedMsgId(null), 2000);
+          }}
+          title={copiedMsgId === msg.id ? (selectedLang === 'EN' ? 'Copied!' : '¡Copiado!') : (selectedLang === 'EN' ? 'Copy text' : 'Copiar texto')}
+          aria-label="Copy text"
+          className={copiedMsgId === msg.id ? 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-emerald-500 scale-110' : (isDarkMode ? 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-slate-400 hover:text-slate-200' : 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-slate-500 hover:text-slate-800')}
+        >
+          {copiedMsgId === msg.id ? (
+            <Check className="w-4 h-4 text-emerald-500" strokeWidth={2.25} />
+          ) : (
+            <Copy className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setOpenFeedbackMsgId(prev => prev === msg.id ? null : msg.id)}
+          title={selectedLang === 'EN' ? "Voyager Feedback" : "Comentarios Voyager"}
+          aria-label="Voyager Feedback"
+          className={openFeedbackMsgId === msg.id ? 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-amber-500 scale-110' : (isDarkMode ? 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-slate-400 hover:text-slate-200' : 'p-1 bg-transparent border-none outline-none transition-all duration-150 flex items-center justify-center cursor-pointer text-slate-500 hover:text-slate-800')}
+        >
+          <MessageSquarePlus className="w-4 h-4 transition-transform active:scale-125" strokeWidth={1.75} />
+        </button>
+      </div>
+
+      {openFeedbackMsgId === msg.id && (
+        <div className={`w-full max-w-sm mt-2 p-3 rounded-2xl ${isDarkMode ? 'bg-slate-800/80 border-slate-700/80 text-white' : 'bg-slate-900 border-slate-800 text-white'} border backdrop-blur-md text-left animate-fade-in shadow-xl space-y-2`}>
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-400/90 pb-1 border-b border-white/10">
+            <span className="flex items-center gap-1.5">
+              <MessageSquarePlus className="w-3.5 h-3.5 text-amber-400" />
+              {selectedLang === 'EN' ? 'Voyager Feedback Chat' : 'Chat de Comentarios Voyager'}
+            </span>
+            <button 
+              type="button"
+              onClick={() => setOpenFeedbackMsgId(null)}
+              className="text-neutral-400 hover:text-white p-0.5 rounded cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+
+          {msgFeedbackLists[msg.id] && msgFeedbackLists[msg.id].length > 0 && (
+            <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+              {msgFeedbackLists[msg.id].map((fb) => (
+                <div key={fb.id} className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 flex justify-between items-start gap-2">
+                  <span>{fb.text}</span>
+                  <span className="text-[10px] text-amber-400/80 font-mono whitespace-nowrap">
+                    {selectedLang === 'EN' ? 'Received ✓' : 'Enviado ✓'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const currentText = (msgFeedbackInput[msg.id] || '').trim();
+              if (!currentText) return;
+              const newFb = { id: Date.now().toString(), text: currentText, timestamp: new Date() };
+              setMsgFeedbackLists(prev => ({
+                ...prev,
+                [msg.id]: [...(prev[msg.id] || []), newFb]
+              }));
+              setMsgFeedbackInput(prev => ({ ...prev, [msg.id]: '' }));
+              setMsgFeedbackSent(prev => ({ ...prev, [msg.id]: true }));
+              setTimeout(() => {
+                setMsgFeedbackSent(prev => ({ ...prev, [msg.id]: false }));
+              }, 2500);
+            }}
+            className="flex items-center gap-2 pt-1"
+          >
+            <input
+              type="text"
+              value={msgFeedbackInput[msg.id] || ''}
+              onChange={(e) => setMsgFeedbackInput(prev => ({ ...prev, [msg.id]: e.target.value }))}
+              placeholder={selectedLang === 'EN' ? 'Send feedback about Voyager...' : 'Envía tus comentarios para Voyager...'}
+              className="flex-1 px-3 py-1.5 text-xs rounded-xl bg-slate-950/90 border border-slate-700/70 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500/60 transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!(msgFeedbackInput[msg.id] || '').trim()}
+              className="p-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 text-slate-950 font-bold transition-all cursor-pointer flex items-center justify-center active:scale-95"
+              title={selectedLang === 'EN' ? 'Send Feedback' : 'Enviar Comentarios'}
+            >
+              <SendHorizontal className="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          {msgFeedbackSent[msg.id] && (
+            <p className="text-[11px] text-emerald-400 font-medium animate-fade-in pl-0.5">
+              {selectedLang === 'EN' ? 'Thank you! Your feedback has been logged.' : '¡Gracias! Tus comentarios han sido registrados.'}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+    )}
   </div>
   </div>
   );
   });
 })()}
-  <div ref={chatEndRef} />
-  </div>
-  )}
-  </div>
-  <ChatInputBox
-    isDarkMode={isDarkMode}
-    selectedLang={selectedLang}
-    isConnected={isConnected}
-    isPaused={isPaused}
-    pause={pause}
-    resume={resume}
-   onSubmitText={(text) => {
-     const trimmed = text ? text.trim() : '';
-     if (!trimmed) return;
-     addUserMessage(trimmed);
-     sendText(trimmed);
-   }}
-   value={inputText}
-   onChangeValue={setInputText}
-   
-
-   onOpenProfile={() => setRightPanelTab('roadmap')}
-   isSpanishOnlyMode={isSpanishOnlyMode}
-   setIsSpanishOnlyMode={setIsSpanishOnlyMode}
-   isBilingualMode={isBilingualMode}
-   setIsBilingualMode={setIsBilingualMode}
-   isEnglishOnlyMode={isEnglishOnlyMode}
-   setIsEnglishOnlyMode={setIsEnglishOnlyMode}
-   isTranslateMode={isTranslateMode}
-   setIsTranslateMode={setIsTranslateMode}
-   isListenOnly={isListenOnly}
-   setIsListenOnly={setIsListenOnly}
-   isLiveVoiceActive={isLiveVoiceActive}
-   onToggleLiveVoice={() => {
-
-     setIsLiveVoiceActive(prev => !prev);
-     if (isConnected && isPaused) {
-       resume();
-     }
-   }}
-  />
+          <ChatInputBox
+            isDarkMode={isDarkMode}
+            selectedLang={selectedLang}
+            isConnected={isConnected}
+            isPaused={isPaused}
+            pause={pause}
+            resume={resume}
+            onSubmitText={(text) => {
+              const trimmed = text ? text.trim() : '';
+              if (!trimmed) return;
+              addUserMessage(trimmed);
+              sendText(trimmed);
+            }}
+            value={inputText}
+            onChangeValue={setInputText}
+            onOpenProfile={() => setRightPanelTab('roadmap')}
+            isSpanishOnlyMode={isSpanishOnlyMode}
+            setIsSpanishOnlyMode={setIsSpanishOnlyMode}
+            isBilingualMode={isBilingualMode}
+            setIsBilingualMode={setIsBilingualMode}
+            isEnglishOnlyMode={isEnglishOnlyMode}
+            setIsEnglishOnlyMode={setIsEnglishOnlyMode}
+            isTranslateMode={isTranslateMode}
+            setIsTranslateMode={setIsTranslateMode}
+            isListenOnly={isListenOnly}
+            setIsListenOnly={setIsListenOnly}
+            isLiveVoiceActive={isLiveVoiceActive}
+            onToggleLiveVoice={() => {
+              setIsLiveVoiceActive(prev => !prev);
+              if (isConnected && isPaused) {
+                resume();
+              }
+            }}
+          />
+          <div ref={chatEndRef} />
+        </div>
+      )}
+    </div>
   </div>
   ) : rightPanelTab === 'roadmap' ? (
   <RoadmapPanel
@@ -6020,6 +6325,189 @@ Pregunta del usuario: "${text}"]`;
     onGoogleLogin={handleGoogleLogin}
     onGuestLogin={handleGuestLogin}
   />
+
+  {/* Full Screen Live Section Overlay (CHARLA section) */}
+  {isLiveFullScreen && (
+    <div className="fixed inset-0 z-[100] bg-[#07132B] flex flex-col justify-between items-center text-center p-4 sm:p-6 select-none overflow-hidden animate-fade-in text-white">
+      {/* Top Header Bar */}
+      <div className="w-full max-w-5xl flex items-center justify-between z-20 pt-1 px-2">
+        {/* Top-Left Plus (+) Icon Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsNavMenuOpen(prev => !prev);
+          }}
+          className="p-2 text-[#EAB308] hover:text-white transition-colors cursor-pointer active:scale-95 flex items-center justify-center"
+          title={selectedLang === 'EN' ? 'Options' : 'Opciones'}
+        >
+          <Plus className="w-6 h-6 sm:w-7 sm:h-7 text-[#EAB308]" />
+        </button>
+
+        {/* Top-Center Title */}
+        <div className="flex flex-col items-center justify-center text-center select-none">
+          <span style={{ fontFamily: '"Allerta Stencil", sans-serif', letterSpacing: '0.2em' }} className="text-[10px] sm:text-xs font-bold text-white/80 uppercase">
+            YO SOY USA
+          </span>
+          <h1 style={{ fontFamily: '"Allerta Stencil", sans-serif' }} className="text-xl sm:text-2xl md:text-3xl font-black text-white uppercase tracking-wider leading-none mt-0.5">
+            VOYAGER<span className="text-[0.4em] font-light align-baseline ml-0.5">®</span>
+          </h1>
+        </div>
+
+        {/* Right spacing balance */}
+        <div className="w-8 sm:w-10" />
+      </div>
+
+      {/* Center Area: Golden Particle Sphere & Mode Badge */}
+      <div className="relative flex-1 w-full max-w-2xl flex flex-col items-center justify-center my-auto z-20">
+        <div className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-[360px] md:h-[360px] flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-[#EAB308]/15 blur-3xl pointer-events-none" />
+          <canvas
+            ref={fullScreenParticleCanvasRef}
+            width={800}
+            height={800}
+            className="z-20 transition-transform duration-75 animate-float-zero-g w-full h-full object-contain"
+            style={{
+              WebkitMaskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)',
+              maskImage: 'radial-gradient(circle at center, black 80%, transparent 99%)'
+            }}
+          />
+        </div>
+
+        {/* Mode Selector Badge below Sphere */}
+        <div className="relative flex flex-col items-center mt-2 z-30">
+          <button
+            type="button"
+            onClick={() => setIsModeMenuOpen(prev => !prev)}
+            className="flex flex-col items-center group cursor-pointer outline-none select-none"
+            title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+          >
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black border-2 border-[#EAB308] flex items-center justify-center shadow-[0_4px_15px_rgba(234,179,8,0.35)] group-hover:scale-105 transition-transform">
+              {currentModeObj.id === 'SPANISH' && <span className="font-bold text-sm sm:text-base text-[#EAB308]">ES</span>}
+              {currentModeObj.id === 'BILINGUAL' && <RotateCw className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAB308]" />}
+              {currentModeObj.id === 'ADAPTIVE' && <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAB308]" />}
+              {currentModeObj.id === 'AMERICAN_ENGLISH' && <span className="font-bold text-sm sm:text-base text-[#EAB308]">EN</span>}
+              {currentModeObj.id === 'LIVE_TRANSLATOR' && <Languages className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAB308]" />}
+              {currentModeObj.id !== 'SPANISH' && currentModeObj.id !== 'BILINGUAL' && currentModeObj.id !== 'ADAPTIVE' && currentModeObj.id !== 'AMERICAN_ENGLISH' && currentModeObj.id !== 'LIVE_TRANSLATOR' && <Headphones className="w-5 h-5 sm:w-6 sm:h-6 text-[#EAB308]" />}
+            </div>
+            <div className="flex items-center gap-1 mt-1 text-[#EAB308] group-hover:text-white transition-colors">
+              <span className="text-xs sm:text-sm font-semibold tracking-tight">
+                {selectedLang === 'EN' ? currentModeObj.nameEn : currentModeObj.nameEs}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#EAB308]" />
+            </div>
+          </button>
+
+          {/* Mode Selector Dropdown Popup */}
+          {isModeMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => setIsModeMenuOpen(false)}
+              />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 w-64 bg-[#08152E]/95 backdrop-blur-md border border-[#EAB308]/80 rounded-2xl p-2.5 shadow-2xl flex flex-col text-white text-left animate-fade-in">
+                <div className="px-2 py-1 mb-1.5 flex items-center justify-between border-b border-white/10">
+                  <span className="text-sm font-semibold text-white">
+                    {selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsModeMenuOpen(false)}
+                    className="text-white/60 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1 max-h-64 overflow-y-auto pr-0.5 custom-scrollbar">
+                  {modeDetails.map((mode) => {
+                    const name = mode.nameEs;
+                    const desc = mode.descEs;
+                    const isSelected = currentModeObj.id === mode.id;
+
+                    return (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => {
+                          if (isPaused) {
+                            resume(true);
+                          }
+                          handleModeSelection(mode.id as ConversationMode);
+                          applyChosenMode(mode.id as ConversationMode);
+                          if (isConnected) {
+                            sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${name}". Cambia tu estilo e idioma inmediatamente a este modo: "${desc}"]`);
+                          }
+                          setIsModeMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center px-2 py-1.5 rounded-lg text-left transition-colors duration-150 cursor-pointer group bg-transparent ${
+                          isSelected ? 'text-[#EAB308] font-bold' : 'text-gray-400 hover:text-white'
+                        }`}
+                      >
+                        <span className={`text-sm leading-tight whitespace-nowrap ${isSelected ? 'font-bold text-[#EAB308]' : 'font-normal text-gray-400 group-hover:text-white'}`}>
+                          {name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom Control Bar */}
+      <div className="w-full max-w-lg flex items-center justify-center gap-3 z-20 pb-4 px-4">
+        {/* Input pill */}
+        <div className="flex-1 border border-[#EAB308]/80 bg-black/60 rounded-full px-4 py-2 sm:py-2.5 flex items-center gap-2.5 shadow-xl backdrop-blur-md">
+          <button
+            type="button"
+            onClick={handleSendFullScreenText}
+            className="text-[#EAB308] hover:text-white transition-colors cursor-pointer shrink-0"
+            title={selectedLang === 'EN' ? 'Send' : 'Enviar'}
+          >
+            <SendHorizontal className="w-4 h-4 text-[#EAB308]" />
+          </button>
+          <input
+            type="text"
+            value={fullScreenInput}
+            onChange={(e) => setFullScreenInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSendFullScreenText();
+            }}
+            placeholder={selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...'}
+            className="bg-transparent text-white text-xs sm:text-sm outline-none w-full placeholder-white/50"
+          />
+        </div>
+
+        {/* Mic Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsLiveVoiceActive(!isLiveVoiceActive);
+          }}
+          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 flex items-center justify-center transition-all cursor-pointer shadow-xl active:scale-95 shrink-0 ${
+            isLiveVoiceActive
+              ? 'border-[#EAB308] bg-black/70 text-[#EAB308] hover:bg-[#EAB308]/20'
+              : 'border-red-500 bg-red-950/80 text-red-400 hover:bg-red-900/80'
+          }`}
+          title={isLiveVoiceActive ? 'Micrófono Activo' : 'Micrófono Silenciado'}
+        >
+          {isLiveVoiceActive ? <Mic className="w-5 h-5 text-[#EAB308]" /> : <MicOff className="w-5 h-5 text-red-400" />}
+        </button>
+
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={() => setIsLiveFullScreen(false)}
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-[#EAB308] bg-black/70 flex items-center justify-center text-[#EAB308] hover:bg-[#EAB308]/20 transition-all cursor-pointer shadow-xl active:scale-95 shrink-0"
+          title={selectedLang === 'EN' ? 'Close Live Section' : 'Cerrar Sección Live'}
+        >
+          <X className="w-5 h-5 text-[#EAB308]" />
+        </button>
+      </div>
+    </div>
+  )}
   </div>
   </div>
   );

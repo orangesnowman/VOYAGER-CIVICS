@@ -1,4 +1,4 @@
-export type ConversationMode = 'AMERICAN_ENGLISH' | 'SPANISH' | 'BILINGUAL' | 'LIVE_TRANSLATOR' | 'LISTEN_ONLY';
+export type ConversationMode = 'AMERICAN_ENGLISH' | 'SPANISH' | 'BILINGUAL' | 'LIVE_TRANSLATOR' | 'LISTEN_ONLY' | 'ENGLISH_ASSESSMENT' | 'ADAPTIVE';
 
 export interface ModeDefinition {
   id: ConversationMode;
@@ -67,5 +67,27 @@ export const CONVERSATION_MODES: Record<ConversationMode, ModeDefinition> = {
     systemMessageEnd: "[SYSTEM MESSAGE: Mode changed. Announce the mode change briefly aloud by saying strictly 'Modo escucha' (or 'Listen mode'). Do NOT say 'Understood' or 'Entendido'.]",
     chatInfoMessageEn: 'ℹ️ Monitor mode active: Listening only and will not speak. Feedback will be provided via text.',
     chatInfoMessageEs: 'ℹ️ Modo Escucha activo: Solo escuchará y no hablará. Los comentarios se proporcionarán por texto.'
+  },
+  ENGLISH_ASSESSMENT: {
+    id: 'ENGLISH_ASSESSMENT',
+    nameEn: 'ASSESSMENT',
+    nameEs: 'EVALUACIÓN',
+    descriptionEn: 'Live voice-first diagnostic assessment (A1-C2). Evaluates listening, fluency, vocabulary, grammar, and pronunciation.',
+    descriptionEs: 'Evaluación diagnóstica conversacional en vivo (A1-C2). Evalúa escucha, fluidez, vocabulario, gramática y pronunciación.',
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. English Level Assessment mode active. Conduct a voice-first diagnostic conversation evaluating English ability across stages A1 to C2.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: English Level Assessment mode active.]",
+    chatInfoMessageEn: '🎯 English Level Assessment Active: Speaking naturally with Voyager to evaluate your proficiency on the A1-C2 scale.',
+    chatInfoMessageEs: '🎯 Evaluación de Nivel de Inglés Activa: Habla naturalmente con Voyager para determinar tu nivel en la escala A1-C2.'
+  },
+  ADAPTIVE: {
+    id: 'ADAPTIVE',
+    nameEn: 'ADAPTIVE',
+    nameEs: 'ADAPTIVO',
+    descriptionEn: 'Flexible interaction. Automatically adapts language, speed, and support based on your conversation.',
+    descriptionEs: 'Modo de interacción flexible. Adapta automáticamente el idioma, la velocidad y el apoyo según tus necesidades.',
+    systemMessage: "[SYSTEM MESSAGE: Mode changed. Adaptive Mode active. Dynamically adapt your language, speed, complexity, and scaffolding based on the learner's responses and confidence. Start in English, provide minimal Spanish support only when needed, and adjust naturally.]",
+    systemMessageEnd: "[SYSTEM MESSAGE: Adaptive Mode active.]",
+    chatInfoMessageEn: '⚡ Adaptive Mode active: Voyager dynamically adjusts language scaffolding, speed, and complexity based on your responses.',
+    chatInfoMessageEs: '⚡ Modo Adaptativo activo: Voyager ajusta dinámicamente el idioma, la velocidad y la complejidad según tus respuestas.'
   }
 };

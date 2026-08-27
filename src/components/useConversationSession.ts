@@ -287,7 +287,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                 });
 
                 if (activeTab === 'civics') {
-                  greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions();
+                  greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang);
                 }
 
                 if (memory) {

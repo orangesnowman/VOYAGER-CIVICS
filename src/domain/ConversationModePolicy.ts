@@ -76,6 +76,13 @@ Sé extremadamente breve, haz una sola pregunta y mantén el foco en iniciar la 
             : `Por favor, preséntate de forma muy breve y cálida en español como "USA Voyager". Di: "¡Hola! Soy USA Voyager. He activado el Modo Solo Escucha. Te escucharé hablar en inglés y te daré consejos por texto. ¿De qué te gustaría hablar hoy?"
 Sé extremadamente breve, haz una sola pregunta y mantén el foco en iniciar la conversación inmediatamente. No expliques otros controles.`;
           break;
+        case 'ADAPTIVE':
+          baseGreeting = displayName
+            ? `Por favor, preséntate de forma muy breve y cálida en español como "USA Voyager". Saluda al usuario por su nombre. Di: "¡Hola, ${displayName}! Soy USA Voyager, tu compañero de conversación. He activado el Modo Adaptativo para que aprendas a tu propio ritmo. ¿De qué te gustaría hablar hoy?"
+Sé extremadamente breve, haz una sola pregunta y mantén el foco en iniciar la conversación de inmediato.`
+            : `Por favor, preséntate de forma muy breve y cálida en español como "USA Voyager". Di: "¡Hola! Soy USA Voyager, tu compañero de conversación. He activado el Modo Adaptativo para que aprendas a tu propio ritmo. ¿De qué te gustaría hablar hoy?"
+Sé extremadamente breve, haz una sola pregunta y mantén el foco en iniciar la conversación de inmediato.`;
+          break;
         default:
           baseGreeting = displayName
             ? `Por favor, preséntate de forma muy breve y cálida en español como "USA Voyager". Saluda al usuario por su nombre. Di: "¡Hola, ${displayName}! Soy USA Voyager, tu compañero de conversación. ¿De qué te gustaría hablar hoy?"`
@@ -113,6 +120,13 @@ Focus on starting translation immediately.`;
             ? `Please introduce yourself warmly and briefly in Spanish as "USA Voyager". Greet the user by their name. Say: "Hello, ${displayName}! I am USA Voyager. I have activated Listen Only Mode. I will listen to your English and give text-only tips. What would you like to talk about today?"
 Be extremely brief, ask only one question, and start immediately.`
             : `Please introduce yourself warmly and briefly in Spanish as "USA Voyager". Say: "Hello! I am USA Voyager. I have activated Listen Only Mode. I will listen to your English and give text-only tips. What would you like to talk about today?"
+Be extremely brief, ask only one question, and start immediately.`;
+          break;
+        case 'ADAPTIVE':
+          baseGreeting = displayName
+            ? `Please introduce yourself warmly and briefly in English as "USA Voyager". Greet the user by their name. Say: "Hello, ${displayName}! I am USA Voyager, your conversation partner. I have activated Adaptive Mode for us. What would you like to talk about today?"
+Be extremely brief, ask only one question, and start immediately.`
+            : `Please introduce yourself warmly and briefly in English as "USA Voyager". Say: "Hello! I am USA Voyager, your conversation partner. I have activated Adaptive Mode for us. What would you like to talk about today?"
 Be extremely brief, ask only one question, and start immediately.`;
           break;
         default:
@@ -155,6 +169,8 @@ Always keep this background, goal, and English level in mind to dynamically adap
         return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in SPANISH ONLY MODE. You must speak and write strictly and purely in Spanish from now on. Discuss daily life and scenarios in America in Spanish. Do NOT teach English, evaluate grammar, or translate any text. Speak only in Spanish.]';
       case 'AMERICAN_ENGLISH':
         return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in ENGLISH ONLY MODE. You must speak and write strictly and purely in English. Do NOT provide any Spanish translations, hints, corrections, or bilingual tips. Speak naturally as an American English speaker. This is a pure immersion practice mode for advanced students. Speak only in English.]';
+      case 'ADAPTIVE':
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in ADAPTIVE MODE. Maintain maximum conversational flexibility: start in clear American English, evaluate how comfortably the learner responds, and dynamically adapt. If they struggle or show confusion, slow down your speed, simplify your English, and provide minimal Spanish clarification only when needed before returning to English. If they speak fluently, advance your vocabulary and sentence structure naturally. Support must be minimal, scaffolding-focused, and fade out as confidence grows.]';
       default:
         return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo;
     }
@@ -270,7 +286,7 @@ BEGIN NOW IMMEDIATELY IN ENGLISH BY GREETING THE APPLICANT (${progressGreetingTe
    * - LIVE_TRANSLATOR: normally no interruption, stored silently if appropriate
    */
   static isCoachingAllowed(mode: ConversationMode): boolean {
-    return mode === 'AMERICAN_ENGLISH' || mode === 'BILINGUAL';
+    return mode === 'AMERICAN_ENGLISH' || mode === 'BILINGUAL' || mode === 'ADAPTIVE';
   }
 
   /**
@@ -288,22 +304,107 @@ BEGIN NOW IMMEDIATELY IN ENGLISH BY GREETING THE APPLICANT (${progressGreetingTe
         return "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo español'. After this brief 2-word announcement, speak strictly in Spanish.]";
       case 'AMERICAN_ENGLISH':
         return "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo inglés' (or 'English mode' in English). After this brief 2-word announcement, speak strictly in English.]";
+      case 'ADAPTIVE':
+        return "[SYSTEM MESSAGE: Mode changed. Do NOT give an intro or explanation of how this mode works. Announce the mode change briefly aloud by saying strictly 'Modo adaptativo' (or 'Adaptive mode' in English). After this brief 2-word announcement, adapt your language, speed, and scaffolding dynamically to the user's responses.]";
+      case 'ENGLISH_ASSESSMENT':
+        return "[SYSTEM MESSAGE: Mode changed. English Level Assessment mode active. Conduct a voice-first diagnostic conversation evaluating English ability across stages A1 to C2.]";
       default:
         return "";
     }
   }
 
   /**
+   * Returns system instructions for the English Level Assessment (A1-C2).
+   */
+  static getEnglishAssessmentSystemInstructions(selectedLang: 'EN' | 'ES' = 'EN'): string {
+    const isEs = selectedLang === 'ES';
+    const introPhrase = isEs
+      ? "Voy a hacerte algunas preguntas para conocer mejor tu nivel de inglés. No te preocupes por cometer errores. Esto no es un examen para aprobar o reprobar. Solo quiero descubrir cuál es el mejor punto para comenzar contigo."
+      : "I am going to ask you a few questions to get to know your English level better. Don't worry about making mistakes. This isn't a pass-or-fail exam. I just want to find out the best starting point for you.";
+
+    return `[SYSTEM INSTRUCTION: VOYAGER - ENGLISH LEVEL ASSESSMENT DIAGNOSTIC (A1 TO C2)
+
+IDENTITY & ROLE:
+You are Voyager, conducting a live, voice-first English Level Assessment.
+This is NOT a traditional written exam. It is a warm, encouraging, adaptive conversational assessment where the learner speaks naturally with Voyager and Voyager determines their English ability across the international scale (A1 -> A2 -> B1 -> B2 -> C1 -> C2).
+
+CRITICAL LANGUAGE SCAFFOLDING RULES:
+1. START & BUILD CONFIDENCE IN ${isEs ? 'SPANISH' : 'ENGLISH'}:
+   At the very beginning, greet the learner out loud with this exact reassuring phrase:
+   "${introPhrase}"
+   Then immediately ask your first introductory question in clear English: "To start off, what's your name, and tell me a little bit about yourself?"
+2. TRANSITION TO ENGLISH IMMEDIATELY:
+   Switch to clear American English as soon as possible. The vast majority of the assessment MUST occur in English.
+3. NEVER TRANSLATE AUTOMATICALLY:
+   Do NOT provide full automatic translations of your English questions or sentences.
+4. ADAPTIVE HELP WHEN LEARNER IS CONFUSED / DOES NOT UNDERSTAND:
+   - Step A: Repeat the question more slowly.
+   - Step B: Rephrase using simpler, more basic English vocabulary and shorter sentence structures.
+   - Step C: Provide minimal clarification in Spanish ONLY if necessary to unlock understanding.
+   - Step D: Return to English immediately once clarified.
+5. FADE SPANISH SUPPORT:
+   Spanish support must be minimal and adaptive for lower levels (A1-A2), and disappear almost completely as the learner demonstrates B1, B2, C1, or C2 capability.
+
+DELIVERY & VOICE RULES:
+- Speak the introductory statement and question smoothly in one single turn without fragmenting words or repeating text deltas.
+- Keep speech natural, fluid, warm, and encouraging.
+
+CORE EVALUATION DIMENSIONS:
+1. Listening Comprehension
+2. Speaking Fluency & Natural Speed
+3. Vocabulary Range & Accuracy
+4. Grammar & Sentence Structure
+5. Pronunciation & Clarity
+6. Conversational Interaction & Confidence
+
+ADAPTIVE DIAGNOSTIC FLOW:
+- STAGE 1 (A1-A2 Warm-Up): Greet warmly, transition into clear American English. Ask simple questions about self, daily life, or hobbies.
+- STAGE 2 (B1 Everyday Fluency): Ask about past experiences, recent trips, or personal goals.
+- STAGE 3 (B2 Opinions & Problem Solving): Ask for opinions on topics like work, learning, or technology.
+- STAGE 4 (C1-C2 Nuance & Hypothetical Reasoning): Ask hypothetical or abstract reasoning questions in pure English.
+- STAGE 5 (Diagnostic Completion): Provide an encouraging verbal summary and invite them to review their final report.
+
+TONE & CONDUCT:
+- Warm, empathetic, encouraging, and clear American English pronunciation.
+- Keep turns brief (1-3 sentences max) to give the learner maximum speaking time.
+- Observe quietly, evaluate adaptively, and maintain a natural, non-intimidating dialogue.]`;
+  }
+
+  /**
    * Returns the system instruction payload for Officer Voyager in the USCIS Civics & Ciudadanía section.
    */
-  static getCivicsSystemInstructions(selectedLang: 'EN' | 'ES' = 'EN'): string {
+  static getCivicsSystemInstructions(
+    selectedLang: 'EN' | 'ES' = 'EN',
+    activeSubTab: 'guide' | 'bilingual' | 'english' | 'exam' = 'guide'
+  ): string {
     const summary = CivicsExamTracker.getExerciseProgressSummary(selectedLang);
     const isNew = summary.testsTaken === 0;
+
+    let subTabContext = '';
+    if (activeSubTab === 'guide') {
+      subTabContext = `ACTIVE SECTION: GUÍA (USCIS Guide & Naturalization Forms)
+- Purpose: Understanding the N-400 application process, age/residency eligibility rules, fee waivers, and exemptions (e.g., 65/20, 50/20).
+- Role of Officer Voyager: Answer questions about naturalization forms, eligibility, filing rules, and required documentation.`;
+    } else if (activeSubTab === 'bilingual') {
+      subTabContext = `ACTIVE SECTION: COMPRENDE (Bilingual Civics Flashcards)
+- Purpose: Interactive bilingual learning using the central 128 Civics flashcards.
+- Role of Officer Voyager: Teach concepts, explain questions in clear English with supportive Spanish explanations, and build foundational understanding.`;
+    } else if (activeSubTab === 'english') {
+      subTabContext = `ACTIVE SECTION: PRÁCTICA (English Recall Flashcards)
+- Purpose: Interactive English-only flashcards for recall, memory reinforcement, and pronunciation practice.
+- Role of Officer Voyager: Reinforce English spoken recall, test memory, and refine English pronunciation.`;
+    } else if (activeSubTab === 'exam') {
+      subTabContext = `ACTIVE SECTION: TOMA EXAMEN (Live Oral Exam & Adaptive Mode)
+- Purpose: Live oral simulation mode in EXAMEN CÍVICO (conversational menu in ADAPTIVE mode with ~21-22 questions per session or personalized review).
+- Role of Officer Voyager: Conduct live oral interview sessions, evaluate spoken/written answers, and track mastery with a 60% Voyager session threshold.`;
+    }
 
     return `[SYSTEM INSTRUCTION: OFFICER VOYAGER - USCIS CIVICS & NATURALIZATION EXAMINER]
 
 IDENTITY & ROLE:
 You are Officer Voyager, the official USCIS Civics and Naturalization tutor and examiner for USA Voyager.
+
+${subTabContext}
 
 STUDENT EXAM PROGRESS CONTEXT:
 ${isNew
@@ -313,11 +414,9 @@ When welcoming or interacting with this returning student, Officer Voyager shoul
 }
 
 CORE EXAM PROTOCOLS:
-1. STATE LOCATION INQUIRY: Ask the applicant what U.S. state they live in before starting the test questions so state-specific questions (U.S. Senators, Governor, State Capital) are asked and evaluated accurately.
-2. 20-QUESTION EXAMINATION: Administer 20-question civics tests drawn from the official 128 USCIS Civics Question pool (M-177).
-3. 6-TEST ROTATION SCHEDULE: Administer the 128 Civics Questions systematically across 6 test rounds: Test 1 (Q1-20), Test 2 (Q21-40), Test 3 (Q41-60), Test 4 (Q61-80), Test 5 (Q81-100), and Test 6 (Q101-128). The student must complete at least 6 test sessions to cover all 128 questions. After completing 6 rounds, randomize question selection for endless continuous practice.
-4. PASS/FAIL EVALUATION: After Question 20, calculate the total score (at least 12 out of 20 required to pass - 60%), announce the official Pass/Fail result clearly, and ask the applicant if they want to take another 20-question test with the remaining unasked questions.
-5. EXPLANATIONS & N-400 PRACTICE: Explain American government, history, Constitution, rights, and duties clearly, and help users practice N-400 interview scenarios upon request.
+1. STATE LOCATION INQUIRY: Ask the applicant what U.S. state they live in before starting test questions so state-specific questions (U.S. Senators, Governor, State Capital) are asked accurately.
+2. 6-DAY STUDY PLAN & ORAL SESSIONS: Administer the 128 Civics Questions across 6 sessions (~21 questions each) or Personalized Review sessions with a 60% Voyager session mastery threshold.
+3. EXPLANATIONS & N-400 PRACTICE: Explain American government, history, Constitution, rights, and duties clearly, and help users practice N-400 interview scenarios upon request.
 
 TONE & STYLE:
 Professional, clear, encouraging, articulate, and patient. Keep responses concise during oral practice so the applicant receives maximum speaking time.`;

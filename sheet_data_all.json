@@ -1,0 +1,770 @@
+{
+  "1": {
+    "day": "Day 1",
+    "questionEn": "What is the supreme law of the land?",
+    "answerEn": "The U.S. Constitution",
+    "contextEn": "The Constitution is the highest legal authority in the country."
+  },
+  "2": {
+    "day": "Day 1",
+    "questionEn": "What does the U.S. Constitution do?",
+    "answerEn": "Forms the government",
+    "contextEn": "It establishes the structure and rules for the federal government."
+  },
+  "3": {
+    "day": "Day 1",
+    "questionEn": "The US Constitution starts with the words \"We the People.\" What does \"We the People\" mean?",
+    "answerEn": "Self-government",
+    "contextEn": "This reflects the idea that the government's power comes from the citizens."
+  },
+  "4": {
+    "day": "Day 1",
+    "questionEn": "How are changes made to the US Constitution?",
+    "answerEn": "Amendments",
+    "contextEn": "An amendment is a formal change or addition to the Constitution."
+  },
+  "5": {
+    "day": "Day 1",
+    "questionEn": "How many amendments does the US Constitution have?",
+    "answerEn": "27",
+    "contextEn": "There have been 27 changes made since it was written in 1787."
+  },
+  "6": {
+    "day": "Day 1",
+    "questionEn": "What does the Bill of Rights protect?",
+    "answerEn": "The basic rights of Americans",
+    "contextEn": "The Bill of Rights consists of the first ten amendments."
+  },
+  "7": {
+    "day": "Day 1",
+    "questionEn": "What is the \"rule of law\"?",
+    "answerEn": "Everyone must follow the law",
+    "contextEn": "No one, including government leaders, is above the law."
+  },
+  "8": {
+    "day": "Day 1",
+    "questionEn": "What is the form of government of the United States?",
+    "answerEn": "Republic",
+    "contextEn": "A system where citizens elect representatives to make decisions."
+  },
+  "9": {
+    "day": "Day 1",
+    "questionEn": "What is the economic system of the United States?",
+    "answerEn": "Capitalism",
+    "contextEn": "Also known as a free-market economy."
+  },
+  "10": {
+    "day": "Day 1",
+    "questionEn": "Name two important ideas from the Declaration of Independence and the US Constitution.",
+    "answerEn": "Equality; Liberty",
+    "contextEn": "These documents emphasize that people are free and equal."
+  },
+  "11": {
+    "day": "Day 1",
+    "questionEn": "What part of the federal government writes laws?",
+    "answerEn": "U.S. Congress",
+    "contextEn": "Congress is the primary law-making body."
+  },
+  "12": {
+    "day": "Day 1",
+    "questionEn": "What are the two parts of the US Congress?",
+    "answerEn": "Senate and House of Representatives",
+    "contextEn": "Congress is \"bicameral,\" meaning it has two houses."
+  },
+  "13": {
+    "day": "Day 1",
+    "questionEn": "How many US senators are there?",
+    "answerEn": "100",
+    "contextEn": "There are two senators for each of the 50 states."
+  },
+  "14": {
+    "day": "Day 1",
+    "questionEn": "How long is a term for a US senator?",
+    "answerEn": "Six years",
+    "contextEn": "Senators serve longer terms than House members."
+  },
+  "15": {
+    "day": "Day 1",
+    "questionEn": "Why does each state have two senators?",
+    "answerEn": "Equal representation for small states",
+    "contextEn": "This ensures smaller states have the same voice as larger ones in the Senate."
+  },
+  "16": {
+    "day": "Day 1",
+    "questionEn": "Who does a US senator represent?",
+    "answerEn": "Citizens of their state",
+    "contextEn": "Senators represent everyone living in their specific state."
+  },
+  "17": {
+    "day": "Day 1",
+    "questionEn": "How many voting members are in the House of Representatives?",
+    "answerEn": "435",
+    "contextEn": "The number of representatives is based on state population."
+  },
+  "18": {
+    "day": "Day 1",
+    "questionEn": "How long is a term for a member of the House of Representatives?",
+    "answerEn": "Two years",
+    "contextEn": "Short terms keep representatives accountable to the public."
+  },
+  "19": {
+    "day": "Day 1",
+    "questionEn": "Why do US representatives serve shorter terms than US senators?",
+    "answerEn": "To more closely follow public opinion",
+    "contextEn": "Frequent elections ensure they stay in touch with their constituents."
+  },
+  "20": {
+    "day": "Day 1",
+    "questionEn": "Who does a member of the House of Representatives represent?",
+    "answerEn": "Citizens in their district",
+    "contextEn": "They represent a specific geographic area within their state."
+  },
+  "21": {
+    "day": "Day 1",
+    "questionEn": "Some states have more representatives than other states. Why?",
+    "answerEn": "Because they have more people",
+    "contextEn": "Representation in the House is based on the census/population."
+  },
+  "22": {
+    "day": "Day 2",
+    "questionEn": "Who is the Speaker of the House of Representatives now?",
+    "answerEn": "Mike Johnson",
+    "contextEn": "The Speaker is the leader of the House of Representatives."
+  },
+  "23": {
+    "day": "Day 2",
+    "questionEn": "Who is in charge of the executive branch?",
+    "answerEn": "The President",
+    "contextEn": "The President is the head of the branch."
+  },
+  "24": {
+    "day": "Day 2",
+    "questionEn": "The President of the United States is elected for how many years?",
+    "answerEn": "Four years",
+    "contextEn": "One presidential term lasts four years."
+  },
+  "25": {
+    "day": "Day 2",
+    "questionEn": "The President can only serve two terms. Why?",
+    "answerEn": "Because of the 22nd Amendment",
+    "contextEn": "This prevents a President from staying in power indefinitely."
+  },
+  "26": {
+    "day": "Day 2",
+    "questionEn": "Who is the President of the United States now?",
+    "answerEn": "Donald Trump",
+    "contextEn": "Current office holder."
+  },
+  "27": {
+    "day": "Day 2",
+    "questionEn": "Who is the Vice President of the United States now?",
+    "answerEn": "JD Vance",
+    "contextEn": "Current office holder."
+  },
+  "28": {
+    "day": "Day 2",
+    "questionEn": "If the President can no longer serve, who becomes President?",
+    "answerEn": "The Vice President",
+    "contextEn": "This is the official line of succession."
+  },
+  "29": {
+    "day": "Day 2",
+    "questionEn": "Who is the Commander-in-Chief of the US military?",
+    "answerEn": "The President",
+    "contextEn": "The President has final authority over military decisions."
+  },
+  "30": {
+    "day": "Day 2",
+    "questionEn": "Who signs bills to become laws?",
+    "answerEn": "The President",
+    "contextEn": "A bill must be signed by the President to become law."
+  },
+  "31": {
+    "day": "Day 2",
+    "questionEn": "Who vetoes bills?",
+    "answerEn": "The President",
+    "contextEn": "\"Veto\" means the President refuses to sign a bill."
+  },
+  "32": {
+    "day": "Day 2",
+    "questionEn": "What does the President's cabinet do?",
+    "answerEn": "Advises the President",
+    "contextEn": "Cabinet members help the President make decisions."
+  },
+  "33": {
+    "day": "Day 2",
+    "questionEn": "What are two cabinet-level positions?",
+    "answerEn": "Secretary of Labor; Secretary of State",
+    "contextEn": "These are heads of executive departments."
+  },
+  "34": {
+    "day": "Day 2",
+    "questionEn": "Why is the Electoral College important?",
+    "answerEn": "It decides who is elected President",
+    "contextEn": "Presidents are not elected by a direct popular vote."
+  },
+  "35": {
+    "day": "Day 2",
+    "questionEn": "What does the judicial branch do?",
+    "answerEn": "Reviews laws",
+    "contextEn": "They explain laws and resolve disputes."
+  },
+  "36": {
+    "day": "Day 2",
+    "questionEn": "What is the highest court in the United States?",
+    "answerEn": "Supreme Court",
+    "contextEn": "Its decisions are final and cannot be appealed further."
+  },
+  "37": {
+    "day": "Day 2",
+    "questionEn": "How many seats are on the Supreme Court?",
+    "answerEn": "Nine",
+    "contextEn": "There are traditionally nine justices."
+  },
+  "38": {
+    "day": "Day 2",
+    "questionEn": "How many Supreme Court justices are usually needed to decide a case?",
+    "answerEn": "Five",
+    "contextEn": "A simple majority is required."
+  },
+  "39": {
+    "day": "Day 2",
+    "questionEn": "How long do Supreme Court justices serve?",
+    "answerEn": "For life",
+    "contextEn": "They serve until they retire, die, or are removed."
+  },
+  "40": {
+    "day": "Day 2",
+    "questionEn": "Why do Supreme Court justices serve for life?",
+    "answerEn": "To be independent of politics",
+    "contextEn": "Life terms prevent political pressure from influencing decisions."
+  },
+  "41": {
+    "day": "Day 2",
+    "questionEn": "Who is the Chief Justice of the United States now?",
+    "answerEn": "John Roberts",
+    "contextEn": "He is the highest-ranking judge in the Supreme Court."
+  },
+  "42": {
+    "day": "Day 2",
+    "questionEn": "Who appoints federal judges?",
+    "answerEn": "The President",
+    "contextEn": "The President chooses judges, who are then confirmed."
+  },
+  "43": {
+    "day": "Day 3",
+    "questionEn": "Name one power that is only for the federal government.",
+    "answerEn": "Print paper money",
+    "contextEn": "States are not allowed to create their own currency."
+  },
+  "44": {
+    "day": "Day 3",
+    "questionEn": "Name one power that is only for the states.",
+    "answerEn": "Give a driver's license",
+    "contextEn": "States manage local rules like driving and education."
+  },
+  "45": {
+    "day": "Day 3",
+    "questionEn": "What is the purpose of the 10th Amendment?",
+    "answerEn": "Powers not given to the federal government belong to the states or people",
+    "contextEn": "It limits the power of the federal government."
+  },
+  "46": {
+    "day": "Day 3",
+    "questionEn": "What are three rights of everyone living in the United States?",
+    "answerEn": "Freedom of speech; assembly; religion",
+    "contextEn": "These rights apply to residents, not just citizens."
+  },
+  "47": {
+    "day": "Day 3",
+    "questionEn": "What do we show loyalty to when we say the Pledge of Allegiance?",
+    "answerEn": "The United States",
+    "contextEn": "It is a promise of loyalty to the country."
+  },
+  "48": {
+    "day": "Day 3",
+    "questionEn": "Name two promises that new citizens make in the Oath of Allegiance.",
+    "answerEn": "Give up loyalty to other countries; be loyal to the United States",
+    "contextEn": "Citizenship requires a commitment to the U.S."
+  },
+  "49": {
+    "day": "Day 3",
+    "questionEn": "How can people become United States citizens?",
+    "answerEn": "Naturalize",
+    "contextEn": "This is the process of becoming a citizen for non-birthright residents."
+  },
+  "50": {
+    "day": "Day 3",
+    "questionEn": "What are two examples of civic participation in the United States?",
+    "answerEn": "Vote; run for office",
+    "contextEn": "Other ways include serving on a jury or serving the country."
+  },
+  "51": {
+    "day": "Day 3",
+    "questionEn": "Who can vote in federal elections and run for federal office?",
+    "answerEn": "Citizens",
+    "contextEn": "These rights are reserved specifically for U.S. citizens."
+  },
+  "52": {
+    "day": "Day 3",
+    "questionEn": "It is important for all men ages 18 through 25 to register for the Selective Service. Why?",
+    "answerEn": "Required by law",
+    "contextEn": "This is a legal requirement for young men."
+  },
+  "53": {
+    "day": "Day 3",
+    "questionEn": "Why is it important to pay federal taxes?",
+    "answerEn": "Required by law",
+    "contextEn": "Taxes fund government services and the military."
+  },
+  "54": {
+    "day": "Day 3",
+    "questionEn": "There are four amendments about who can vote. Describe one.",
+    "answerEn": "Citizens 18 and older can vote",
+    "contextEn": "The 26th Amendment lowered the voting age from 21 to 18."
+  },
+  "55": {
+    "day": "Day 3",
+    "questionEn": "What territory did the United States buy from France in 1803?",
+    "answerEn": "Louisiana",
+    "contextEn": "This doubled the size of the United States."
+  },
+  "56": {
+    "day": "Day 3",
+    "questionEn": "Name one war fought by the United States in the 1800s.",
+    "answerEn": "Civil War",
+    "contextEn": "(Other options include the War of 1812 or Spanish-American War)."
+  },
+  "57": {
+    "day": "Day 3",
+    "questionEn": "Name the US War between the North and the South.",
+    "answerEn": "The Civil War",
+    "contextEn": "It was fought primarily over slavery and states' rights."
+  },
+  "58": {
+    "day": "Day 3",
+    "questionEn": "What US war ended slavery?",
+    "answerEn": "The Civil War",
+    "contextEn": "The North's victory led to the abolition of slavery."
+  },
+  "59": {
+    "day": "Day 3",
+    "questionEn": "What did the Emancipation Proclamation do?",
+    "answerEn": "Freed the slaves",
+    "contextEn": "It was an executive order issued by Abraham Lincoln."
+  },
+  "60": {
+    "day": "Day 3",
+    "questionEn": "Abraham Lincoln is famous for many things. Name one.",
+    "answerEn": "Freed the slaves",
+    "contextEn": "He was the President during the Civil War."
+  },
+  "61": {
+    "day": "Day 3",
+    "questionEn": "The Civil War had many important events. Name one.",
+    "answerEn": "Emancipation Proclamation",
+    "contextEn": "This was a turning point in the war."
+  },
+  "62": {
+    "day": "Day 3",
+    "questionEn": "Name one leader of the women's rights movement in the 1800s.",
+    "answerEn": "Susan B. Anthony",
+    "contextEn": "She fought for the right to vote (suffrage)."
+  },
+  "63": {
+    "day": "Day 3",
+    "questionEn": "When did all men get the right to vote?",
+    "answerEn": "After the Civil War",
+    "contextEn": "This was established by the 15th Amendment."
+  },
+  "64": {
+    "day": "Day 4",
+    "questionEn": "Name one war fought by the United States in the 1900s.",
+    "answerEn": "World War I",
+    "contextEn": "(Other options: WWII, Korean War, Vietnam War)."
+  },
+  "65": {
+    "day": "Day 4",
+    "questionEn": "Why did the United States enter World War I?",
+    "answerEn": "To support the Allied powers",
+    "contextEn": "The U.S. joined Britain, France, and Russia."
+  },
+  "66": {
+    "day": "Day 4",
+    "questionEn": "When did all women get the right to vote?",
+    "answerEn": "After World War I",
+    "contextEn": "Established by the 19th Amendment in 1920."
+  },
+  "67": {
+    "day": "Day 4",
+    "questionEn": "What was the Great Depression?",
+    "answerEn": "Longest economic recession in modern history",
+    "contextEn": "A period of severe economic hardship."
+  },
+  "68": {
+    "day": "Day 4",
+    "questionEn": "When did the Great Depression start?",
+    "answerEn": "The Great Crash (1929)",
+    "contextEn": "The stock market crash triggered the depression."
+  },
+  "69": {
+    "day": "Day 4",
+    "questionEn": "Who was President during the Great Depression and World War II?",
+    "answerEn": "Franklin Roosevelt",
+    "contextEn": "He was the only president elected to four terms."
+  },
+  "70": {
+    "day": "Day 4",
+    "questionEn": "Why did the United States enter World War II?",
+    "answerEn": "Bombing of Pearl Harbor",
+    "contextEn": "Japan attacked the U.S. naval base in Hawaii."
+  },
+  "71": {
+    "day": "Day 4",
+    "questionEn": "Dwight Eisenhower is famous for many things. Name one.",
+    "answerEn": "General during World War II",
+    "contextEn": "He later became the 34th President."
+  },
+  "72": {
+    "day": "Day 4",
+    "questionEn": "During the Cold War, what was one main concern of the United States?",
+    "answerEn": "Communism",
+    "contextEn": "The U.S. wanted to prevent the spread of Soviet influence."
+  },
+  "73": {
+    "day": "Day 4",
+    "questionEn": "Who was the United States's main rival during the Cold War?",
+    "answerEn": "Russia",
+    "contextEn": "This was a period of tension between the U.S. and the Soviet Union."
+  },
+  "74": {
+    "day": "Day 4",
+    "questionEn": "Why did the United States enter the Korean War?",
+    "answerEn": "To stop the spread of communism",
+    "contextEn": "Fought in the early 1950s."
+  },
+  "75": {
+    "day": "Day 4",
+    "questionEn": "Why did the United States enter the Vietnam War?",
+    "answerEn": "To stop the spread of communism",
+    "contextEn": "A long conflict in Southeast Asia."
+  },
+  "76": {
+    "day": "Day 4",
+    "questionEn": "Why did the United States enter the Persian Gulf War?",
+    "answerEn": "To force the Iraqi military from Kuwait",
+    "contextEn": "This occurred in the early 1990s."
+  },
+  "77": {
+    "day": "Day 4",
+    "questionEn": "What did the civil rights movement do?",
+    "answerEn": "Fought to end racial discrimination",
+    "contextEn": "It sought equality for African Americans."
+  },
+  "78": {
+    "day": "Day 4",
+    "questionEn": "Martin Luther King Jr. is famous for many things. Name one.",
+    "answerEn": "Fought for civil rights",
+    "contextEn": "He was a leader of the non-violent protest movement."
+  },
+  "79": {
+    "day": "Day 4",
+    "questionEn": "What major event happened on September 11, 2001?",
+    "answerEn": "Terrorists attacked the United States",
+    "contextEn": "Attacks occurred in New York City and Arlington, VA."
+  },
+  "80": {
+    "day": "Day 4",
+    "questionEn": "Name one US military conflict after the September 11, 2001 attacks.",
+    "answerEn": "War in Iraq",
+    "contextEn": "This was part of the \"War on Terror.\""
+  },
+  "81": {
+    "day": "Day 4",
+    "questionEn": "What is the capital of the United States?",
+    "answerEn": "Washington, D.C.",
+    "contextEn": "This is where the federal government is located."
+  },
+  "82": {
+    "day": "Day 4",
+    "questionEn": "Where is the Statue of Liberty?",
+    "answerEn": "New York Harbor",
+    "contextEn": "A gift from France representing freedom."
+  },
+  "83": {
+    "day": "Day 4",
+    "questionEn": "Why does the flag have 13 stripes?",
+    "answerEn": "Because there were 13 original colonies",
+    "contextEn": "The stripes represent the founding states."
+  },
+  "84": {
+    "day": "Day 4",
+    "questionEn": "Why does the flag have 50 stars?",
+    "answerEn": "Because there are 50 states",
+    "contextEn": "Each star represents one state in the union."
+  },
+  "85": {
+    "day": "Day 5",
+    "questionEn": "What is the name of the national anthem?",
+    "answerEn": "The Star-Spangled Banner",
+    "contextEn": "Written by Francis Scott Key."
+  },
+  "86": {
+    "day": "Day 5",
+    "questionEn": "The nation's first motto was \"E Pluribus Unum.\" What does that mean?",
+    "answerEn": "Out of many, one",
+    "contextEn": "This refers to many states/people forming one nation."
+  },
+  "87": {
+    "day": "Day 5",
+    "questionEn": "Name one American Indian tribe in the United States.",
+    "answerEn": "Cherokee",
+    "contextEn": "(Other tribes exist across the country)."
+  },
+  "88": {
+    "day": "Day 5",
+    "questionEn": "Name one example of an American innovation.",
+    "answerEn": "Landing on the moon",
+    "contextEn": "(Refers to scientific or technological achievement)."
+  },
+  "89": {
+    "day": "Day 5",
+    "questionEn": "Alexander Hamilton is famous for many things. Name one.",
+    "answerEn": "First Secretary of the Treasury",
+    "contextEn": "He was a Founding Father."
+  },
+  "90": {
+    "day": "Day 5",
+    "questionEn": "What territory did the United States buy from France in 1803?",
+    "answerEn": "Louisiana Territory",
+    "contextEn": "It doubled the size of the U.S."
+  },
+  "91": {
+    "day": "Day 5",
+    "questionEn": "Name one war fought by the United States in the 1800s.",
+    "answerEn": "Civil War",
+    "contextEn": "(Other options: War of 1812, Mexican-American War, Spanish-American War)"
+  },
+  "92": {
+    "day": "Day 5",
+    "questionEn": "Name the U.S. war between the North and the South.",
+    "answerEn": "The Civil War",
+    "contextEn": "Fought over slavery and states' rights."
+  },
+  "93": {
+    "day": "Day 5",
+    "questionEn": "Name one problem that led to the Civil War.",
+    "answerEn": "Slavery",
+    "contextEn": "Also economic differences and states' rights."
+  },
+  "94": {
+    "day": "Day 5",
+    "questionEn": "What was one important thing that Abraham Lincoln did?",
+    "answerEn": "Freed the slaves (Emancipation Proclamation)",
+    "contextEn": "Saved (or preserved) the Union."
+  },
+  "95": {
+    "day": "Day 5",
+    "questionEn": "What did the Emancipation Proclamation do?",
+    "answerEn": "Freed the slaves",
+    "contextEn": "Issued during the Civil War."
+  },
+  "96": {
+    "day": "Day 5",
+    "questionEn": "What U.S. war ended slavery?",
+    "answerEn": "The Civil War",
+    "contextEn": "Fought from 1861 to 1865."
+  },
+  "97": {
+    "day": "Day 5",
+    "questionEn": "What amendment says all men can vote?",
+    "answerEn": "15th Amendment",
+    "contextEn": "Passed after the Civil War."
+  },
+  "98": {
+    "day": "Day 5",
+    "questionEn": "When did all men get the right to vote?",
+    "answerEn": "After the Civil War",
+    "contextEn": "With the 15th Amendment."
+  },
+  "99": {
+    "day": "Day 5",
+    "questionEn": "Name one leader of the women's rights movement in the 1800s.",
+    "answerEn": "Susan B. Anthony",
+    "contextEn": "Fought for women's suffrage."
+  },
+  "100": {
+    "day": "Day 5",
+    "questionEn": "Name one war fought by the United States in the 1900s.",
+    "answerEn": "World War I",
+    "contextEn": "(Other options: World War II, Korean War, Vietnam War, Persian Gulf War)"
+  },
+  "101": {
+    "day": "Day 5",
+    "questionEn": "Why did the U.S. enter World War I?",
+    "answerEn": "Because Germany attacked U.S. ships",
+    "contextEn": "To support the Allied Powers."
+  },
+  "102": {
+    "day": "Day 5",
+    "questionEn": "When did all women get the right to vote?",
+    "answerEn": "1920",
+    "contextEn": "With the 19th Amendment."
+  },
+  "103": {
+    "day": "Day 5",
+    "questionEn": "Who was president during World War I?",
+    "answerEn": "Woodrow Wilson",
+    "contextEn": "Served from 1913 to 1921."
+  },
+  "104": {
+    "day": "Day 5",
+    "questionEn": "When did the Great Depression start?",
+    "answerEn": "The Great Crash (1929)",
+    "contextEn": "Stock market crash of 1929."
+  },
+  "105": {
+    "day": "Day 5",
+    "questionEn": "Who was president during the Great Depression and World War II?",
+    "answerEn": "Franklin Roosevelt",
+    "contextEn": "Elected to four terms."
+  },
+  "106": {
+    "day": "Day 6",
+    "questionEn": "Who did the United States fight in World War II?",
+    "answerEn": "Japan, Germany, and Italy",
+    "contextEn": "The Axis Powers."
+  },
+  "107": {
+    "day": "Day 6",
+    "questionEn": "Before he was president, Eisenhower was a general. What war was he in?",
+    "answerEn": "World War II",
+    "contextEn": "He was Supreme Commander of Allied Forces in Europe."
+  },
+  "108": {
+    "day": "Day 6",
+    "questionEn": "Who was the United States' main rival during the Cold War?",
+    "answerEn": "Soviet Union",
+    "contextEn": "Also known as the USSR."
+  },
+  "109": {
+    "day": "Day 6",
+    "questionEn": "During the Cold War, what was a top U.S. concern?",
+    "answerEn": "Communism",
+    "contextEn": "The U.S. wanted to stop its spread."
+  },
+  "110": {
+    "day": "Day 6",
+    "questionEn": "Why did the United States enter the Korean War?",
+    "answerEn": "To stop the spread of communism",
+    "contextEn": "Fought in the 1950s."
+  },
+  "111": {
+    "day": "Day 6",
+    "questionEn": "Why did the United States enter the Vietnam War?",
+    "answerEn": "To stop the spread of communism",
+    "contextEn": "Fought in the 1960s and 1970s."
+  },
+  "112": {
+    "day": "Day 6",
+    "questionEn": "What did the civil rights movement do?",
+    "answerEn": "Fought to end racial discrimination",
+    "contextEn": "Sought equality for all."
+  },
+  "113": {
+    "day": "Day 6",
+    "questionEn": "Martin Luther King Jr. is famous for many things. Name one.",
+    "answerEn": "Fought for civil rights",
+    "contextEn": "Gave the 'I Have a Dream' speech."
+  },
+  "114": {
+    "day": "Day 6",
+    "questionEn": "Why did the United States enter the Persian Gulf War?",
+    "answerEn": "To force the Iraqi military from Kuwait",
+    "contextEn": "Fought in 1991."
+  },
+  "115": {
+    "day": "Day 6",
+    "questionEn": "What major event happened on September 11, 2001 in the United States?",
+    "answerEn": "Terrorists attacked the United States",
+    "contextEn": "The World Trade Center and Pentagon were targeted."
+  },
+  "116": {
+    "day": "Day 6",
+    "questionEn": "Name one U.S. military conflict after the September 11, 2001 attacks.",
+    "answerEn": "War in Afghanistan",
+    "contextEn": "(Other option: War in Iraq)"
+  },
+  "117": {
+    "day": "Day 6",
+    "questionEn": "Name one American Indian tribe in the United States.",
+    "answerEn": "Cherokee",
+    "contextEn": "(Other tribes exist across the country)"
+  },
+  "118": {
+    "day": "Day 6",
+    "questionEn": "Name one example of an American innovation.",
+    "answerEn": "Landing on the moon",
+    "contextEn": "(Refers to scientific or technological achievement)"
+  },
+  "119": {
+    "day": "Day 6",
+    "questionEn": "What is the capital of the United States?",
+    "answerEn": "Washington, D.C.",
+    "contextEn": "This is where the federal government is located."
+  },
+  "120": {
+    "day": "Day 6",
+    "questionEn": "Where is the Statue of Liberty?",
+    "answerEn": "New York Harbor",
+    "contextEn": "A gift from France representing freedom."
+  },
+  "121": {
+    "day": "Day 6",
+    "questionEn": "Why does the flag have 13 stripes?",
+    "answerEn": "Because there were 13 original colonies",
+    "contextEn": "The stripes represent the founding states."
+  },
+  "122": {
+    "day": "Day 6",
+    "questionEn": "Why does the flag have 50 stars?",
+    "answerEn": "Because there are 50 states",
+    "contextEn": "Each star represents one state in the union."
+  },
+  "123": {
+    "day": "Day 6",
+    "questionEn": "What is the name of the national anthem?",
+    "answerEn": "The Star-Spangled Banner",
+    "contextEn": "Written by Francis Scott Key."
+  },
+  "124": {
+    "day": "Day 6",
+    "questionEn": "The nation's first motto was \"E Pluribus Unum.\" What does that mean?",
+    "answerEn": "Out of many, one",
+    "contextEn": "This refers to many states/people forming one nation."
+  },
+  "125": {
+    "day": "Day 6",
+    "questionEn": "What is Independence Day?",
+    "answerEn": "A holiday to celebrate U.S. independence",
+    "contextEn": "Celebrates independence from Britain."
+  },
+  "126": {
+    "day": "Day 6",
+    "questionEn": "Name three national U.S. holidays.",
+    "answerEn": "New Year's Day, Thanksgiving, Independence Day",
+    "contextEn": "(Other options include Memorial Day, Veterans Day, etc.)"
+  },
+  "127": {
+    "day": "Day 6",
+    "questionEn": "What is Memorial Day?",
+    "answerEn": "A holiday to honor soldiers who died in military service",
+    "contextEn": "Observed in May."
+  },
+  "128": {
+    "day": "Day 6",
+    "questionEn": "What is Veterans Day?",
+    "answerEn": "A holiday to honor people in the U.S. military",
+    "contextEn": "Observed in November."
+  }
+}
