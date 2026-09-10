@@ -305,21 +305,27 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
                 if (activeTab === 'civics') {
                   let savedIdx = 0;
+                  let screenIdx = 1;
+                  let totalQs = ALL_CIVICS_128_QUESTIONS.length;
                   let activeSubTab: 'guide' | 'bilingual' | 'english' | 'exam' = 'bilingual';
                   try {
                     const rawIdx = localStorage.getItem('voyager_civics_flashcard_index');
                     if (rawIdx !== null) savedIdx = parseInt(rawIdx, 10) || 0;
+                    const rawScreenIdx = localStorage.getItem('voyager_civics_card_screen_index');
+                    if (rawScreenIdx !== null) screenIdx = parseInt(rawScreenIdx, 10) || (savedIdx + 1);
+                    const rawTotal = localStorage.getItem('voyager_civics_card_total_questions');
+                    if (rawTotal !== null) totalQs = parseInt(rawTotal, 10) || ALL_CIVICS_128_QUESTIONS.length;
                     const rawSub = localStorage.getItem('voyager_last_active_subtab') as any;
                     if (rawSub) activeSubTab = rawSub;
                   } catch (e) {}
 
-                  const activeQ = ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
+                  const activeQ = ALL_CIVICS_128_QUESTIONS.find(q => q.id === (savedIdx + 1)) || ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
                   greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang, activeSubTab, activeQ ? {
                     id: activeQ.id,
                     questionEn: activeQ.questionEn,
                     questionEs: activeQ.questionEs,
-                    indexOnScreen: savedIdx + 1,
-                    totalQuestions: ALL_CIVICS_128_QUESTIONS.length
+                    indexOnScreen: screenIdx,
+                    totalQuestions: totalQs
                   } : undefined);
                 }
 
@@ -359,21 +365,27 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
                 if (activeTab === 'civics') {
                   let savedIdx = 0;
+                  let screenIdx = 1;
+                  let totalQs = ALL_CIVICS_128_QUESTIONS.length;
                   let activeSubTab: 'guide' | 'bilingual' | 'english' | 'exam' = 'bilingual';
                   try {
                     const rawIdx = localStorage.getItem('voyager_civics_flashcard_index');
                     if (rawIdx !== null) savedIdx = parseInt(rawIdx, 10) || 0;
+                    const rawScreenIdx = localStorage.getItem('voyager_civics_card_screen_index');
+                    if (rawScreenIdx !== null) screenIdx = parseInt(rawScreenIdx, 10) || (savedIdx + 1);
+                    const rawTotal = localStorage.getItem('voyager_civics_card_total_questions');
+                    if (rawTotal !== null) totalQs = parseInt(rawTotal, 10) || ALL_CIVICS_128_QUESTIONS.length;
                     const rawSub = localStorage.getItem('voyager_last_active_subtab') as any;
                     if (rawSub) activeSubTab = rawSub;
                   } catch (e) {}
 
-                  const activeQ = ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
+                  const activeQ = ALL_CIVICS_128_QUESTIONS.find(q => q.id === (savedIdx + 1)) || ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
                   greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang, activeSubTab, activeQ ? {
                     id: activeQ.id,
                     questionEn: activeQ.questionEn,
                     questionEs: activeQ.questionEs,
-                    indexOnScreen: savedIdx + 1,
-                    totalQuestions: ALL_CIVICS_128_QUESTIONS.length
+                    indexOnScreen: screenIdx,
+                    totalQuestions: totalQs
                   } : undefined);
                 }
 

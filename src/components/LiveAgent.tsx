@@ -4,7 +4,7 @@ import NycMap, { MapMarker, RouteInfo } from './NycMap';
 import { NycSubwayMap } from './NycSubwayMap';
 import { getAccessToken, auth, googleSignIn, logout } from '../services/firebaseAuth';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
-import { saveUserProfile, saveOnboardingToFirestore, syncOrMigrateUserOnAuth, saveSavedChatsToFirestore, getSavedChatsFromFirestore, saveNavigationStateToFirestore, getNavigationStateFromFirestore, saveChatHistoryToFirestore, getChatHistoryFromFirestore } from '../services/userProfileService';
+import { saveUserProfile, saveOnboardingToFirestore, syncOrMigrateUserOnAuth, saveSavedChatsToFirestore, getSavedChatsFromFirestore, saveNavigationStateToFirestore, getNavigationStateFromFirestore, saveChatHistoryToFirestore, getChatHistoryFromFirestore, getLocalProfileCache } from '../services/userProfileService';
 import { conversationMemory } from '../domain/ConversationMemory';
 import { learningProfile } from '../domain/LearningProfile';
 import { parseAndRenderEmojis } from './VoyagerEmoji';
@@ -1751,6 +1751,32 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
       }
     }
   }, [secondsElapsed, targetGoalMinutes, hasAchievedMilestone]);
+
+  // Keep Officer Voyager in 100% real-time synchronization with active flashcard on learner's screen
+  useEffect(() => {
+    const handleFlashcardChanged = (e: Event) => {
+      const customEv = e as CustomEvent;
+      if (customEv && customEv.detail) {
+        const { question, screenIndex, totalQuestions } = customEv.detail;
+        if (question) {
+          if (question.id) {
+            try {
+              localStorage.setItem('voyager_civics_flashcard_index', String(question.id - 1));
+            } catch (e) {}
+          }
+          if (isConnected) {
+            const syncInstruction = `[SYSTEM INSTRUCTION: Flashcard stack position updated on learner's screen. Now viewing Card #${screenIndex || question.id} of ${totalQuestions || 128} (USCIS Question #${question.id}): "${question.questionEn}". Official Accepted Answers: ${(question.answersEn || []).join('; ')}. Officer Voyager is synchronized with this exact card.]`;
+            sendText(syncInstruction);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('voyager_flashcard_changed', handleFlashcardChanged);
+    return () => {
+      window.removeEventListener('voyager_flashcard_changed', handleFlashcardChanged);
+    };
+  }, [isConnected, sendText]);
 
   const startOfficialCitizenshipOralExam = useCallback(() => {
     setHasClickedConnect(true);
@@ -4227,26 +4253,6 @@ ${greetingPrompt}`;
                   </div>
                 )}
               </button>
-
-              {authUser && (
-                <button
-                  type="button"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    try {
-                      await logout();
-                    } catch (e) {}
-                    setAuthUser(null);
-                    setRightPanelTab('home');
-                    window.location.hash = '';
-                  }}
-                  title={selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
-                  className="absolute -top-1 -right-1 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#FFD700] hover:bg-rose-500 text-slate-950 hover:text-white border-2 border-slate-950 flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer hover:scale-110 z-30 group"
-                >
-                  <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:hidden transition-transform" />
-                  <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 hidden group-hover:block transition-transform" />
-                </button>
-              )}
             </div>
           </div>
         </>
@@ -4315,26 +4321,6 @@ ${greetingPrompt}`;
                 </div>
               )}
             </button>
-
-            {authUser && (
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    await logout();
-                  } catch (e) {}
-                  setAuthUser(null);
-                  setRightPanelTab('home');
-                  window.location.hash = '';
-                }}
-                title={selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
-                className="absolute -top-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#FFD700] hover:bg-rose-500 text-slate-950 hover:text-white border-2 border-slate-950 flex items-center justify-center shadow-lg transition-all duration-200 cursor-pointer hover:scale-110 z-30 group"
-              >
-                <Settings className="w-3 h-3 sm:w-3.5 sm:h-3.5 group-hover:hidden transition-transform" />
-                <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5 hidden group-hover:block transition-transform" />
-              </button>
-            )}
           </div>
         </div>
 
@@ -4398,8 +4384,6 @@ ${greetingPrompt}`;
         setIsEnglishOnlyMode={setIsEnglishOnlyMode}
         isTranslateMode={isTranslateMode}
         setIsTranslateMode={setIsTranslateMode}
-        isLiveVoiceActive={isLiveVoiceActive}
-        onToggleLiveVoice={() => setIsLiveVoiceActive(!isLiveVoiceActive)}
       />
     </div>
 
@@ -7430,7 +7414,9 @@ Pregunta del usuario: "${text}"]`;
         setAdminImgError(false);
       }
       try {
-        localStorage.setItem('voyager_user_account', JSON.stringify({
+        const existingCache = getLocalProfileCache() || {};
+        const updatedProfile = {
+          ...existingCache,
           name: finalName,
           email: finalEmail,
           password: passVal,
@@ -7438,16 +7424,16 @@ Pregunta del usuario: "${text}"]`;
           isAdmin: isAdminUser,
           adminId: isAdminUser ? 'ADMIN-VOYAGER-001' : undefined,
           provider: 'email',
-          photoURL: existingPhoto || undefined,
-          avatarUrl: existingPhoto || undefined,
+          photoURL: existingPhoto || existingCache.photoURL || undefined,
+          avatarUrl: existingPhoto || existingCache.avatarUrl || undefined,
           isRegister,
           onboardingCompleted: true,
           loginTime: new Date().toISOString()
-        }));
+        };
+        saveUserProfile(auth.currentUser?.uid || '', updatedProfile);
         if (existingPhoto) {
           localStorage.setItem('voyager_admin_photo_url', existingPhoto);
         }
-        window.dispatchEvent(new Event('voyager_profile_updated'));
       } catch (e) {}
       setAuthModalMode(null);
       setOnboardingStep(0);

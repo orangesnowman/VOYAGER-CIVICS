@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { googleSignIn, logout, auth } from '../services/firebaseAuth';
-import { saveUserProfile, syncOrMigrateUserOnAuth } from '../services/userProfileService';
+import { saveUserProfile, syncOrMigrateUserOnAuth, getLocalProfileCache } from '../services/userProfileService';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import { IMMERSION_CURRICULUM, CIUDADANIA_CURRICULUM } from '../constants';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
@@ -39,6 +39,8 @@ interface RoadmapPanelProps {
 
 interface UserProfile {
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   provider: 'Google' | 'Apple' | 'Email' | 'Guest' | 'Admin';
   goal: string;
@@ -82,13 +84,15 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 }) => {
   const defaultUser: UserProfile = {
     name: 'Federico Sandoval',
+    firstName: 'Federico',
+    lastName: 'Sandoval',
     email: 'theorangesnowman@gmail.com',
     provider: 'Admin',
     category: selectedLang === 'EN' ? 'Administrator' : 'Administrador',
     goal: selectedLang === 'EN' ? 'Academic success' : 'Éxito académico',
     levelEstimate: 'Intermediate',
-    country: 'Costa Rica',
-    age: 21,
+    country: 'Guatemala',
+    age: 63,
     education: selectedLang === 'EN' ? 'University' : 'Universidad',
     interests: selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música',
     timePerWeek: selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana',
@@ -230,10 +234,11 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   // Roadmap preferences
   const [selectedGoal, setSelectedGoal] = useState(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
   const [selectedLevel, setSelectedLevel] = useState(user.levelEstimate || 'Intermediate');
-  const [editName, setEditName] = useState(user.name || 'Federico Sandoval');
+  const [editFirstName, setEditFirstName] = useState(user.firstName || 'Federico');
+  const [editLastName, setEditLastName] = useState(user.lastName || 'Sandoval');
   const [editCategory, setEditCategory] = useState(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
-  const [editCountry, setEditCountry] = useState(user.country || 'Costa Rica');
-  const [editAge, setEditAge] = useState<number | string>(user.age ?? 21);
+  const [editCountry, setEditCountry] = useState(user.country || 'Guatemala');
+  const [editAge, setEditAge] = useState<number | string>(user.age ?? 63);
   const [editEducation, setEditEducation] = useState(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
   const [editInterests, setEditInterests] = useState(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
   const [editTimePerWeek, setEditTimePerWeek] = useState(user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'));
@@ -315,10 +320,23 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
   useEffect(() => {
     if (user) {
-      setEditName(user.name || (selectedLang === 'EN' ? 'Learner' : 'Estudiante'));
+      let fName = user.firstName || '';
+      let lName = user.lastName || '';
+      if (!fName && !lName && user.name) {
+        const parts = user.name.trim().split(/\s+/);
+        if (parts.length > 1) {
+          fName = parts.slice(0, -1).join(' ');
+          lName = parts[parts.length - 1];
+        } else {
+          fName = parts[0] || (selectedLang === 'EN' ? 'Learner' : 'Estudiante');
+          lName = '';
+        }
+      }
+      setEditFirstName(fName);
+      setEditLastName(lName);
       setEditCategory(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
-      setEditCountry(user.country || 'Costa Rica');
-      setEditAge(user.age ?? 21);
+      setEditCountry(user.country || 'Guatemala');
+      setEditAge(user.age ?? 63);
       setSelectedGoal(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
       setEditInterests(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
       setSelectedLevel(user.levelEstimate || 'Intermediate');
@@ -511,20 +529,23 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
       if (fbUser) {
         try {
           const synced = await syncOrMigrateUserOnAuth(fbUser);
+          const localCache = getLocalProfileCache() || {};
+          const mergedData = { ...defaultUser, ...localCache, ...synced };
           const newUser: UserProfile = {
-            ...defaultUser,
-            ...synced,
-            name: synced.name || fbUser.displayName || 'Learner',
-            email: synced.email || fbUser.email || 'learner@usavoyager.com',
-            provider: fbUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email',
-            goal: synced.goal || 'Academic success',
-            levelEstimate: synced.levelEstimate || 'Intermediate',
-            completedDays: synced.completedDays || [1],
-            country: synced.country || '',
-            age: synced.age || undefined,
-            plan: synced.plan as any || 'FREE',
-            avatarUrl: fbUser.photoURL || synced.photoURL || synced.avatarUrl || (typeof window !== 'undefined' ? localStorage.getItem('voyager_admin_photo_url') : undefined) || undefined,
-            avatarType: (fbUser.photoURL || synced.photoURL || synced.avatarUrl) ? 'custom' : (synced.avatarType as any || 'user')
+            ...mergedData,
+            name: mergedData.name || fbUser.displayName || 'Learner',
+            firstName: mergedData.firstName || (fbUser.displayName ? fbUser.displayName.split(' ')[0] : 'Federico'),
+            lastName: mergedData.lastName || (fbUser.displayName ? fbUser.displayName.split(' ').slice(1).join(' ') : 'Sandoval'),
+            email: mergedData.email || fbUser.email || 'learner@usavoyager.com',
+            provider: (fbUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : (mergedData.provider || 'Email')) as any,
+            goal: mergedData.goal || 'Academic success',
+            levelEstimate: mergedData.levelEstimate || 'Intermediate',
+            completedDays: mergedData.completedDays || [1],
+            country: mergedData.country || 'Guatemala',
+            age: mergedData.age ?? 63,
+            plan: (mergedData.plan as any) || 'FREE',
+            avatarUrl: fbUser.photoURL || mergedData.photoURL || mergedData.avatarUrl || (typeof window !== 'undefined' ? localStorage.getItem('voyager_admin_photo_url') : undefined) || undefined,
+            avatarType: (fbUser.photoURL || mergedData.photoURL || mergedData.avatarUrl) ? 'custom' : ((mergedData.avatarType as any) || 'user')
           };
           setUser(newUser);
         } catch (err) {
@@ -551,12 +572,17 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   const handleUpdateProfile = () => {
     if (!user) return;
     const numAge = typeof editAge === 'number' ? editAge : parseInt(String(editAge), 10);
+    const fName = editFirstName.trim();
+    const lName = editLastName.trim();
+    const combinedName = [fName, lName].filter(Boolean).join(' ');
     const updated: UserProfile = {
       ...user,
-      name: editName.trim() || user.name,
+      name: combinedName || user.name,
+      firstName: fName,
+      lastName: lName,
       category: editCategory.trim() || user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'),
-      country: editCountry.trim() || user.country || 'Costa Rica',
-      age: !isNaN(numAge) ? numAge : user.age ?? 21,
+      country: editCountry.trim() || user.country || 'Guatemala',
+      age: !isNaN(numAge) ? numAge : (user.age ?? 63),
       levelEstimate: selectedLevel,
       education: editEducation.trim() || user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'),
       goal: selectedGoal,
@@ -631,19 +657,6 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                       >
                         {renderAvatarContent(user)}
                       </div>
-
-                      {/* Gear Badge Button Positioned on Circle Border (Top Right) */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsGearMenuOpen(prev => !prev);
-                        }}
-                        className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#FFD700] hover:bg-amber-400 text-slate-950 border-[3px] border-black ring-2 ring-white flex items-center justify-center shadow-md transition-all duration-200 cursor-pointer hover:scale-110 z-20"
-                        title={selectedLang === 'EN' ? 'Account Settings & Logout' : 'Ajustes y Cerrar Sesión'}
-                      >
-                        <Settings className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-950 stroke-[2.5]" />
-                      </button>
 
                       {/* Camera Badge Button Positioned on Circle Border (Bottom Right) */}
                       <button
@@ -759,17 +772,33 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         </div>
                       )}
 
-                      {/* 1. Full Name */}
-                      <div className="mb-3.5">
-                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                          👤 {selectedLang === 'EN' ? 'Full Name:' : 'Nombre Completo:'}
-                        </label>
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                        />
+                      {/* 1. Name & Apellido */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            👤 {selectedLang === 'EN' ? 'Name:' : 'Nombre:'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editFirstName}
+                            onChange={(e) => setEditFirstName(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                            placeholder={selectedLang === 'EN' ? 'e.g. Federico' : 'ej. Federico'}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            👤 {selectedLang === 'EN' ? 'Apellido:' : 'Apellido:'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editLastName}
+                            onChange={(e) => setEditLastName(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                            placeholder={selectedLang === 'EN' ? 'e.g. Sandoval' : 'ej. Sandoval'}
+                          />
+                        </div>
                       </div>
 
                       {/* 2 & 3. Category + Country */}
@@ -969,6 +998,22 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                           </span>
                         </div>
 
+                        {/* 0b. Nombre */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Name:' : 'Nombre:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.firstName || (user.name ? user.name.trim().split(/\s+/)[0] : 'Federico')}
+                        </div>
+
+                        {/* 0c. Apellido */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Apellido:' : 'Apellido:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.lastName || (user.name ? user.name.trim().split(/\s+/).slice(1).join(' ') : 'Sandoval')}
+                        </div>
+
                         {/* 1. Categoría */}
                         <div className="font-extrabold text-neutral-900">
                           {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
@@ -982,7 +1027,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                           {selectedLang === 'EN' ? 'Country:' : 'País:'}
                         </div>
                         <div className="font-extrabold text-neutral-800">
-                          {user.country ? getCountryWithFlag(user.country) : (selectedLang === 'EN' ? 'Costa Rica 🇨🇷' : 'Costa Rica 🇨🇷')}
+                          {user.country ? getCountryWithFlag(user.country) : 'Guatemala 🇬🇹'}
                         </div>
 
                         {/* 3. Edad */}
@@ -990,7 +1035,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                           {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
                         </div>
                         <div className="font-extrabold text-neutral-800">
-                          {user.age ?? 21}
+                          {user.age ?? 63}
                         </div>
 
                         {/* 4. Nivel de inglés */}
@@ -1336,6 +1381,20 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                     <div className="grid grid-cols-[130px_1fr] sm:grid-cols-[160px_1fr] gap-y-1.5 sm:gap-y-2 text-xs sm:text-sm leading-snug">
                       
                       <div className="font-bold text-neutral-900">
+                        {selectedLang === 'EN' ? 'Name:' : 'Nombre:'}
+                      </div>
+                      <div className="font-semibold text-neutral-800">
+                        {user.firstName || (user.name ? user.name.trim().split(/\s+/)[0] : 'Federico')}
+                      </div>
+
+                      <div className="font-bold text-neutral-900">
+                        {selectedLang === 'EN' ? 'Apellido:' : 'Apellido:'}
+                      </div>
+                      <div className="font-semibold text-neutral-800">
+                        {user.lastName || (user.name ? user.name.trim().split(/\s+/).slice(1).join(' ') : 'Sandoval')}
+                      </div>
+                      
+                      <div className="font-bold text-neutral-900">
                         {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
                       </div>
                       <div className="text-neutral-800">
@@ -1346,14 +1405,14 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         {selectedLang === 'EN' ? 'Country:' : 'País:'}
                       </div>
                       <div className="text-neutral-800">
-                        {user.country ? getCountryWithFlag(user.country) : (selectedLang === 'EN' ? 'Costa Rica' : 'Costa Rica')}
+                        {user.country ? getCountryWithFlag(user.country) : 'Guatemala 🇬🇹'}
                       </div>
 
                       <div className="font-bold text-neutral-900">
                         {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
                       </div>
                       <div className="text-neutral-800">
-                        {user.age ?? 21}
+                        {user.age ?? 63}
                       </div>
 
                       <div className="font-bold text-neutral-900">

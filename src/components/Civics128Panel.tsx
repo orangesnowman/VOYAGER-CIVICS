@@ -109,7 +109,16 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
   }, []);
 
   // Flashcards state
-  const [flashcardIndex, setFlashcardIndex] = useState(0);
+  const [flashcardIndex, setFlashcardIndex] = useState(() => {
+    try {
+      const raw = localStorage.getItem('voyager_civics_card_screen_index');
+      if (raw) {
+        const parsed = parseInt(raw, 10);
+        return Math.max(0, parsed - 1);
+      }
+    } catch (e) {}
+    return 0;
+  });
   const [isFlipped, setIsFlipped] = useState(false);
   const [knownIds, setKnownIds] = useState<number[]>([]);
   const [wrongIds, setWrongIds] = useState<number[]>([]);
@@ -674,6 +683,30 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
 
   // Current flashcard
   const currentFlashcard = filteredQuestions[flashcardIndex] || filteredQuestions[0] || ALL_CIVICS_128_QUESTIONS[0];
+
+  // Sync current flashcard state with localStorage and dispatch live coordination event
+  useEffect(() => {
+    if (currentFlashcard) {
+      try {
+        localStorage.setItem('voyager_civics_flashcard_index', String(currentFlashcard.id - 1));
+        localStorage.setItem('voyager_civics_card_screen_index', String(flashcardIndex + 1));
+        localStorage.setItem('voyager_civics_card_total_questions', String(filteredQuestions.length || 128));
+        localStorage.setItem('voyager_civics_active_question_id', String(currentFlashcard.id));
+        localStorage.setItem('voyager_civics_active_question_en', currentFlashcard.questionEn || '');
+        localStorage.setItem('voyager_civics_active_question_es', currentFlashcard.questionEs || '');
+        localStorage.setItem('voyager_last_active_subtab', viewMode === 'flashcards' ? 'bilingual' : (viewMode === 'english' ? 'english' : (viewMode === 'exam' ? 'exam' : 'guide')));
+
+        window.dispatchEvent(new CustomEvent('voyager_flashcard_changed', {
+          detail: {
+            question: currentFlashcard,
+            screenIndex: flashcardIndex + 1,
+            totalQuestions: filteredQuestions.length || 128,
+            viewMode
+          }
+        }));
+      } catch (e) {}
+    }
+  }, [currentFlashcard, flashcardIndex, filteredQuestions.length, viewMode]);
 
   return (
     <div className="w-full h-full flex flex-col bg-white text-slate-800 overflow-hidden font-sans">

@@ -235,16 +235,18 @@ export async function syncOrMigrateUserOnAuth(firebaseUser: User): Promise<UserP
       needsUpdate = true;
     }
 
-    // Merge missing/empty fields from localCache into Firestore
+    // Merge any updated non-empty fields from localCache into Firestore
     const checkFields: (keyof UserProfileData)[] = [
       'role', 'name', 'firstName', 'lastName', 'age', 'country', 'usState', 'state', 'category', 'education', 
       'goal', 'levelEstimate', 'timePerWeek', 'interests', 'avatarType', 'avatarUrl', 'onboardingCompleted', 'onboardingResponses'
     ];
 
     checkFields.forEach(field => {
-      if ((firestoreProfile![field] === undefined || firestoreProfile![field] === null || firestoreProfile![field] === '') &&
-          localCache[field] !== undefined && localCache[field] !== null && localCache[field] !== '') {
-        updatePayload[field] = localCache[field];
+      const localVal = localCache[field];
+      const firestoreVal = firestoreProfile![field];
+      // If local value exists and differs from firestore (or firestore is missing it), update firestore!
+      if (localVal !== undefined && localVal !== null && localVal !== '' && localVal !== firestoreVal) {
+        updatePayload[field] = localVal;
         needsUpdate = true;
       }
     });
