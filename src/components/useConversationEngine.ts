@@ -6,10 +6,12 @@ import { useConversationLearning } from './useConversationLearning';
 import { useConversationModes } from './useConversationModes';
 import { ConversationMode } from './ConversationModes';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
+import { getLocalProfileCache } from '../services/userProfileService';
 
 export function useConversationEngine(
   activeTab: string = 'chat',
-  onUserVoiceTranscription?: (text: string) => void
+  onUserVoiceTranscription?: (text: string) => void,
+  userIdentity?: { name?: string; email?: string }
 ) {
   const [selectedLang, setSelectedLang] = useState<'EN' | 'ES'>('ES');
 
@@ -30,7 +32,7 @@ export function useConversationEngine(
     setIsListenOnly,
     setIsSpanishOnlyMode,
     setIsEnglishOnlyMode
-  } = useConversationModes('SPANISH');
+  } = useConversationModes('ADAPTIVE');
 
   // Use the extracted learning/metrics manager
   const {
@@ -73,11 +75,14 @@ export function useConversationEngine(
     isEnglishOnlyMode,
     memory,
     hasInteracted,
-    userName: profile?.name,
-    userAge: profile?.age ? String(profile.age) : undefined,
-    userCountry: profile?.country,
-    userGoal: profile?.goal,
-    userLevel: profile?.levelEstimate,
+    userName: userIdentity?.name || profile?.name || getLocalProfileCache()?.name,
+    userEmail: userIdentity?.email || getLocalProfileCache()?.email,
+    userAge: profile?.age ? String(profile.age) : (getLocalProfileCache()?.age ? String(getLocalProfileCache()?.age) : undefined),
+    userCountry: profile?.country || getLocalProfileCache()?.country,
+    usState: profile?.usState || getLocalProfileCache()?.usState || getLocalProfileCache()?.state,
+    userGoal: profile?.goal || getLocalProfileCache()?.goal,
+    userLevel: profile?.levelEstimate || getLocalProfileCache()?.levelEstimate,
+    userRole: profile?.role || getLocalProfileCache()?.role,
     activeTab,
     onUserTranscription: (text) => {
       updateUserVoiceTranscription(text);

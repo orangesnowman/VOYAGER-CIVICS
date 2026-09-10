@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { AudioCapture, AudioPlayback, VoiceActivityDetector } from '../domain/AudioSystem';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
 import { ConversationMemory } from '../domain/ConversationMemory';
+import { getLocalProfileCache } from '../services/userProfileService';
+import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 
 interface UseConversationSessionConfig {
   selectedLang: 'EN' | 'ES';
@@ -20,10 +22,13 @@ interface UseConversationSessionConfig {
   memory?: ConversationMemory;
   hasInteracted: boolean;
   userName?: string;
+  userEmail?: string;
   userAge?: string;
   userCountry?: string;
+  usState?: string;
   userGoal?: string;
   userLevel?: string;
+  userRole?: string;
   activeTab?: string;
 }
 
@@ -45,10 +50,13 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     memory,
     hasInteracted,
     userName,
+    userEmail,
     userAge,
     userCountry,
+    usState,
     userGoal,
     userLevel,
+    userRole,
     activeTab,
   } = config;
 
@@ -200,7 +208,9 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
       const activeLang = langOverride || selectedLang;
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/live?lang=${activeLang}`;
+      const nameParam = userName ? `&userName=${encodeURIComponent(userName)}` : '';
+      const emailParam = userEmail ? `&userEmail=${encodeURIComponent(userEmail)}` : '';
+      const wsUrl = `${protocol}//${window.location.host}/api/live?lang=${activeLang}${nameParam}${emailParam}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -256,16 +266,20 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
           if (msg.status === 'connected') {
             console.log('Gemini session active on backend. Mapping mode instructions via ConversationModePolicy.');
+            if (msg.reconnected) {
+              console.log('Seamless reconnection complete. Session active.');
+              return;
+            }
             
-            if (hasInteracted) {
-              // Map state variables back to a typed Mode for ConversationModePolicy
-              const currentMode = isBilingualMode ? 'BILINGUAL'
-                                : isTranslateMode ? 'LIVE_TRANSLATOR'
-                                : isListenOnly ? 'LISTEN_ONLY'
-                                : isSpanishOnlyMode ? 'SPANISH'
-                                : isEnglishOnlyMode ? 'AMERICAN_ENGLISH'
-                                : 'BILINGUAL';
+            // Map state variables back to a typed Mode for ConversationModePolicy
+            const currentMode = isBilingualMode ? 'BILINGUAL'
+                              : isTranslateMode ? 'LIVE_TRANSLATOR'
+                              : isListenOnly ? 'LISTEN_ONLY'
+                              : isSpanishOnlyMode ? 'SPANISH'
+                              : isEnglishOnlyMode ? 'AMERICAN_ENGLISH'
+                              : 'BILINGUAL';
 
+            if (hasInteracted) {
               let greetingPrompt = "";
               const isOralTest = initialPrompt && (
                 initialPrompt.includes('OFFICIAL USCIS') ||
@@ -282,12 +296,31 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                   userName,
                   userAge,
                   userCountry,
+                  usState,
                   userGoal,
-                  userLevel
+                  userLevel,
+                  userRole,
+                  activeTab
                 });
 
                 if (activeTab === 'civics') {
-                  greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang);
+                  let savedIdx = 0;
+                  let activeSubTab: 'guide' | 'bilingual' | 'english' | 'exam' = 'bilingual';
+                  try {
+                    const rawIdx = localStorage.getItem('voyager_civics_flashcard_index');
+                    if (rawIdx !== null) savedIdx = parseInt(rawIdx, 10) || 0;
+                    const rawSub = localStorage.getItem('voyager_last_active_subtab') as any;
+                    if (rawSub) activeSubTab = rawSub;
+                  } catch (e) {}
+
+                  const activeQ = ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
+                  greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang, activeSubTab, activeQ ? {
+                    id: activeQ.id,
+                    questionEn: activeQ.questionEn,
+                    questionEs: activeQ.questionEs,
+                    indexOnScreen: savedIdx + 1,
+                    totalQuestions: ALL_CIVICS_128_QUESTIONS.length
+                  } : undefined);
                 }
 
                 if (memory) {
@@ -299,16 +332,70 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                 wsRef.current.send(JSON.stringify({ text: greetingPrompt }));
               }
             } else {
-              const welcomeSpeech = "¡Bienvenido! Yo soy Voyager, tutor de Inglés Americano. Necesito saber más de ti para servirte mejor. Dime, ¿a qué te dedicas?";
-              const welcomePrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Estás guiando al usuario en el cuestionario de perfil inicial. 
+              const localCache = getLocalProfileCache();
+              const hasExistingProfile = localCache && (
+                localCache.onboardingCompleted ||
+                localCache.country ||
+                localCache.usState ||
+                localCache.state ||
+                localCache.goal ||
+                localCache.role ||
+                (userName && userName !== 'Guest' && userName !== 'Invitado')
+              );
+
+              if (hasExistingProfile) {
+                let greetingPrompt = ConversationModePolicy.getSystemInstructionsForMode(currentMode, {
+                  initialPrompt,
+                  selectedLang,
+                  userName: userName || localCache?.name,
+                  userAge: userAge || (localCache?.age ? String(localCache.age) : undefined),
+                  userCountry: userCountry || localCache?.country,
+                  usState: usState || localCache?.usState || localCache?.state,
+                  userGoal: userGoal || localCache?.goal,
+                  userLevel: userLevel || localCache?.levelEstimate,
+                  userRole: userRole || localCache?.role,
+                  activeTab
+                });
+
+                if (activeTab === 'civics') {
+                  let savedIdx = 0;
+                  let activeSubTab: 'guide' | 'bilingual' | 'english' | 'exam' = 'bilingual';
+                  try {
+                    const rawIdx = localStorage.getItem('voyager_civics_flashcard_index');
+                    if (rawIdx !== null) savedIdx = parseInt(rawIdx, 10) || 0;
+                    const rawSub = localStorage.getItem('voyager_last_active_subtab') as any;
+                    if (rawSub) activeSubTab = rawSub;
+                  } catch (e) {}
+
+                  const activeQ = ALL_CIVICS_128_QUESTIONS[savedIdx % ALL_CIVICS_128_QUESTIONS.length];
+                  greetingPrompt += '\n\n' + ConversationModePolicy.getCivicsSystemInstructions(selectedLang, activeSubTab, activeQ ? {
+                    id: activeQ.id,
+                    questionEn: activeQ.questionEn,
+                    questionEs: activeQ.questionEs,
+                    indexOnScreen: savedIdx + 1,
+                    totalQuestions: ALL_CIVICS_128_QUESTIONS.length
+                  } : undefined);
+                }
+
+                if (memory) {
+                  greetingPrompt += memory.getMemoryPayloadForPrompt();
+                }
+
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ text: greetingPrompt }));
+                }
+              } else {
+                const welcomeSpeech = "¡Bienvenido! Yo soy Voyager, tutor de Inglés Americano. Necesito saber más de ti para servirte mejor. Dime, ¿a qué te dedicas?";
+                const welcomePrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Estás guiando al usuario en el cuestionario de perfil inicial. 
 Habla en tu voz natural de Voyager y lee en voz alta ÚNICAMENTE el siguiente mensaje en español: "${welcomeSpeech}".
 REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué te trae por aquí hoy?" ni intentes iniciar una charla casual. Solo di este mensaje claramente y guarda silencio absoluto esperando la respuesta del usuario en la interfaz.]`;
-              
-              const onboardingInstruction = `[INSTRUCCIÓN DE SISTEMA DE SOPORTE DE ONBOARDING: El usuario está completando el formulario. Quédate en silencio y NO respondas a ruidos, habla o ruidos de fondo. Mantén el silencio absoluto hasta recibir una nueva instrucción.]`;
+                
+                const onboardingInstruction = `[INSTRUCCIÓN DE SISTEMA DE SOPORTE DE ONBOARDING: El usuario está completando el formulario. Quédate en silencio y NO respondas a ruidos, habla o ruidos de fondo. Mantén el silencio absoluto hasta recibir una nueva instrucción.]`;
 
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ text: welcomePrompt }));
-                wsRef.current.send(JSON.stringify({ text: onboardingInstruction }));
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify({ text: welcomePrompt }));
+                  wsRef.current.send(JSON.stringify({ text: onboardingInstruction }));
+                }
               }
             }
             return;
@@ -383,10 +470,17 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
   ]);
 
   const sendText = useCallback((text: string) => {
+    vadRef.current.recordActivity();
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ text }));
-      vadRef.current.recordActivity();
+      try {
+        wsRef.current.send(JSON.stringify({ text }));
+        return true;
+      } catch (e) {
+        console.warn('sendText exception:', e);
+        return false;
+      }
     }
+    return false;
   }, []);
 
   const pause = useCallback(() => {
@@ -418,17 +512,17 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
     }
   }, []);
 
-  // Inactivity auto-pause
+  // Inactivity auto-pause (3 minutes threshold for natural learning cadence)
   useEffect(() => {
     if (!isConnected || isPaused) return;
     const interval = setInterval(() => {
       const inactiveMs = vadRef.current.getInactiveMs();
-      if (inactiveMs > 60000) {
-        console.log('Auto-pausing session due to 60s inactivity tracked by VoiceActivityDetector');
+      if (inactiveMs > 180000) {
+        console.log('Auto-pausing session due to 180s inactivity tracked by VoiceActivityDetector');
         pause();
         if (onAutoPause) onAutoPause();
       }
-    }, 2000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [isConnected, isPaused, pause, onAutoPause]);
 

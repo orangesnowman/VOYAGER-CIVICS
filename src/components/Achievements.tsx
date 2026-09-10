@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Award, Trophy, Star, Zap, Flame, BookOpen, Target, Sparkles, CheckCircle2, Lock, ChevronRight, ArrowRight } from 'lucide-react';
+import { DailyStreakTracker } from './DailyStreakTracker';
 
 export interface Badge {
   id: string;
@@ -229,7 +230,15 @@ export const Achievements: React.FC<AchievementsProps> = ({
   };
 
   return (
-    <div className="space-y-4 animate-fade-in text-left">
+    <div className="space-y-5 animate-fade-in text-left">
+      {/* INCORPORATED DAILY STREAK TRACKER (RACHAS) */}
+      <DailyStreakTracker
+        selectedLang={selectedLang}
+        initialStreak={streakCount}
+        completedDays={completedDays}
+        onAskVoyager={onAskVoyager}
+      />
+
       {/* HEADER METRICS SUMMARY BANNER */}
       <div className="bg-gradient-to-r from-[#1e293b] via-[#0f172a] to-[#1e1b4b] text-white p-4 sm:p-5 rounded-2xl shadow-xl border border-slate-700/60 relative overflow-hidden">
         {/* Background Decorative Glow */}

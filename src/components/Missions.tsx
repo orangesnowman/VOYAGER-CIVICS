@@ -146,7 +146,8 @@ export const Missions: React.FC<MissionsProps> = ({
     try {
       // 1. Fetch user's task lists to check if "VOYAGER US Immersion" exists
       const listsRes = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(4000)
       });
       if (!listsRes.ok) throw new Error('Failed to fetch lists');
       const listsData = await listsRes.json();
@@ -162,7 +163,8 @@ export const Missions: React.FC<MissionsProps> = ({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${accessToken}`
           },
-          body: JSON.stringify({ title: 'VOYAGER US Immersion' })
+          body: JSON.stringify({ title: 'VOYAGER US Immersion' }),
+          signal: AbortSignal.timeout(4000)
         });
         if (!createRes.ok) throw new Error('Failed to create task list');
         const createdList = await createRes.json();
@@ -171,7 +173,8 @@ export const Missions: React.FC<MissionsProps> = ({
 
       // 3. Fetch existing tasks in that list to avoid duplicates
       const tasksRes = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(4000)
       });
       const tasksData = await tasksRes.json();
       const existingTaskTitles = new Set((tasksData.items || []).map((t: any) => t.title));
@@ -191,7 +194,8 @@ export const Missions: React.FC<MissionsProps> = ({
               title,
               notes: `Vocabulary list: ${m.vocab.join(', ')}`,
               status: isCompleted ? 'completed' : 'needsAction'
-            })
+            }),
+            signal: AbortSignal.timeout(4000)
           });
         }
       }

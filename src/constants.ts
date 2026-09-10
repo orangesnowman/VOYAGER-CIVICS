@@ -132,7 +132,7 @@ CONVERSATIONAL GUIDELINES:
   * Adults: Use polite, clear, practical, and conversational topics. Ask about daily routines, travel, movies, work, or local foods.
 - Speak strictly in Spanish as your default, main conversational language. Do NOT translate your own Spanish conversational dialogue, responses, or sentences into English. Keep the dialogue entirely in Spanish. Only use English when correcting the user's grammar, teaching specific English vocabulary words (e.g. day lessons), or when the user explicitly asks for a translation.
 - Ask ONLY ONE question at a time.
-- GREETING PROTOCOL: When starting the chat session (after the user clicks CONECTA and arrives at the chat area), introduce yourself as USA Voyager, express excitement to help the user practice American English and learn about US culture as their tutor, and explicitly ask for both the user's name and their age, explaining that knowing this helps you tailor the conversation's style, topics, and difficulty level perfectly for them. Do NOT ask for the user's name and age on the welcome screen.
+- GREETING PROTOCOL: When starting the chat session, introduce yourself as USA Voyager and express excitement to help the user practice American English and learn about US culture as their tutor. IMPORTANT: IF THE USER IS ALREADY LOGGED IN or their name is known in the user profile context, greet them BY NAME immediately and DO NOT ask for their name! Only if the user is an anonymous guest whose name is completely unknown should you ask for their name. Never ask a logged-in user for their name or identity.
 - EMOJI USAGE: You are encouraged to use emojis naturally in your written text responses (such as 👋, 🚀, 👍, 😊, etc.) to make the conversation friendly, engaging, and expressive. Make sure they fit the context of the learning conversation.
 - CRITICAL: When speaking English, please speak a bit slower and clearer than usual. Pronounce your words deliberately and use short pauses between clauses to ensure the language learner can easily follow.
 - CRITICAL NAME PRONUNCIATION: Whenever you say your name "Voyager" or "USA Voyager", pronounce it with a native English accent (sounding like "Voyager" in natural American English). Never write or output phonetic spelling, IPA symbols, guide marks, slashes, or pronunciation brackets. Keep your written name strictly as "Voyager" or "USA Voyager" without any symbols.
@@ -329,6 +329,227 @@ export const IMMERSION_CURRICULUM: CurriculumDay[] = [
       { id: "day4_hotel", en: "Ask receptionist: 'Could I get extra towels?' or check checkout times", es: "Pedir al recepcionista: 'Could I get extra towels?' o consultar hora de salida" },
       { id: "day4_smalltalk", en: "Have a one-minute friendly small-talk with VOYAGER", es: "Tener una charla amistosa de un minuto con VOYAGER" },
       { id: "day4_goodone", en: "Say goodbye to someone using 'Have a good one!'", es: "Despedirse de alguien usando 'Have a good one!'" }
+    ]
+  }
+];
+
+export const CIUDADANIA_CURRICULUM: CurriculumDay[] = [
+  {
+    dayNum: 1,
+    title: "Principios de la Democracia Estadounidense",
+    titleEs: "Principios de la Democracia Estadounidense (Constitución y Derechos)",
+    objectives: [
+      "Master the Supreme Law of the Land (The Constitution) and 'We the People'.",
+      "Understand the Bill of Rights, Amendments, and Declaration of Independence.",
+      "Practice answering official USCIS civics questions 1 to 12 in English and Spanish."
+    ],
+    objectivesEs: [
+      "Dominar la Ley Suprema del País (La Constitución) y las primeras palabras 'We the People'.",
+      "Entender la Declaración de Derechos, las Enmiendas y la Declaración de Independencia.",
+      "Practicar respuestas a las preguntas cívicas oficiales 1 a 12 de USCIS."
+    ],
+    vocabulary: [
+      { word: "Constitution", definition: "The supreme law of the land in the United States.", definitionEs: "La ley suprema del país en los Estados Unidos." },
+      { word: "We the People", definition: "First three words of the Constitution, expressing self-government.", definitionEs: "Primeras tres palabras de la Constitución, que expresan el autogobierno." },
+      { word: "Bill of Rights", definition: "The first 10 amendments to the U.S. Constitution.", definitionEs: "Las primeras 10 enmiendas a la Constitución de EE.UU." },
+      { word: "Amendment", definition: "A change or addition to the Constitution.", definitionEs: "Un cambio o adición a la Constitución." },
+      { word: "Declaration of Independence", definition: "Document declaring U.S. independence from Great Britain (July 4, 1776).", definitionEs: "Documento que declaró la independencia de EE.UU. de Gran Bretaña (4 de julio de 1776)." }
+    ],
+    missions: [
+      { id: "civics_d1_q1", en: "Answer: What is the supreme law of the land?", es: "Responder: ¿Cuál es la ley suprema del país?" },
+      { id: "civics_d1_q2", en: "Answer: What do the first three words of the Constitution say?", es: "Responder: ¿Qué dicen las primeras tres palabras de la Constitución?" },
+      { id: "civics_d1_q3", en: "Name two rights in the Declaration of Independence (Life, Liberty, Pursuit of Happiness)", es: "Nombrar dos derechos en la Declaración de Independencia" },
+      { id: "civics_d1_q4", en: "Explain what an Amendment is to Officer Voyager", es: "Explicar qué es una Enmienda a Officer Voyager" }
+    ]
+  },
+  {
+    dayNum: 2,
+    title: "Sistema de Gobierno EE.UU.",
+    titleEs: "Sistema de Gobierno (Ramas Ejecutiva, Legislativa y Judicial)",
+    objectives: [
+      "Understand the Three Branches of Government and Checks and Balances.",
+      "Learn the composition of Congress (Senate & House of Representatives).",
+      "Identify the President, Vice President, Speaker, and Supreme Court Justices."
+    ],
+    objectivesEs: [
+      "Entender las tres ramas del gobierno y el sistema de Pesos y Contrapesos.",
+      "Aprender la composición del Congreso (Senado y Cámara de Representantes).",
+      "Identificar al Presidente, Vicepresidente, Presidente de la Cámara y Jueces de la Corte Suprema."
+    ],
+    vocabulary: [
+      { word: "Checks and Balances", definition: "System preventing one branch of government from becoming too powerful.", definitionEs: "Sistema que evita que una rama del gobierno se vuelva demasiado poderosa." },
+      { word: "Legislative Branch", definition: "Congress (Senate and House of Representatives) that makes federal laws.", definitionEs: "El Congreso (Senado y Cámara de Representantes) que hace las leyes federales." },
+      { word: "Executive Branch", definition: "The President, Cabinet, and departments enforcing laws.", definitionEs: "El Presidente, Gabinete y departamentos que aplican las leyes." },
+      { word: "Judicial Branch", definition: "The Supreme Court and federal courts interpreting laws.", definitionEs: "La Corte Suprema y tribunales federales que interpretan las leyes." },
+      { word: "Senate & House", definition: "The two chambers forming the United States Congress.", definitionEs: "Las dos cámaras que forman el Congreso de los Estados Unidos." }
+    ],
+    missions: [
+      { id: "civics_d2_q1", en: "Name the 3 branches of the U.S. Government", es: "Nombrar las 3 ramas del gobierno de EE.UU." },
+      { id: "civics_d2_q2", en: "Answer: How many U.S. Senators are there? (100)", es: "Responder: ¿Cuántos Senadores de EE.UU. hay? (100)" },
+      { id: "civics_d2_q3", en: "Answer: Who is the Commander in Chief of the military?", es: "Responder: ¿Quién es el Comandante en Jefe de las Fuerzas Armadas?" },
+      { id: "civics_d2_q4", en: "Explain the highest court in the United States (Supreme Court)", es: "Explicar cuál es el tribunal más alto de los EE.UU. (Corte Suprema)" }
+    ]
+  },
+  {
+    dayNum: 3,
+    title: "Derechos y Responsabilidades de la Ciudadanía",
+    titleEs: "Derechos y Responsabilidades del Ciudadano de EE.UU.",
+    objectives: [
+      "Study rights guaranteed to all U.S. residents vs. U.S. citizens only.",
+      "Understand voting obligations, federal jury duty, and Oath of Allegiance.",
+      "Practice declaring allegiance and promises made during naturalization."
+    ],
+    objectivesEs: [
+      "Estudiar los derechos garantizados a todos los residentes vs. solo a ciudadanos.",
+      "Entender las obligaciones de voto, jurado federal y el Juramento de Lealtad.",
+      "Practicar la declaración de lealtad y las promesas al naturalizarse."
+    ],
+    vocabulary: [
+      { word: "Oath of Allegiance", definition: "Formal promise of loyalty to the United States made during naturalization.", definitionEs: "Promesa formal de lealtad a los EE.UU. realizada durante la naturalización." },
+      { word: "Jury Duty", definition: "Responsibility reserved for U.S. citizens to serve on a legal jury.", definitionEs: "Responsabilidad reservada a los ciudadanos de EE.UU. para servir en un jurado." },
+      { word: "Naturalization", definition: "Legal process by which a foreign citizen becomes a U.S. citizen.", definitionEs: "Proceso legal por el cual un extranjero se convierte en ciudadano de EE.UU." },
+      { word: "Freedom of Speech", definition: "First Amendment right protecting personal expression.", definitionEs: "Derecho de la Primera Enmienda que protege la libre expresión." }
+    ],
+    missions: [
+      { id: "civics_d3_q1", en: "Name 1 responsibility that is only for United States citizens", es: "Nombrar 1 responsabilidad que sea solo para ciudadanos estadounidenses" },
+      { id: "civics_d3_q2", en: "Name 2 promises you make when you become a U.S. citizen", es: "Nombrar 2 promesas que haces cuando te conviertes en ciudadano" },
+      { id: "civics_d3_q3", en: "State the age citizens must be to vote for President (18 and older)", es: "Decir la edad para votar por el Presidente (18 años o más)" },
+      { id: "civics_d3_q4", en: "Explain 2 ways Americans can participate in their democracy", es: "Explicar 2 formas en que los estadounidenses participan en su democracia" }
+    ]
+  },
+  {
+    dayNum: 4,
+    title: "Época Colonial e Independencia",
+    titleEs: "Época Colonial, Independencia y Padres Fundadores",
+    objectives: [
+      "Review why colonists arrived in America and struggled against British rule.",
+      "Study Thomas Jefferson, George Washington, and the Constitutional Convention.",
+      "Identify the 13 original states and July 4, 1776."
+    ],
+    objectivesEs: [
+      "Repasar por qué los colonos llegaron a EE.UU. y lucharon contra el gobierno británico.",
+      "Estudiar a Thomas Jefferson, George Washington y la Convención Constitucional.",
+      "Identificar los 13 estados originales y el 4 de julio de 1776."
+    ],
+    vocabulary: [
+      { word: "Colonists", definition: "Early settlers who established communities in the 13 American colonies.", definitionEs: "Primeros pobladores que establecieron comunidades en las 13 colonias." },
+      { word: "Founding Fathers", definition: "Leaders who spearheaded independence and drafted the Constitution.", definitionEs: "Líderes que encabezaron la independencia y redactaron la Constitución." },
+      { word: "George Washington", definition: "First President of the U.S. and 'Father of Our Country'.", definitionEs: "Primer Presidente de los EE.UU. y 'Padre de Nuestra Patria'." },
+      { word: "13 Original Colonies", definition: "The initial American states that declared independence in 1776.", definitionEs: "Los estados americanos iniciales que declararon su independencia en 1776." }
+    ],
+    missions: [
+      { id: "civics_d4_q1", en: "Name 1 reason colonists came to America", es: "Nombrar 1 razón por la que los colonos vinieron a América" },
+      { id: "civics_d4_q2", en: "Answer: Who wrote the Declaration of Independence? (Thomas Jefferson)", es: "Responder: ¿Quién escribió la Declaración de Independencia?" },
+      { id: "civics_d4_q3", en: "Name 3 of the original 13 states", es: "Nombrar 3 de los 13 estados originales" },
+      { id: "civics_d4_q4", en: "State who is called the 'Father of Our Country' (George Washington)", es: "Decir a quién se llama el 'Padre de Nuestra Patria'" }
+    ]
+  },
+  {
+    dayNum: 5,
+    title: "Estados Unidos en el Siglo XIX",
+    titleEs: "Estados Unidos en el Siglo XIX (Guerra Civil y Lincoln)",
+    objectives: [
+      "Study the Louisiana Purchase (1803) and westward expansion.",
+      "Understand the Civil War, Abraham Lincoln, and Emancipation Proclamation.",
+      "Learn Susan B. Anthony's fight for women's voting rights."
+    ],
+    objectivesEs: [
+      "Estudiar la Compra de Luisiana (1803) y la expansión hacia el oeste.",
+      "Entender la Guerra Civil, Abraham Lincoln y la Proclamación de Emancipación.",
+      "Aprender la lucha de Susan B. Anthony por los derechos de voto de las mujeres."
+    ],
+    vocabulary: [
+      { word: "Louisiana Purchase", definition: "Territory bought from France in 1803 doubling U.S. size.", definitionEs: "Territorio comprado a Francia en 1803 que duplicó el tamaño de EE.UU." },
+      { word: "Civil War", definition: "War fought between Northern (Union) and Southern (Confederacy) states (1861-1865).", definitionEs: "Guerra entre los estados del Norte y del Sur (1861-1865)." },
+      { word: "Abraham Lincoln", definition: "16th U.S. President who preserved the Union and freed slaves.", definitionEs: "16º Presidente de EE.UU. que preservó la Unión y liberó a los esclavos." },
+      { word: "Emancipation Proclamation", definition: "Order issued by Lincoln freeing slaves in the Confederacy.", definitionEs: "Orden emitida por Lincoln que liberó a los esclavos en la Confederación." }
+    ],
+    missions: [
+      { id: "civics_d5_q1", en: "Name the U.S. war between the North and the South", es: "Nombrar la guerra de EE.UU. entre el Norte y el Sur" },
+      { id: "civics_d5_q2", en: "Name 1 problem that led to the Civil War (slavery, states' rights)", es: "Nombrar 1 problema que llevó a la Guerra Civil" },
+      { id: "civics_d5_q3", en: "State 1 important thing Abraham Lincoln did", es: "Decir 1 cosa importante que hizo Abraham Lincoln" },
+      { id: "civics_d5_q4", en: "Explain what Susan B. Anthony did (fought for women's rights)", es: "Explicar qué hizo Susan B. Anthony" }
+    ]
+  },
+  {
+    dayNum: 6,
+    title: "Historia Reciente y Movimiento de Derechos Civiles",
+    titleEs: "Historia Reciente, Guerras del Siglo XX y Derechos Civiles",
+    objectives: [
+      "Review World War I, World War II, Woodrow Wilson, and FDR.",
+      "Understand the Cold War, Civil Rights Movement, and Martin Luther King Jr.",
+      "Learn about September 11, 2001 and major Native American tribes."
+    ],
+    objectivesEs: [
+      "Repasar la Primera Guerra Mundial, Segunda Guerra Mundial, Woodrow Wilson y FDR.",
+      "Entender la Guerra Fría, el Movimiento por los Derechos Civiles y Martin Luther King Jr.",
+      "Aprender sobre el 11 de septiembre de 2001 y las principales tribus nativas americanas."
+    ],
+    vocabulary: [
+      { word: "Civil Rights Movement", definition: "Social movement to end racial discrimination and secure equal rights.", definitionEs: "Movimiento social para acabar con la discriminación racial y garantizar la igualdad." },
+      { word: "Martin Luther King Jr.", definition: "Civil rights leader who fought for equality through nonviolence.", definitionEs: "Líder de derechos civiles que luchó por la igualdad mediante la no violencia." },
+      { word: "Cold War", definition: "Period of geopolitical tension between the U.S. and Soviet Union (Communism).", definitionEs: "Período de tensión entre EE.UU. y la Unión Soviética (Comunismo)." },
+      { word: "September 11, 2001", definition: "Date terrorists attacked the United States in NYC and Washington D.C.", definitionEs: "Fecha en que terroristas atacaron los EE.UU. en NY y Washington D.C." }
+    ],
+    missions: [
+      { id: "civics_d6_q1", en: "Name 1 war fought by the United States in the 1900s", es: "Nombrar 1 guerra librada por los Estados Unidos en los años 1900" },
+      { id: "civics_d6_q2", en: "During the Cold War, what was the main concern of the U.S.? (Communism)", es: "Durante la Guerra Fría, ¿cuál era la principal preocupación de EE.UU.?" },
+      { id: "civics_d6_q3", en: "Explain what Martin Luther King Jr. did", es: "Explicar qué hizo Martin Luther King Jr." },
+      { id: "civics_d6_q4", en: "State what major event happened on September 11, 2001 in the U.S.", es: "Decir qué gran evento ocurrió el 11 de septiembre de 2001 en EE.UU." }
+    ]
+  },
+  {
+    dayNum: 7,
+    title: "Geografía, Símbolos y Días Festivos Nacionales",
+    titleEs: "Geografía de EE.UU., Símbolos de la Nación y Días Festivos",
+    objectives: [
+      "Master U.S. rivers (Mississippi, Missouri), oceans (Pacific, Atlantic), and U.S. territories.",
+      "Understand national symbols: Capital (Washington D.C.), Statue of Liberty, Flag, Anthem.",
+      "Memorize the 10 official U.S. national holidays."
+    ],
+    objectivesEs: [
+      "Dominar ríos de EE.UU., océanos, territorios y la capital (Washington D.C.).",
+      "Entender símbolos nacionales: Estatua de la Libertad, Bandera (50 estrellas, 13 franjas), Himno.",
+      "Memorizar los días festivos nacionales oficiales de los EE.UU."
+    ],
+    vocabulary: [
+      { word: "Statue of Liberty", definition: "Iconic gift from France located in New York Harbor representing freedom.", definitionEs: "Regalo icónico de Francia en Nueva York que representa la libertad." },
+      { word: "Star-Spangled Banner", definition: "The national anthem of the United States.", definitionEs: "El himno nacional de los Estados Unidos." },
+      { word: "Independence Day", definition: "National holiday celebrated on July 4th.", definitionEs: "Día festivo nacional celebrado el 4 de julio." },
+      { word: "Washington D.C.", definition: "The capital city of the United States of America.", definitionEs: "La ciudad capital de los Estados Unidos de América." }
+    ],
+    missions: [
+      { id: "civics_d7_q1", en: "Name 1 of the two longest rivers in the United States (Missouri / Mississippi)", es: "Nombrar 1 de los dos ríos más largos de los EE.UU." },
+      { id: "civics_d7_q2", en: "Answer: Why does the flag have 50 stars and 13 stripes?", es: "Responder: ¿Por qué la bandera tiene 50 estrellas y 13 franjas?" },
+      { id: "civics_d7_q3", en: "Name the capital of the United States (Washington D.C.)", es: "Nombrar la capital de los Estados Unidos" },
+      { id: "civics_d7_q4", en: "Name 2 national U.S. holidays (e.g., Thanksgiving, Independence Day)", es: "Nombrar 2 días festivos nacionales de EE.UU." }
+    ]
+  },
+  {
+    dayNum: 8,
+    title: "Simulación de Entrevista Oral N-400 y Examen Cívico",
+    titleEs: "Simulación Completa de Entrevista Oral Formulario N-400 y Examen Cívico 10/10",
+    objectives: [
+      "Perform a full oral interview simulation with Officer Voyager based on Form N-400.",
+      "Practice English reading and writing test sentences required by USCIS.",
+      "Answer 10 random civics questions out loud and score at least 6 out of 10 to pass."
+    ],
+    objectivesEs: [
+      "Realizar una simulación completa de entrevista oral con Officer Voyager basada en el Formulario N-400.",
+      "Practicar oraciones de lectura y escritura en inglés requeridas por USCIS.",
+      "Responder 10 preguntas cívicas al azar en voz alta y obtener al menos 6 de 10 para aprobar."
+    ],
+    vocabulary: [
+      { word: "Form N-400", definition: "Application for Naturalization submitted to USCIS.", definitionEs: "Solicitud de Naturalización presentada ante USCIS." },
+      { word: "Moral Character", definition: "Demonstrating legal compliance and good conduct required for citizenship.", definitionEs: "Demostrar cumplimiento legal y buena conducta requerida para la ciudadanía." },
+      { word: "Allegiance", definition: "Loyalty and commitment to the Constitution and government of the U.S.", definitionEs: "Lealtad y compromiso con la Constitución y el gobierno de EE.UU." },
+      { word: "Passed Interview", definition: "Official status when scoring 6/10 on civics and passing oral N-400 review.", definitionEs: "Estado oficial al obtener 6/10 en cívica y aprobar la revisión oral del N-400." }
+    ],
+    missions: [
+      { id: "civics_d8_q1", en: "Answer Officer Voyager's greeting: 'Why do you want to become an American citizen?'", es: "Responder al saludo de Officer Voyager: '¿Por qué quiere convertirse en ciudadano estadounidense?'" },
+      { id: "civics_d8_q2", en: "Read out loud an official USCIS reading sentence in English", es: "Leer en voz alta una oración oficial de lectura de USCIS en inglés" },
+      { id: "civics_d8_q3", en: "Write or type an official USCIS writing sentence in English", es: "Escribir una oración oficial de escritura de USCIS en inglés" },
+      { id: "civics_d8_q4", en: "Score at least 6/10 on Officer Voyager's simulated oral civics exam!", es: "¡Obtener al menos 6/10 en el examen oral cívico simulado con Officer Voyager!" }
     ]
   }
 ];

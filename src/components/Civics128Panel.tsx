@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { PointingHandIcon } from './PointingHandIcon';
 import { 
   ALL_CIVICS_128_QUESTIONS, 
   CivicsQuestion, 
@@ -270,6 +271,19 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
     utterance.rate = 1.0;
     utterance.pitch = 1.05;
     window.speechSynthesis.speak(utterance);
+  };
+
+  const handleExplainQuestionWithStory = (q: CivicsQuestion) => {
+    if (onSpeakWithVoyager) {
+      const contextStr = q.contextEn ? ` Historical context: "${q.contextEn}".` : '';
+      const promptText = `[ROLEPLAY INSTRUCTION: You are Officer Voyager. Teach the candidate the core concept behind Question #${q.id}: "${q.questionEn}" (Official answer: ${q.answersEn.join(', ')}). STRICT BREVITY MANDATE: Speak in maximum 1 to 2 short, punchy sentences. Do NOT give long lectures, monologues, or textbook speeches ("hablas demasiado"). Explain the main idea in 1 brief Spanish sentence, anchor the English answer, then instruct the candidate to turn the page by clicking Next (Siguiente) or click the play audio buttons!]`;
+      onSpeakWithVoyager(promptText);
+    } else {
+      const textToSpeak = selectedLang === 'ES'
+        ? `Explicación para la pregunta ${q.id}: ${q.contextEs || q.contextEn || q.questionEs || q.questionEn}`
+        : `Explanation for question ${q.id}: ${q.contextEn || q.questionEn}`;
+      speakText(textToSpeak, selectedLang === 'ES' ? 'es-US' : 'en-US');
+    }
   };
 
   // Helper to have Voyager speak both the question and its accepted answers / explanations
@@ -637,10 +651,10 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
     const nextIdx = (flashcardIndex + 1) % (filteredQuestions.length || 1);
     setFlashcardIndex(nextIdx);
     const nextQ = filteredQuestions[nextIdx];
-    if (autoReadCards && nextQ) {
+    if (nextQ) {
       setTimeout(() => {
         handleAskFlashcardQuestion(nextQ);
-      }, 300);
+      }, 200);
     }
   };
 
@@ -1107,10 +1121,30 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
         {/* VIEW MODE: FLASHCARDS (BILINGÜE) OR ENGLISH (SOLO INGLÉS) */}
         {(viewMode === 'flashcards' || viewMode === 'english') && (
           <div className="max-w-2xl mx-auto space-y-4 py-3">
+            {/* Concept Teaching Role Banner */}
+            <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3 flex items-start gap-3 shadow-2xs">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-amber-700 stroke-[2.5]" />
+              </div>
+              <div className="space-y-0.5 text-xs text-amber-950">
+                <div className="font-extrabold flex items-center gap-1.5 flex-wrap">
+                  <span>{selectedLang === 'EN' ? "Officer Voyager's Job in Ciudadanía:" : 'El Rol de Officer Voyager en Ciudadanía:'}</span>
+                  <span className="bg-amber-200/90 text-amber-950 text-[10px] uppercase font-black px-1.5 py-0.5 rounded shadow-2xs">
+                    {selectedLang === 'EN' ? 'Teach Concept Behind Answer' : 'Enseñar el Concepto de la Tarjeta'}
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium leading-relaxed text-amber-900/90">
+                  {selectedLang === 'EN'
+                    ? 'Officer Voyager teaches you the underlying historical concept behind each question, guides you to click the interactive play buttons (🔊) to listen, and instructs you to turn the page (Siguiente) when ready!'
+                    : '¡Officer Voyager te enseña el concepto histórico detrás de cada pregunta, te guía para hacer clic en los botones de reproducción (🔊) para escuchar y te indica avanzar de página (Siguiente) cuando estés listo!'}
+                </p>
+              </div>
+            </div>
+
             {/* Top Card Controls Bar */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 font-medium">
-              {/* Voyager Action Button */}
-              <div className="flex items-center gap-2">
+              {/* Voyager Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleAskFlashcardQuestion(currentFlashcard)}
@@ -1120,8 +1154,22 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
                   <Bot className="w-4 h-4 text-amber-400" />
                   <span>
                     {selectedLang === 'EN'
-                      ? 'Officer Voyager: Read Question & Expect Answer'
-                      : 'Oficial Voyager: Leer Pregunta y Esperar Mi Respuesta'}
+                      ? 'Officer Voyager: Read Question'
+                      : 'Oficial Voyager: Leer Pregunta'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleExplainQuestionWithStory(currentFlashcard)}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-black text-xs flex items-center gap-2 shadow-2xs transition cursor-pointer border border-amber-600"
+                  title={selectedLang === 'EN' ? 'Ask Officer Voyager to teach the concept behind this answer' : 'Pedir al Oficial Voyager que te enseñe el concepto detrás de esta respuesta'}
+                >
+                  <Sparkles className="w-4 h-4 text-stone-950 fill-amber-300 stroke-[2.5]" />
+                  <span>
+                    {selectedLang === 'EN'
+                      ? 'Teach Concept Behind Answer'
+                      : 'Enseñar Concepto de la Respuesta'}
                   </span>
                 </button>
 
@@ -1410,11 +1458,22 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
                 </button>
 
                 <button
+                  type="button"
+                  onClick={() => handleExplainQuestionWithStory(currentFlashcard)}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-900 hover:bg-amber-500/25 font-bold text-xs transition cursor-pointer flex items-center gap-1.5"
+                  title={selectedLang === 'EN' ? 'Listen to Voyager Explanation' : 'Escuchar Explicación de Voyager'}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{selectedLang === 'EN' ? 'Explanation' : 'Explicación'}</span>
+                </button>
+
+                <button
                   onClick={handleNextFlashcard}
                   title={selectedLang === 'EN' ? 'Next Question' : 'Siguiente Pregunta'}
-                  className="w-9 h-9 rounded-xl border border-slate-200 bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer flex items-center justify-center shrink-0"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-stone-900 text-white hover:bg-black transition cursor-pointer flex items-center gap-1.5 shrink-0 shadow-xs"
                 >
-                  <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+                  <span className="text-xs font-bold">{selectedLang === 'EN' ? 'Next' : 'Siguiente'}</span>
+                  <PointingHandIcon className="w-7 h-3.5 text-white" />
                 </button>
               </div>
             </div>
@@ -1784,10 +1843,10 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
                           <button
                             type="button"
                             onClick={handleNextOralQuestion}
-                            className="px-5 py-2.5 rounded-xl bg-[#0D224A] hover:bg-[#15346e] text-white font-extrabold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5"
+                            className="px-5 py-2.5 rounded-xl bg-[#0D224A] hover:bg-[#15346e] text-white font-extrabold text-xs transition cursor-pointer shadow-xs flex items-center gap-2"
                           >
                             <span>{selectedLang === 'EN' ? 'Next Oral Question' : 'Siguiente Pregunta Oral'}</span>
-                            <ChevronRight className="w-4 h-4" />
+                            <PointingHandIcon className="w-7 h-3.5 text-white" />
                           </button>
                         </div>
                       </div>

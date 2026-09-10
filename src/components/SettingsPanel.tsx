@@ -16,8 +16,23 @@ import {
   Mail,
   MapPin,
   Activity,
-  Award
+  Award,
+  LogOut,
+  Building2
 } from 'lucide-react';
+import { AdminRoleSwitcherBar } from './AdminRoleSwitcherBar';
+import { saveUserProfile, getLocalProfileCache } from '../services/userProfileService';
+
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
+  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
+  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
+  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
+  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
+  'Wisconsin', 'Wyoming', 'Puerto Rico', 'Washington D.C.'
+];
 
 interface SettingsPanelProps {
   selectedLang: 'EN' | 'ES';
@@ -33,6 +48,9 @@ interface SettingsPanelProps {
   isEnglishOnlyMode: boolean;
   setIsEnglishOnlyMode: (val: boolean) => void;
   onClose?: () => void;
+  onRedoOnboarding?: () => void;
+  onLogout?: () => void;
+  onNavigateTab?: (tab: 'home' | 'chat' | 'progress' | 'roadmap' | 'teachers' | 'settings') => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -48,6 +66,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setIsSpanishOnlyMode,
   isEnglishOnlyMode,
   setIsEnglishOnlyMode,
+  onRedoOnboarding,
+  onLogout,
+  onNavigateTab
 }) => {
   const [voiceSpeed, setVoiceSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(true);
@@ -145,15 +166,26 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 {/* Left Side: Personal Info */}
                 <div className="space-y-3 pb-3 md:pb-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center text-zinc-700 flex-shrink-0">
-                      <User className="w-5 h-5" />
+                    <div className={`w-10 h-10 rounded-full ${userAccount.isAdmin || userAccount.email?.toLowerCase() === 'theorangesnowman@gmail.com' ? 'bg-amber-100 text-amber-800 border-2 border-amber-400 ring-2 ring-amber-300/50' : 'bg-neutral-100 text-zinc-700'} flex items-center justify-center flex-shrink-0`}>
+                      {userAccount.isAdmin || userAccount.email?.toLowerCase() === 'theorangesnowman@gmail.com' ? (
+                        <ShieldCheck className="w-5 h-5 text-amber-600" />
+                      ) : (
+                        <User className="w-5 h-5" />
+                      )}
                     </div>
                     <div>
-                      <div style={{ fontFamily: "'Lato', sans-serif" }} className="text-[14px] font-black uppercase text-[#231d17] tracking-wide">
-                        {userAccount.name}
+                      <div style={{ fontFamily: "'Lato', sans-serif" }} className="text-[14px] font-black uppercase text-[#231d17] tracking-wide flex items-center gap-1.5">
+                        <span>{userAccount.name}</span>
+                        {(userAccount.isAdmin || userAccount.email?.toLowerCase() === 'theorangesnowman@gmail.com') && (
+                          <span className="px-2 py-0.5 text-[9px] font-black bg-amber-500 text-slate-950 rounded-md border border-amber-300 uppercase tracking-wider">
+                            ADMIN
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-zinc-500 uppercase font-medium">
-                        {isEn ? 'LEARNER' : 'ESTUDIANTE'}
+                        {userAccount.isAdmin || userAccount.email?.toLowerCase() === 'theorangesnowman@gmail.com'
+                          ? (isEn ? 'ADMINISTRATOR ID (ADMIN-VOYAGER-001)' : 'ID ADMINISTRATIVO (ADMIN-VOYAGER-001)')
+                          : (isEn ? 'LEARNER' : 'ESTUDIANTE')}
                       </div>
                     </div>
                   </div>
@@ -167,8 +199,37 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="text-xs font-medium">
                         {userAccount.age ? `${userAccount.age} ${isEn ? 'years old' : 'años'}, ` : ''}
+                        {userAccount.usState || userAccount.state ? `${userAccount.usState || userAccount.state}, ` : ''}
                         {userAccount.country}
                       </span>
+                    </div>
+
+                    {/* U.S. Residence State Selection */}
+                    <div className="pt-1.5 border-t border-neutral-200/80 mt-2">
+                      <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider block mb-1 flex items-center gap-1.5">
+                        <Building2 className="w-3 h-3 text-[#865918]" />
+                        {isEn ? 'U.S. State Residence (USCIS Civics Location)' : 'Estado de Residencia EE.UU. (Cívica USCIS)'}
+                      </label>
+                      <select
+                        value={userAccount.usState || userAccount.state || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          saveUserProfile(userAccount.uid || 'guest', { usState: val, state: val });
+                          setSaveSuccess(true);
+                          setTimeout(() => setSaveSuccess(false), 2000);
+                        }}
+                        className="w-full text-xs font-semibold bg-amber-50/50 border border-amber-200 text-zinc-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500/50 cursor-pointer"
+                      >
+                        <option value="">{isEn ? '-- Select Your U.S. State --' : '-- Selecciona tu Estado de EE.UU. --'}</option>
+                        {US_STATES.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                      <p className="text-[9.5px] text-zinc-500 mt-1 leading-tight">
+                        {isEn 
+                          ? 'Officer Voyager uses your state to accurately evaluate questions about your U.S. Senators, Governor, and State Capital.' 
+                          : 'Officer Voyager utiliza tu estado para evaluar con precisión preguntas sobre tus Senadores de EE.UU., Gobernador y Capital Estatal.'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -201,6 +262,132 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* SUPER ADMIN COMMAND CENTER FOR FEDERICO SANDOVAL */}
+              {(userAccount.isAdmin || userAccount.email?.toLowerCase() === 'theorangesnowman@gmail.com') && (
+                <div className="mt-4 pt-4 border-t border-amber-200 bg-amber-50/60 p-3.5 rounded-xl border border-amber-300 text-left space-y-3">
+                  <AdminRoleSwitcherBar selectedLang={selectedLang} onNavigateTab={onNavigateTab} />
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <span className="text-base">👑</span>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                        {isEn ? 'SUPER ADMIN PERSPECTIVE SWITCHER' : 'VISTAS DE ADMINISTRACIÓN DISPONIBLES'}
+                      </h4>
+                      <p className="text-[10.5px] text-zinc-600">
+                        {isEn 
+                          ? 'As sole Administrator (Federico Sandoval), access La Profe Admin and Student Admin views below:' 
+                          : 'Como Administrador Único (Federico Sandoval), acceda a las vistas de La Profe y del Estudiante:'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {/* La Profe Admin Card */}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTab && onNavigateTab('teachers')}
+                      className="p-3 bg-white hover:bg-amber-100/60 border border-amber-300 rounded-xl text-left transition-all cursor-pointer group shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-extrabold text-[#0D224A] flex items-center gap-1.5">
+                          <span>👩‍🏫</span> {isEn ? 'LA PROFE ADMIN VISTA' : 'VISTA ADMIN LA PROFE'}
+                        </span>
+                        <span className="text-amber-700 text-xs font-black group-hover:translate-x-1 transition-transform">→</span>
+                      </div>
+                      <p className="text-[10.5px] text-zinc-600">
+                        {isEn ? 'Manage 1-on-1 bookings ($29), student phonetics logs, monthly packages.' : 'Gestione citas diagnósticas ($29), bitácoras fonéticas y planes mensuales.'}
+                      </p>
+                    </button>
+
+                    {/* Student Admin Card */}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateTab && onNavigateTab('roadmap')}
+                      className="p-3 bg-white hover:bg-amber-100/60 border border-amber-300 rounded-xl text-left transition-all cursor-pointer group shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-extrabold text-[#0D224A] flex items-center gap-1.5">
+                          <span>🎓</span> {isEn ? 'STUDENT ADMIN VISTA' : 'VISTA ADMIN ESTUDIANTE'}
+                        </span>
+                        <span className="text-amber-700 text-xs font-black group-hover:translate-x-1 transition-transform">→</span>
+                      </div>
+                      <p className="text-[10.5px] text-zinc-600">
+                        {isEn ? 'Inspect student progress, Civics 128 mastery, daily streak analytics.' : 'Inspeccione el avance del estudiante, Cívica 128 y racha diaria.'}
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Account Management & Onboarding Reset Actions */}
+              <div className="pt-3 border-t border-neutral-200/80 flex flex-wrap items-center justify-between gap-2.5">
+                {onRedoOnboarding && (
+                  <button
+                    type="button"
+                    onClick={onRedoOnboarding}
+                    className="px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-[#231d17] border border-neutral-300 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-xs"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-[#865918]" />
+                    <span>{isEn ? 'Redo Onboarding Questionnaire' : 'Rehacer Cuestionario de Perfil'}</span>
+                  </button>
+                )}
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-xs"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{isEn ? 'Log Out & Restart' : 'Cerrar Sesión'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* GUEST FALLBACK PROFILE CARD (When no saved user account exists) */}
+        {(() => {
+          const savedAccount = localStorage.getItem('voyager_user_account');
+          if (savedAccount) return null;
+
+          return (
+            <div className="bg-white rounded-xl p-5 border border-[#e8ded0] shadow-sm space-y-3 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#865918]">
+                  <User className="w-4 h-4" />
+                  <h3 style={{ fontFamily: "'Lato', sans-serif" }} className="text-xs font-sans font-bold uppercase tracking-wider text-[#231d17]">
+                    {isEn ? 'GUEST SESSION / ONBOARDING' : 'MI PERFIL / CUESTIONARIO'}
+                  </h3>
+                </div>
+              </div>
+              <p className="text-xs text-neutral-600 font-medium">
+                {isEn 
+                  ? 'Redo the onboarding questionnaire at any time to configure your background, learning track, and English level.'
+                  : 'Rehaz el cuestionario de perfil en cualquier momento para configurar tus metas, trasfondo y nivel de inglés.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                {onRedoOnboarding && (
+                  <button
+                    type="button"
+                    onClick={onRedoOnboarding}
+                    className="px-4 py-2 bg-[#865918] hover:bg-[#6e4813] text-white rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>{isEn ? 'Start Onboarding Questionnaire' : 'Iniciar Cuestionario de Perfil'}</span>
+                  </button>
+                )}
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{isEn ? 'Reset Session' : 'Reiniciar Sesión'}</span>
+                  </button>
+                )}
               </div>
             </div>
           );

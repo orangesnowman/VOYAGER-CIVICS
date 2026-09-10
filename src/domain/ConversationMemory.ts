@@ -1,3 +1,7 @@
+import { db, auth } from '../services/firebaseAuth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { withTimeout } from '../services/userProfileService';
+
 export interface PreviousConversation {
   timestamp: number;
   summary: string;
@@ -18,10 +22,66 @@ export class ConversationMemory {
   private preferences: string[] = [];
   private previousConversations: PreviousConversation[] = [];
   private personalContext: PersonalContext = {};
+  private userUid: string | null = null;
 
   constructor() {
     this.id = `memory_${Date.now()}`;
     this.loadFromStorage();
+    this.setupAuthListener();
+  }
+
+  private setupAuthListener() {
+    if (typeof window === 'undefined') return;
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        this.userUid = user.uid;
+        await this.syncFromFirestore(user.uid);
+      } else {
+        this.userUid = null;
+      }
+    });
+  }
+
+  private async syncFromFirestore(uid: string) {
+    try {
+      const docRef = doc(db, 'users', uid, 'conversationMemory', 'data');
+      const docSnap = await withTimeout(getDoc(docRef), 3000);
+      if (docSnap.exists()) {
+        const remote = docSnap.data();
+        if (remote) {
+          this.goals = remote.goals || this.goals;
+          this.interests = remote.interests || this.interests;
+          this.preferences = remote.preferences || this.preferences;
+          this.previousConversations = remote.previousConversations || this.previousConversations;
+          this.personalContext = remote.personalContext || this.personalContext;
+          this.saveToStorage();
+        }
+      } else {
+        await this.saveToFirestore();
+      }
+    } catch (e) {
+      console.warn('ConversationMemory Firestore sync note:', e);
+    }
+  }
+
+  private async saveToFirestore() {
+    const uid = this.userUid || auth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      const docRef = doc(db, 'users', uid, 'conversationMemory', 'data');
+      const payload = {
+        id: this.id,
+        goals: this.goals.slice(-20),
+        interests: this.interests.slice(-20),
+        preferences: this.preferences.slice(-20),
+        previousConversations: this.previousConversations.slice(-20),
+        personalContext: this.personalContext,
+        updatedAt: new Date().toISOString()
+      };
+      await withTimeout(setDoc(docRef, payload, { merge: true }), 3000);
+    } catch (e) {
+      console.warn('ConversationMemory save to Firestore note:', e);
+    }
   }
 
   getId(): string {
@@ -242,6 +302,7 @@ export class ConversationMemory {
         // Silently ignore if browser storage quota is completely full
       }
     }
+    this.saveToFirestore();
   }
 
   private loadFromStorage(): void {
@@ -261,3 +322,5 @@ export class ConversationMemory {
     }
   }
 }
+
+export const conversationMemory = new ConversationMemory();

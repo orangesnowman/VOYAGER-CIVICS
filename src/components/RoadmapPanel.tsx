@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock } from 'lucide-react';
+import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { googleSignIn, logout, auth } from '../services/firebaseAuth';
+import { saveUserProfile, syncOrMigrateUserOnAuth } from '../services/userProfileService';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
-import { IMMERSION_CURRICULUM } from '../constants';
+import { IMMERSION_CURRICULUM, CIUDADANIA_CURRICULUM } from '../constants';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
 import { parseAndRenderEmojis } from './VoyagerEmoji';
 import { Achievements } from './Achievements';
-import { DailyStreakTracker } from './DailyStreakTracker';
 import { ChatInputBox } from './ChatInputBox';
+import { CivicsProgressTracker } from '../domain/CivicsProgressTracker';
 
 interface RoadmapPanelProps {
   selectedLang: 'EN' | 'ES';
@@ -20,6 +21,8 @@ interface RoadmapPanelProps {
   isConnected: boolean;
   pause: () => void;
   resume: () => void;
+  activeSubTab?: 'welcome' | 'level' | 'lessons' | 'achievements' | 'streak';
+  onSelectSubTab?: (subTab: 'welcome' | 'level' | 'lessons' | 'achievements' | 'streak') => void;
   scores?: {
     grammar: number;
     pronunciation: number;
@@ -30,12 +33,14 @@ interface RoadmapPanelProps {
   accentPatterns?: string[];
   onAskVoyager: (text: string) => void;
   onNavigateTab?: (tab: 'home' | 'chat' | 'progress' | 'teachers' | 'settings') => void;
+  onLogout?: () => void;
+  onRedoOnboarding?: () => void;
 }
 
 interface UserProfile {
   name: string;
   email: string;
-  provider: 'Google' | 'Apple' | 'Email' | 'Guest';
+  provider: 'Google' | 'Apple' | 'Email' | 'Guest' | 'Admin';
   goal: string;
   levelEstimate: string;
   completedDays: number[];
@@ -47,6 +52,7 @@ interface UserProfile {
   timePerWeek?: string;
   age?: number;
   avatarUrl?: string;
+  photoURL?: string;
   avatarType?: 'user' | 'man' | 'woman' | 'student' | 'astronaut' | 'female_robot' | 'male_robot' | 'custom';
   bookedLesson?: {
     teacherName: string;
@@ -68,13 +74,17 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   learnedWords,
   accentPatterns,
   onAskVoyager,
-  onNavigateTab
+  onNavigateTab,
+  onLogout,
+  onRedoOnboarding,
+  activeSubTab: externalActiveSubTab,
+  onSelectSubTab
 }) => {
   const defaultUser: UserProfile = {
-    name: 'Alex Johnson',
-    email: 'alex.johnson@example.com',
-    provider: 'Guest',
-    category: selectedLang === 'EN' ? 'Student' : 'Estudiante',
+    name: 'Federico Sandoval',
+    email: 'theorangesnowman@gmail.com',
+    provider: 'Admin',
+    category: selectedLang === 'EN' ? 'Administrator' : 'Administrador',
     goal: selectedLang === 'EN' ? 'Academic success' : 'Éxito académico',
     levelEstimate: 'Intermediate',
     country: 'Costa Rica',
@@ -165,24 +175,45 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
       levelLabel: `${isEn ? 'LEVEL' : 'NIVEL'}: ${levelLabel}`
     };
   };
-  const [user, setUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('voyager_user_account');
+  const readAccountFromStorage = React.useCallback((): UserProfile => {
+    const adminPhoto = typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL || undefined) : undefined;
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('voyager_user_account') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed) {
-          if (!parsed.name || parsed.name === 'Estudiante' || parsed.name === 'Learner') {
-            parsed.name = 'Alex Johnson';
-          }
-          if (parsed.avatarType === 'female_robot' || !parsed.avatarType) {
-            parsed.avatarType = 'user';
-          }
-          return parsed;
+          const resolvedPhoto = parsed.avatarUrl || parsed.photoURL || adminPhoto;
+          return {
+            ...defaultUser,
+            ...parsed,
+            name: parsed.name && parsed.name !== 'Alex Johnson Placeholder' ? parsed.name : defaultUser.name,
+            avatarUrl: resolvedPhoto,
+            avatarType: parsed.avatarType || (resolvedPhoto ? 'custom' : 'user')
+          };
         }
       } catch (e) {}
     }
-    return defaultUser;
-  });
+    return {
+      ...defaultUser,
+      avatarUrl: adminPhoto,
+      avatarType: adminPhoto ? 'custom' : 'user'
+    };
+  }, [selectedLang]);
+
+  const [user, setUser] = useState<UserProfile>(readAccountFromStorage);
+
+  useEffect(() => {
+    const syncUser = () => {
+      setUser(readAccountFromStorage());
+    };
+    syncUser();
+    window.addEventListener('voyager_profile_updated', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('voyager_profile_updated', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
+  }, [readAccountFromStorage]);
 
   const chatEndRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -199,27 +230,83 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   // Roadmap preferences
   const [selectedGoal, setSelectedGoal] = useState(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
   const [selectedLevel, setSelectedLevel] = useState(user.levelEstimate || 'Intermediate');
-  const [editName, setEditName] = useState(user.name || 'Alex Johnson');
+  const [editName, setEditName] = useState(user.name || 'Federico Sandoval');
+  const [editCategory, setEditCategory] = useState(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
   const [editCountry, setEditCountry] = useState(user.country || 'Costa Rica');
+  const [editAge, setEditAge] = useState<number | string>(user.age ?? 21);
+  const [editEducation, setEditEducation] = useState(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
   const [editInterests, setEditInterests] = useState(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
   const [editTimePerWeek, setEditTimePerWeek] = useState(user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'));
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [activeSubTab, setActiveSubTab] = useState<'welcome' | 'level' | 'lessons' | 'achievements' | 'streak'>('welcome');
+  const [saveNotification, setSaveNotification] = useState<string | null>(null);
+  const [internalSubTab, setInternalSubTab] = useState<'welcome' | 'level' | 'lessons' | 'achievements' | 'streak'>('welcome');
+  const activeSubTab = externalActiveSubTab || internalSubTab;
+
+  const setActiveSubTab = (tab: 'welcome' | 'level' | 'lessons' | 'achievements' | 'streak') => {
+    setInternalSubTab(tab);
+    if (onSelectSubTab) {
+      onSelectSubTab(tab);
+    }
+  };
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isGearMenuOpen, setIsGearMenuOpen] = useState(false);
   const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [curriculumTrack, setCurriculumTrack] = useState<'immersion' | 'ciudadania'>(() => {
+    const goalStr = (user.goal || '').toLowerCase();
+    if (goalStr.includes('ciudadan') || goalStr.includes('cívica') || goalStr.includes('civic') || goalStr.includes('citizenship')) {
+      return 'ciudadania';
+    }
+    return 'ciudadania';
+  });
+
+  useEffect(() => {
+    const goalStr = (selectedGoal || user.goal || '').toLowerCase();
+    if (goalStr.includes('ciudadan') || goalStr.includes('cívica') || goalStr.includes('civic') || goalStr.includes('citizenship')) {
+      setCurriculumTrack('ciudadania');
+    }
+  }, [selectedGoal, user.goal]);
+
+  const [civicsData, setCivicsData] = useState(() => CivicsProgressTracker.getProgressData());
+  const [savedChatsCount, setSavedChatsCount] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem('voyager_saved_chats');
+      return raw ? JSON.parse(raw).length : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    const unsub = CivicsProgressTracker.subscribe((updated) => {
+      setCivicsData(updated);
+    });
+    const updateSavedChats = () => {
+      try {
+        const raw = localStorage.getItem('voyager_saved_chats');
+        setSavedChatsCount(raw ? JSON.parse(raw).length : 0);
+      } catch (e) {}
+    };
+    updateSavedChats();
+    window.addEventListener('storage', updateSavedChats);
+    return () => {
+      unsub();
+      window.removeEventListener('storage', updateSavedChats);
+    };
+  }, []);
+
   const visitorFullName = React.useMemo(() => {
-    if (user?.name && user.name !== 'Estudiante' && user.name !== 'Learner' && user.name !== 'Alex Johnson') {
+    if (user?.name && user.name !== 'Estudiante' && user.name !== 'Learner' && user.name !== 'Alex Johnson Placeholder') {
       const name = user.name.trim();
-      if (name && name !== 'Estudiante' && name !== 'Learner' && name !== 'Alex Johnson') return name;
+      if (name && name !== 'Estudiante' && name !== 'Learner' && name !== 'Alex Johnson Placeholder') return name;
     }
     const saved = typeof window !== 'undefined' ? localStorage.getItem('voyager_user_account') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.name && parsed.name !== 'Estudiante' && parsed.name !== 'Learner' && parsed.name !== 'Alex Johnson') {
+        if (parsed.name && parsed.name !== 'Estudiante' && parsed.name !== 'Learner' && parsed.name !== 'Alex Johnson Placeholder') {
           const name = parsed.name.trim();
-          if (name && name !== 'Estudiante' && name !== 'Learner' && name !== 'Alex Johnson') return name;
+          if (name && name !== 'Estudiante' && name !== 'Learner' && name !== 'Alex Johnson Placeholder') return name;
         }
       } catch (e) {}
     }
@@ -229,13 +316,16 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   useEffect(() => {
     if (user) {
       setEditName(user.name || (selectedLang === 'EN' ? 'Learner' : 'Estudiante'));
-      setEditCountry(user.country || 'United States');
-      setSelectedGoal(user.goal || 'Business English & Networking');
-      setEditInterests(user.interests || (selectedLang === 'EN' ? 'Travel, Technology, Culture, Music' : 'Viajes, Tecnología, Cultura, Música'));
+      setEditCategory(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
+      setEditCountry(user.country || 'Costa Rica');
+      setEditAge(user.age ?? 21);
+      setSelectedGoal(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
+      setEditInterests(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
       setSelectedLevel(user.levelEstimate || 'Intermediate');
-      setEditTimePerWeek(user.timePerWeek || (selectedLang === 'EN' ? '3.5 hrs / week' : '3.5 hrs / semana'));
+      setEditEducation(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
+      setEditTimePerWeek(user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'));
     }
-  }, [user, isEditingProfile]);
+  }, [user, isEditingProfile, selectedLang]);
 
   const getAiStudentSummary = (u: UserProfile, lang: 'EN' | 'ES') => {
     const goalText = u.goal || 'Business English & Networking';
@@ -282,11 +372,13 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   };
 
   const renderAvatarContent = (u: UserProfile) => {
-    if (u.avatarUrl) {
+    const photoUrl = u.avatarUrl || u.photoURL || (typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL) : null);
+    if (photoUrl) {
       return (
         <img
-          src={u.avatarUrl}
-          alt={u.name}
+          src={photoUrl}
+          alt={u.name || 'User'}
+          referrerPolicy="no-referrer"
           className="w-full h-full rounded-full object-cover"
         />
       );
@@ -414,31 +506,30 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
   // Load user from storage on mount
   useEffect(() => {
-    // Check Firebase auth state
-    const unsubscribe = auth.onAuthStateChanged((fbUser) => {
+    // Check Firebase auth state and sync with Firestore
+    const unsubscribe = auth.onAuthStateChanged(async (fbUser) => {
       if (fbUser) {
-        const saved = localStorage.getItem('voyager_user_account');
-        let existing: any = {};
-        if (saved) {
-          try {
-            existing = JSON.parse(saved);
-          } catch (e) {}
+        try {
+          const synced = await syncOrMigrateUserOnAuth(fbUser);
+          const newUser: UserProfile = {
+            ...defaultUser,
+            ...synced,
+            name: synced.name || fbUser.displayName || 'Learner',
+            email: synced.email || fbUser.email || 'learner@usavoyager.com',
+            provider: fbUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : 'Email',
+            goal: synced.goal || 'Academic success',
+            levelEstimate: synced.levelEstimate || 'Intermediate',
+            completedDays: synced.completedDays || [1],
+            country: synced.country || '',
+            age: synced.age || undefined,
+            plan: synced.plan as any || 'FREE',
+            avatarUrl: fbUser.photoURL || synced.photoURL || synced.avatarUrl || (typeof window !== 'undefined' ? localStorage.getItem('voyager_admin_photo_url') : undefined) || undefined,
+            avatarType: (fbUser.photoURL || synced.photoURL || synced.avatarUrl) ? 'custom' : (synced.avatarType as any || 'user')
+          };
+          setUser(newUser);
+        } catch (err) {
+          console.error('Error syncing user on auth state change:', err);
         }
-
-        const newUser: UserProfile = {
-          ...existing,
-          name: fbUser.displayName || fbUser.email?.split('@')[0] || existing.name || 'Learner',
-          email: fbUser.email || existing.email || 'learner@usavoyager.com',
-          provider: 'Google',
-          goal: existing.goal || 'Business English & Networking',
-          levelEstimate: existing.levelEstimate || 'Intermediate',
-          completedDays: existing.completedDays || [1],
-          country: existing.country || '',
-          age: existing.age || undefined,
-          plan: existing.plan || 'FREE'
-        };
-        setUser(newUser);
-        localStorage.setItem('voyager_user_account', JSON.stringify(newUser));
       }
     });
 
@@ -447,7 +538,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
   const saveUser = (updated: UserProfile) => {
     setUser(updated);
-    localStorage.setItem('voyager_user_account', JSON.stringify(updated));
+    saveUserProfile(auth.currentUser?.uid || '', updated);
   };
 
   const handleLogout = async () => {
@@ -459,17 +550,25 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
   const handleUpdateProfile = () => {
     if (!user) return;
+    const numAge = typeof editAge === 'number' ? editAge : parseInt(String(editAge), 10);
     const updated: UserProfile = {
       ...user,
       name: editName.trim() || user.name,
-      country: editCountry.trim() || user.country || 'United States',
-      goal: selectedGoal,
-      interests: editInterests.trim() || user.interests || (selectedLang === 'EN' ? 'Travel, Technology, Culture, Music' : 'Viajes, Tecnología, Cultura, Música'),
+      category: editCategory.trim() || user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'),
+      country: editCountry.trim() || user.country || 'Costa Rica',
+      age: !isNaN(numAge) ? numAge : user.age ?? 21,
       levelEstimate: selectedLevel,
-      timePerWeek: editTimePerWeek.trim() || (selectedLang === 'EN' ? '3.5 hrs / week' : '3.5 hrs / semana')
+      education: editEducation.trim() || user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'),
+      goal: selectedGoal,
+      timePerWeek: editTimePerWeek.trim() || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'),
+      interests: editInterests.trim() || user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')
     };
     saveUser(updated);
     setIsEditingProfile(false);
+    setSaveNotification(selectedLang === 'EN' ? '✓ Onboarding responses saved successfully!' : '✓ ¡Respuestas de registro guardadas exitosamente!');
+    setTimeout(() => {
+      setSaveNotification(null);
+    }, 4000);
   };
 
   const toggleDayCompleted = (dayNum: number) => {
@@ -487,116 +586,29 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   };
 
   // Logged-in screen (Profile Dashboard + Learning Roadmap + Live Lessons)
+  const savedAccountForAdmin = typeof window !== 'undefined' ? localStorage.getItem('voyager_user_account') : null;
+  let isAdminUser = false;
+  let adminName = 'Federico Sandoval';
+  if (savedAccountForAdmin) {
+    try {
+      const parsed = JSON.parse(savedAccountForAdmin);
+      if (parsed?.isAdmin || parsed?.email?.toLowerCase() === 'theorangesnowman@gmail.com') {
+        isAdminUser = true;
+        adminName = parsed?.name || 'Federico Sandoval';
+      }
+    } catch (e) {}
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-white h-full overflow-hidden animate-fade-in font-sans text-[#231d17]">
       
       {/* Scrollable content area */}
       <div className="flex-1 overflow-y-auto px-3 pt-2 pb-4 flex flex-col gap-3.5 min-h-0">
+
+        {/* SCROLLABLE STUDENT JOURNEY & ROADMAP */}
         
         {/* THE MAIN WELCOME STATEMENT CARD FOR PROFILE */}
         <div className="space-y-3.5 text-left flex flex-col flex-shrink-0 p-0">
-          
-          {/* Header & Navigation Row */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-3.5 flex-wrap select-none">
-              <span 
-                style={{ fontFamily: '"American Typewriter", "Courier New", Courier, serif' }} 
-                className="text-[42px] md:text-[52.5px] font-normal tracking-tight text-[#1a202c] !font-serif block leading-none"
-              >
-                {visitorFullName 
-                  ? (selectedLang === 'EN' ? `${visitorFullName}'s Profile` : `Perfil de ${visitorFullName}`) 
-                  : (selectedLang === 'EN' ? 'Your Profile' : 'Tu Perfil')}
-              </span>
-
-              <button 
-                onClick={() => {
-                  if (isEditingProfile) {
-                    handleUpdateProfile();
-                  } else {
-                    setActiveSubTab('level');
-                    setIsEditingProfile(true);
-                  }
-                }}
-                className={`transition-colors uppercase cursor-pointer bg-transparent border-none p-0 font-extrabold text-xs tracking-wider underline underline-offset-4 ${
-                  isEditingProfile 
-                    ? 'text-red-600 hover:text-red-700' 
-                    : 'text-neutral-700 hover:text-red-600'
-                }`}
-              >
-                {isEditingProfile
-                  ? (selectedLang === 'EN' ? 'SAVE' : 'GUARDAR')
-                  : (selectedLang === 'EN' ? 'EDIT' : 'EDITAR')
-                }
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 md:gap-5 text-[11.2px] font-extrabold uppercase tracking-wider select-none mt-1">
-              <button 
-                onClick={() => {
-                  setActiveSubTab('welcome');
-                  triggerAutoExplanation('welcome');
-                }}
-                className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 ${
-                  activeSubTab === 'welcome' ? 'text-red-600 font-black' : 'text-black hover:text-red-600'
-                }`}
-              >
-                <User className={`w-4.5 h-4.5 transition-colors ${activeSubTab === 'welcome' ? 'text-red-600' : 'text-black group-hover:text-red-600'}`} />
-                <span>{visitorFullName ? visitorFullName.toUpperCase() : (selectedLang === 'EN' ? 'PROFILE' : 'PERFIL')}</span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  setActiveSubTab('level');
-                  triggerAutoExplanation('level');
-                }}
-                className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 ${
-                  activeSubTab === 'level' ? 'text-red-600 font-black' : 'text-black hover:text-red-600'
-                }`}
-              >
-                <TrendingUp className={`w-4.5 h-4.5 transition-colors ${activeSubTab === 'level' ? 'text-red-600' : 'text-black group-hover:text-red-600'}`} />
-                <span>{selectedLang === 'EN' ? 'YOUR LEVEL' : 'TU NIVEL'}</span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  setActiveSubTab('lessons');
-                  triggerAutoExplanation('lessons');
-                }}
-                className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 ${
-                  activeSubTab === 'lessons' ? 'text-red-600 font-black' : 'text-black hover:text-red-600'
-                }`}
-              >
-                <Compass className={`w-4.5 h-4.5 transition-colors ${activeSubTab === 'lessons' ? 'text-red-600' : 'text-black group-hover:text-red-600'}`} />
-                <span>{selectedLang === 'EN' ? 'LESSONS' : 'LECCIONES'}</span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  setActiveSubTab('achievements');
-                  triggerAutoExplanation('achievements');
-                }}
-                className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 ${
-                  activeSubTab === 'achievements' ? 'text-red-600 font-black' : 'text-black hover:text-red-600'
-                }`}
-              >
-                <Award className={`w-4.5 h-4.5 transition-colors ${activeSubTab === 'achievements' ? 'text-red-600' : 'text-black group-hover:text-red-600'}`} />
-                <span>{selectedLang === 'EN' ? 'ACHIEVEMENTS' : 'LOGROS'}</span>
-              </button>
-
-              <button 
-                onClick={() => {
-                  setActiveSubTab('streak');
-                  triggerAutoExplanation('streak');
-                }}
-                className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 ${
-                  activeSubTab === 'streak' ? 'text-red-600 font-black' : 'text-black hover:text-red-600'
-                }`}
-              >
-                <Flame className={`w-4.5 h-4.5 transition-colors ${activeSubTab === 'streak' ? 'text-red-600' : 'text-black group-hover:text-red-600'}`} />
-                <span>{selectedLang === 'EN' ? 'STREAKS' : 'RACHAS'}</span>
-              </button>
-            </div>
-          </div>
 
         {/* MAIN PROFILE DETAILS CONTAINER */}
         <div className="space-y-4 text-left flex flex-col flex-shrink-0">
@@ -610,7 +622,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                   
                   {/* Left Column (approx 30-35% width): Avatar */}
                   <div className="w-full md:w-[35%] flex flex-col items-center justify-center text-center">
-                    {/* Circular Avatar Container with Camera Icon Badge on Border */}
+                    {/* Circular Avatar Container with Camera Icon & Gear Logout Badge on Border */}
                     <div className="relative group flex-shrink-0 w-36 h-36 sm:w-44 sm:h-44">
                       {/* Avatar Circle */}
                       <div 
@@ -620,7 +632,20 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         {renderAvatarContent(user)}
                       </div>
 
-                      {/* Camera Badge Button Positioned on Circle Border with 3pt Black Stroke */}
+                      {/* Gear Badge Button Positioned on Circle Border (Top Right) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsGearMenuOpen(prev => !prev);
+                        }}
+                        className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#FFD700] hover:bg-amber-400 text-slate-950 border-[3px] border-black ring-2 ring-white flex items-center justify-center shadow-md transition-all duration-200 cursor-pointer hover:scale-110 z-20"
+                        title={selectedLang === 'EN' ? 'Account Settings & Logout' : 'Ajustes y Cerrar Sesión'}
+                      >
+                        <Settings className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-950 stroke-[2.5]" />
+                      </button>
+
+                      {/* Camera Badge Button Positioned on Circle Border (Bottom Right) */}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -632,80 +657,533 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                       >
                         <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white stroke-[2.5]" />
                       </button>
+
+                      {/* Gear Account & Logout Popover Menu */}
+                      {isGearMenuOpen && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-30 bg-black/20 backdrop-blur-2xs" 
+                            onClick={() => setIsGearMenuOpen(false)} 
+                          />
+                          <div className="absolute top-12 left-1/2 -translate-x-1/2 sm:translate-x-0 sm:-right-12 w-64 z-40 bg-[#0B1B3D] border-2 border-[#FFD700] rounded-2xl p-3 shadow-2xl animate-fade-in text-white text-left">
+                            <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                              <div className="min-w-0 pr-2">
+                                <p className="text-[10px] uppercase tracking-wider text-[#FFD700] font-bold">
+                                  {selectedLang === 'EN' ? 'Logged Account' : 'Cuenta de Usuario'}
+                                </p>
+                                <p className="text-xs font-bold text-white truncate">
+                                  {user.email || 'learner@usavoyager.com'}
+                                </p>
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => setIsGearMenuOpen(false)}
+                                className="text-white/60 hover:text-white p-1 rounded-lg"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="space-y-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsGearMenuOpen(false);
+                                  setIsEditingProfile(true);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-white/90 hover:bg-white/10 transition-colors text-left cursor-pointer"
+                              >
+                                <Settings className="w-4 h-4 text-[#FFD700] shrink-0" />
+                                <span>{selectedLang === 'EN' ? 'Edit Answers' : 'Editar Respuestas'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setIsGearMenuOpen(false);
+                                  await handleLogout();
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-black text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition-colors text-left cursor-pointer group"
+                              >
+                                <LogOut className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform shrink-0" />
+                                <span>{selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* Right Column: Clean Label-Value Identity Details List */}
-                  <div className="w-full md:w-[63%] flex flex-col justify-center pt-2 md:pt-4">
-                    <div className="grid grid-cols-[140px_1fr] sm:grid-cols-[180px_1fr] gap-y-3.5 sm:gap-y-4 text-sm sm:text-base leading-relaxed">
-                      
-                      {/* 1. Categoría */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante')}
+                  {/* Right Column: Clean Label-Value Identity Details or Onboarding Editor Card */}
+                  {isEditingProfile ? (
+                    <div className="w-full md:w-[65%] flex flex-col bg-[#FFFDF3] p-5 sm:p-6 rounded-[22px] border-2 border-[#FFC72C] shadow-xs animate-fade-in">
+                      {/* Header with Toggle Button */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleUpdateProfile();
+                            }}
+                            className="font-black text-black text-lg sm:text-xl flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer group text-left bg-transparent border-none p-0"
+                            title={selectedLang === 'EN' ? 'Click to Save and view saved responses' : 'Haz clic para guardar y ver respuestas guardadas'}
+                          >
+                            <span className="text-xl group-hover:scale-110 transition-transform">✏️</span>
+                            <span className="group-hover:text-amber-900 transition-colors">
+                              {selectedLang === 'EN' ? 'Update Onboarding Answers' : 'Actualizar Respuestas de Registro'}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(false)}
+                            className="px-3.5 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-neutral-300 shadow-2xs"
+                          >
+                            <span>👁️</span>
+                            <span>{selectedLang === 'EN' ? 'Saved View' : 'Ver Guardado'}</span>
+                          </button>
+                        </div>
+                        <p className="text-xs sm:text-sm font-medium text-neutral-600 mt-1 mb-3">
+                          {selectedLang === 'EN'
+                            ? 'Modify your responses to personalize your learning path and AI tutor instructions.'
+                            : 'Modifica tus respuestas para personalizar tu ruta de aprendizaje e instrucciones del tutor IA.'}
+                        </p>
+                        <div className="h-[1px] bg-neutral-200/90 w-full" />
                       </div>
 
-                      {/* 2. País */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Country:' : 'País:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.country ? getCountryWithFlag(user.country) : (selectedLang === 'EN' ? 'Costa Rica' : 'Costa Rica')}
+                      {/* Toast Notification */}
+                      {saveNotification && (
+                        <div className="mb-4 p-3 bg-emerald-100 border border-emerald-400 text-emerald-950 font-black rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in">
+                          <span>{saveNotification}</span>
+                        </div>
+                      )}
+
+                      {/* 1. Full Name */}
+                      <div className="mb-3.5">
+                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                          👤 {selectedLang === 'EN' ? 'Full Name:' : 'Nombre Completo:'}
+                        </label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                        />
                       </div>
 
-                      {/* 3. Edad */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.age ?? 21}
+                      {/* 2 & 3. Category + Country */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            🏷️ {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
+                          </label>
+                          <select
+                            value={editCategory}
+                            onChange={(e) => setEditCategory(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          >
+                            <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
+                            <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
+                            <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
+                            <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            🌎 {selectedLang === 'EN' ? 'Country:' : 'País:'}
+                          </label>
+                          <select
+                            value={editCountry}
+                            onChange={(e) => setEditCountry(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          >
+                            <option value="Costa Rica">🇨🇷 Costa Rica</option>
+                            <option value="Mexico">🇲🇽 México</option>
+                            <option value="Colombia">🇨🇴 Colombia</option>
+                            <option value="Spain">🇪🇸 España</option>
+                            <option value="United States">🇺🇸 United States</option>
+                            <option value="Argentina">🇦🇷 Argentina</option>
+                            <option value="Peru">🇵🇪 Perú</option>
+                            <option value="Chile">🇨🇱 Chile</option>
+                            <option value="Guatemala">🇬🇹 Guatemala</option>
+                            <option value="Dominican Republic">🇩🇴 República Dominicana</option>
+                            <option value="Venezuela">🇻🇪 Venezuela</option>
+                            <option value="Ecuador">🇪🇨 Ecuador</option>
+                            <option value="Honduras">🇭🇳 Honduras</option>
+                            <option value="El Salvador">🇸🇻 El Salvador</option>
+                            <option value="Nicaragua">🇳🇮 Nicaragua</option>
+                            <option value="Panama">🇵🇦 Panamá</option>
+                          </select>
+                        </div>
                       </div>
 
-                      {/* 4. Nivel de inglés */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'English level:' : 'Nivel de inglés:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {getTranslatedLevel(user.levelEstimate || 'Intermediate')}
+                      {/* 4 & 5. Age + English Level */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            🎂 {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
+                          </label>
+                          <input
+                            type="number"
+                            value={editAge}
+                            onChange={(e) => setEditAge(e.target.value)}
+                            min={10}
+                            max={100}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            📊 {selectedLang === 'EN' ? 'English Level:' : 'Nivel de Inglés:'}
+                          </label>
+                          <select
+                            value={selectedLevel}
+                            onChange={(e) => setSelectedLevel(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          >
+                            <option value="Intermediate">{selectedLang === 'EN' ? 'Intermediate (B1-B2)' : 'Intermedio (B1-B2)'}</option>
+                            <option value="Beginner">{selectedLang === 'EN' ? 'Beginner (A1-A2)' : 'Principiante (A1-A2)'}</option>
+                            <option value="Advanced">{selectedLang === 'EN' ? 'Advanced (C1-C2)' : 'Avanzado (C1-C2)'}</option>
+                            <option value="Not Sure">{selectedLang === 'EN' ? 'Not Sure' : 'No estoy seguro'}</option>
+                          </select>
+                        </div>
                       </div>
 
-                      {/* 5. Educación */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Education:' : 'Educación:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.education || (selectedLang === 'EN' ? 'University' : 'Universidad')}
+                      {/* 6 & 7. Education + Learning Goal */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            🎓 {selectedLang === 'EN' ? 'Education:' : 'Educación:'}
+                          </label>
+                          <select
+                            value={editEducation}
+                            onChange={(e) => setEditEducation(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          >
+                            <option value="Universidad">{selectedLang === 'EN' ? 'University / College' : 'Universidad'}</option>
+                            <option value="Secundaria">{selectedLang === 'EN' ? 'High School / Secondary' : 'Secundaria'}</option>
+                            <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate / Master' : 'Posgrado'}</option>
+                            <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                            🎯 {selectedLang === 'EN' ? 'Learning Goal:' : 'Meta de Aprendizaje:'}
+                          </label>
+                          <select
+                            value={selectedGoal}
+                            onChange={(e) => setSelectedGoal(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          >
+                            <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
+                            <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
+                            <option value="Viajes y cultura">{selectedLang === 'EN' ? 'Travel & Culture' : 'Viajes y cultura'}</option>
+                            <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
+                            <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
+                          </select>
+                        </div>
                       </div>
 
-                      {/* 6. Meta de aprendizaje */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Learning goal:' : 'Meta de aprendizaje:'}
-                      </div>
-                        <div className="text-neutral-800">
-                        {user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico')}
-                      </div>
-
-                      {/* 7. Tiempo de estudio */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Study time:' : 'Tiempo de estudio:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana')}
-                      </div>
-
-                      {/* 8. Intereses */}
-                      <div className="font-bold text-neutral-900">
-                        {selectedLang === 'EN' ? 'Interests:' : 'Intereses:'}
-                      </div>
-                      <div className="text-neutral-800">
-                        {user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')}
+                      {/* 8. Study Time */}
+                      <div className="mb-3.5">
+                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                          ⏱️ {selectedLang === 'EN' ? 'Study Time:' : 'Tiempo de Estudio:'}
+                        </label>
+                        <select
+                          value={editTimePerWeek}
+                          onChange={(e) => setEditTimePerWeek(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                        >
+                          <option value="5 horas por semana">{selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'}</option>
+                          <option value="2 horas por semana">{selectedLang === 'EN' ? '2 hours per week' : '2 horas por semana'}</option>
+                          <option value="10 horas por semana">{selectedLang === 'EN' ? '10 hours per week' : '10 horas por semana'}</option>
+                          <option value="Práctica diaria">{selectedLang === 'EN' ? 'Daily practice' : 'Práctica diaria'}</option>
+                        </select>
                       </div>
 
+                      {/* 9. Interests */}
+                      <div className="mb-4">
+                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
+                          💡 {selectedLang === 'EN' ? 'Interests & Topics:' : 'Intereses y Temas:'}
+                        </label>
+                        <input
+                          type="text"
+                          value={editInterests}
+                          onChange={(e) => setEditInterests(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
+                          placeholder={selectedLang === 'EN' ? 'e.g. Travel, technology, music' : 'ej. Viajes, tecnología, música'}
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-3.5 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleUpdateProfile}
+                          className="px-6 py-3.5 bg-[#FF9800] hover:bg-[#E68A00] text-black font-black rounded-2xl text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-95 border border-[#E68A00]"
+                        >
+                          <span>💾</span>
+                          <span>{selectedLang === 'EN' ? 'Save Onboarding Answers' : 'Guardar Respuestas de Registro'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(false)}
+                          className="px-6 py-3.5 bg-white hover:bg-neutral-50 text-neutral-800 font-extrabold border border-neutral-300 rounded-2xl text-sm sm:text-base cursor-pointer transition-all active:scale-95 shadow-2xs"
+                        >
+                          {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <div className="w-full md:w-[68%] flex flex-col justify-center pt-1 md:pt-2">
+                      {/* Top Action Row for Editing */}
+                      <div className="flex items-center justify-end mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingProfile(true)}
+                          className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-950 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-amber-300"
+                          title={selectedLang === 'EN' ? 'Edit Profile Answers' : 'Editar Respuestas'}
+                        >
+                          <span>✏️</span>
+                          <span>{selectedLang === 'EN' ? 'Edit Answers' : 'Editar Respuestas'}</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-[160px_1fr] sm:grid-cols-[210px_1fr] gap-y-4 sm:gap-y-5 text-base sm:text-lg leading-snug">
+                        
+                        {/* 0. Student ID */}
+                        <div className="font-black text-neutral-900 flex items-center gap-2">
+                          <span className="p-1 rounded bg-purple-100 text-purple-700 text-sm font-bold">🆔</span>
+                          <span>{selectedLang === 'EN' ? 'Student ID:' : 'ID Estudiante:'}</span>
+                        </div>
+                        <div className="text-neutral-900 flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-blue-900 bg-[#DCEBFF] px-3 py-1 rounded-xl text-sm sm:text-base tracking-wide">
+                            {user.studentId || 'STU-001'}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-800 bg-[#E6F4EA] border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1">
+                            ✓ {selectedLang === 'EN' ? 'Active Account' : 'Cuenta Activa'}
+                          </span>
+                        </div>
+
+                        {/* 1. Categoría */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante')}
+                        </div>
+
+                        {/* 2. País */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Country:' : 'País:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.country ? getCountryWithFlag(user.country) : (selectedLang === 'EN' ? 'Costa Rica 🇨🇷' : 'Costa Rica 🇨🇷')}
+                        </div>
+
+                        {/* 3. Edad */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.age ?? 21}
+                        </div>
+
+                        {/* 4. Nivel de inglés */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'English level:' : 'Nivel de inglés:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {getTranslatedLevel(user.levelEstimate || 'Intermediate')}
+                        </div>
+
+                        {/* 5. Educación */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Education:' : 'Educación:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.education || (selectedLang === 'EN' ? 'University' : 'Universidad')}
+                        </div>
+
+                        {/* 6. Meta de aprendizaje */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Learning goal:' : 'Meta de aprendizaje:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800 whitespace-pre-line">
+                          {user.goal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Travel & Daily Conversation')}
+                        </div>
+
+                        {/* 7. Tiempo de estudio */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Study time:' : 'Tiempo de estudio:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana')}
+                        </div>
+
+                        {/* 8. Intereses */}
+                        <div className="font-extrabold text-neutral-900">
+                          {selectedLang === 'EN' ? 'Interests:' : 'Intereses:'}
+                        </div>
+                        <div className="font-extrabold text-neutral-800">
+                          {user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')}
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+                {/* 📊 Student Activity & Real-Time Statistics Section */}
+                <div className="mt-8 pt-6 border-t border-neutral-200/80 animate-fade-in">
+                  <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                    <div>
+                      <h3 className="font-black text-black text-lg sm:text-xl flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-amber-500 stroke-[2.5]" />
+                        <span>
+                          {selectedLang === 'EN' ? 'Student Activity & Real-Time Statistics' : 'Estadísticas y Registro de Actividad del Estudiante'}
+                        </span>
+                      </h3>
+                      <p className="text-xs sm:text-sm text-neutral-600 font-medium mt-0.5">
+                        {selectedLang === 'EN'
+                          ? 'Track your practice sessions, USCIS Civics exam progress, fluency scores, and saved materials.'
+                          : 'Consulta el registro en tiempo real de tus sesiones de práctica, progreso de cívica USCIS, calificaciones de inglés y material guardado.'}
+                      </p>
+                    </div>
+
+                    {onNavigateTab && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateTab('progress')}
+                        className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:scale-[1.02]"
+                      >
+                        <span>📊</span>
+                        <span>{selectedLang === 'EN' ? 'Full Progress Report' : 'Ver Informe Completo'}</span>
+                      </button>
+                    )}
                   </div>
 
+                  {/* Stat Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: USCIS Civics Exam Mastery */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 p-4 rounded-2xl border border-blue-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                          <BookOpen className="w-4 h-4 text-blue-600" />
+                          {selectedLang === 'EN' ? 'Civics 128 Questions' : 'Cívica 128 Preguntas'}
+                        </span>
+                        <span className="text-xs font-black bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                          {CivicsProgressTracker.calculateMasteryMetrics().masteryPercentage}%
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black text-blue-950 mb-1">
+                        {CivicsProgressTracker.calculateMasteryMetrics().knownCount} <span className="text-xs font-bold text-neutral-500">/ 128</span>
+                      </div>
+                      <div className="space-y-1 text-xs font-medium text-neutral-700 mt-2 pt-2 border-t border-blue-200/60">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                          <span className="font-bold text-emerald-950">{CivicsProgressTracker.calculateMasteryMetrics().knownCount}</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Mastered' : 'Dominadas'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                          <span className="font-bold text-amber-950">{CivicsProgressTracker.calculateMasteryMetrics().reviewCount + CivicsProgressTracker.calculateMasteryMetrics().unsureCount}</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'In Review' : 'En Revisión'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                          <span className="font-bold text-slate-800">{CivicsProgressTracker.calculateMasteryMetrics().unattemptedCount}</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Pending' : 'Sin Practicar'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Speaking & Language Performance */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50/60 p-4 rounded-2xl border border-emerald-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                          <Volume2 className="w-4 h-4 text-emerald-600" />
+                          {selectedLang === 'EN' ? 'English Fluency' : 'Fluidez e Inglés'}
+                        </span>
+                        <span className="text-xs font-black bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                          {scores?.confidence || 85}%
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black text-emerald-950 mb-1">
+                        {learnedWordsCount || learnedWords?.length || 0} <span className="text-xs font-bold text-neutral-500">{selectedLang === 'EN' ? 'Words' : 'Palabras'}</span>
+                      </div>
+                      <div className="space-y-1 text-xs font-medium text-neutral-700 mt-2 pt-2 border-t border-emerald-200/60">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-emerald-950">{grammarScore || 90}%</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Grammar Score' : 'Gramática'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-emerald-950">{pronunciationScore || 88}%</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-emerald-950">{scores?.naturalness || 85}%</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Naturalness' : 'Naturalidad'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Study Plan Days & Mock Exams */}
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50/60 p-4 rounded-2xl border border-purple-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-purple-600" />
+                          {selectedLang === 'EN' ? '6-Day Study Sessions' : 'Plan de 6 Días'}
+                        </span>
+                        <span className="text-xs font-black bg-purple-600 text-white px-2 py-0.5 rounded-full">
+                          {CivicsProgressTracker.getOverallStats().completedDaysCount} / 6
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black text-purple-950 mb-1">
+                        {CivicsProgressTracker.getOverallStats().completedDaysCount} <span className="text-xs font-bold text-neutral-500">{selectedLang === 'EN' ? 'Days Done' : 'Días Completados'}</span>
+                      </div>
+                      <div className="space-y-1 text-xs font-medium text-neutral-700 mt-2 pt-2 border-t border-purple-200/60">
+                        <div className="flex items-center gap-1.5">
+                          <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span className="font-bold text-purple-950">{user.completedDays?.length || 1} {selectedLang === 'EN' ? 'Day Streak' : 'Días en Racha'}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span className="font-bold text-purple-950">{civicsData.achievements?.length || 1}</span>
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Badges Earned' : 'Insignias Ganadas'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Saved Conversations & Audio Transcripts */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-4 rounded-2xl border border-amber-200/80 shadow-2xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                          <MessageSquare className="w-4 h-4 text-amber-600" />
+                          {selectedLang === 'EN' ? 'Saved Study Material' : 'Diálogos Guardados'}
+                        </span>
+                        <span className="text-xs font-black bg-amber-600 text-white px-2 py-0.5 rounded-full">
+                          🔖 {savedChatsCount}
+                        </span>
+                      </div>
+                      <div className="text-2xl font-black text-amber-950 mb-1">
+                        {savedChatsCount} <span className="text-xs font-bold text-neutral-500">{selectedLang === 'EN' ? 'Saved Chats' : 'Sesiones Guardadas'}</span>
+                      </div>
+                      <div className="space-y-1 text-xs font-medium text-neutral-700 mt-2 pt-2 border-t border-amber-200/60">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-amber-950">✓ Firestore Sync</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-neutral-600">{selectedLang === 'EN' ? 'Audio transcripts stored automatically' : 'Transcripciones guardadas automáticamente'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -921,102 +1399,129 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
             )}
             </div>
 
-          {activeSubTab === 'lessons' && (
-            <div className="animate-fade-in space-y-3 py-1">
-              {/* Header section with balanced typography & high contrast */}
-              <div className="flex items-center justify-between pb-0.5">
-                <h4 className="text-sm sm:text-base font-black uppercase tracking-wider text-black flex items-center gap-1.5">
-                  <Compass className="w-5 h-5 text-red-600 stroke-[2.5]" />
-                  <span>{selectedLang === 'EN' ? 'Lessons' : 'Lecciones'}</span>
-                </h4>
-                <span className="text-[11px] sm:text-xs font-mono font-black bg-neutral-900 text-white px-2.5 py-0.5 rounded-full uppercase tracking-tight shadow-xs">
-                  {user.completedDays.length} / {IMMERSION_CURRICULUM.length} {selectedLang === 'EN' ? 'Completed' : 'Completados'}
-                </span>
-              </div>
-
-              {/* Cards list with scaled fonts, padding, and readable black text */}
-              <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-1">
-                {IMMERSION_CURRICULUM.map((day) => {
-                  const isCompleted = user.completedDays.includes(day.dayNum);
-                  const isLocked = (user.plan || 'FREE') === 'FREE' && day.dayNum > 1;
-
-                  return (
-                    <div 
-                      key={day.dayNum}
-                      className={`p-3 sm:p-3.5 rounded-xl border-[1.5px] transition-all ${
-                        isLocked
-                          ? 'bg-neutral-100/90 border-neutral-300'
-                          : isCompleted 
-                            ? 'bg-emerald-50/70 border-emerald-500/60 shadow-xs' 
-                            : 'bg-white border-black/20 hover:border-black shadow-xs'
+          {activeSubTab === 'lessons' && (() => {
+            const activeCurriculum = curriculumTrack === 'ciudadania' ? CIUDADANIA_CURRICULUM : IMMERSION_CURRICULUM;
+            return (
+              <div className="animate-fade-in space-y-3 py-1">
+                {/* Track Switcher Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-neutral-200">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCurriculumTrack('ciudadania')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 ${
+                        curriculumTrack === 'ciudadania'
+                          ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                          : 'bg-white text-neutral-800 border-neutral-300 hover:border-black'
                       }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <div className="flex items-start gap-2.5">
-                          {isLocked ? (
-                            <div className="mt-0.5 text-black select-none flex-shrink-0">
-                              <Lock className="w-5 h-5 stroke-[2.5]" />
+                      <BookOpen className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>{selectedLang === 'EN' ? 'USCIS Ciudadanía 128' : 'Cívica y Ciudadanía 128'}</span>
+                    </button>
+                    <button
+                      onClick={() => setCurriculumTrack('immersion')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border flex items-center gap-1.5 ${
+                        curriculumTrack === 'immersion'
+                          ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                          : 'bg-white text-neutral-800 border-neutral-300 hover:border-black'
+                      }`}
+                    >
+                      <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>{selectedLang === 'EN' ? 'English Immersion' : 'Inglés de Inmersión'}</span>
+                    </button>
+                  </div>
+                  <span className="text-[11px] sm:text-xs font-mono font-black bg-neutral-900 text-white px-2.5 py-0.5 rounded-full uppercase tracking-tight shadow-xs">
+                    {user.completedDays.length} / {activeCurriculum.length} {selectedLang === 'EN' ? 'Completed' : 'Completados'}
+                  </span>
+                </div>
+
+                {/* Cards list with scaled fonts, padding, and readable black text */}
+                <div className="space-y-2.5 max-h-[400px] overflow-y-auto pr-1">
+                  {activeCurriculum.map((day) => {
+                    const isCompleted = user.completedDays.includes(day.dayNum);
+                    const isLocked = (user.plan || 'FREE') === 'FREE' && day.dayNum > 1;
+
+                    return (
+                      <div 
+                        key={day.dayNum}
+                        className={`p-3 sm:p-3.5 rounded-xl border-[1.5px] transition-all ${
+                          isLocked
+                            ? 'bg-neutral-100/90 border-neutral-300'
+                            : isCompleted 
+                              ? 'bg-emerald-50/70 border-emerald-500/60 shadow-xs' 
+                              : 'bg-white border-black/20 hover:border-black shadow-xs'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-start gap-2.5">
+                            {isLocked ? (
+                              <div className="mt-0.5 text-black select-none flex-shrink-0">
+                                <Lock className="w-5 h-5 stroke-[2.5]" />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => toggleDayCompleted(day.dayNum)}
+                                className="mt-0.5 bg-transparent border-none p-0 cursor-pointer text-black hover:text-emerald-700 flex items-center flex-shrink-0"
+                                title={selectedLang === 'EN' ? 'Toggle completed status' : 'Marcar estado de completado'}
+                              >
+                                {isCompleted ? (
+                                  <CheckCircle2 className="w-5.5 h-5.5 text-emerald-600 fill-emerald-100 stroke-[2.5]" />
+                                ) : (
+                                  <Circle className="w-5.5 h-5.5 text-black stroke-[2]" />
+                                )}
+                              </button>
+                            )}
+                            <div className="space-y-0.5">
+                              <h5 className="text-xs sm:text-sm font-extrabold leading-snug text-black flex items-center flex-wrap gap-1.5">
+                                <span>{curriculumTrack === 'ciudadania' ? `Módulo ${day.dayNum}` : `Day ${day.dayNum}`}: {selectedLang === 'EN' ? day.title : day.titleEs}</span>
+                                {isLocked && (
+                                  <span className="text-[10px] bg-red-600 text-white font-black uppercase px-1.5 py-0.5 rounded shadow-xs select-none">
+                                    PRO
+                                  </span>
+                                )}
+                              </h5>
+                              <p className="text-[11px] sm:text-xs text-black font-medium leading-relaxed">
+                                {selectedLang === 'EN' ? day.objectives[0] : day.objectivesEs[0]}
+                              </p>
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => toggleDayCompleted(day.dayNum)}
-                              className="mt-0.5 bg-transparent border-none p-0 cursor-pointer text-black hover:text-emerald-700 flex items-center flex-shrink-0"
-                              title={selectedLang === 'EN' ? 'Toggle completed status' : 'Marcar estado de completado'}
-                            >
-                              {isCompleted ? (
-                                <CheckCircle2 className="w-5.5 h-5.5 text-emerald-600 fill-emerald-100 stroke-[2.5]" />
-                              ) : (
-                                <Circle className="w-5.5 h-5.5 text-black stroke-[2]" />
-                              )}
-                            </button>
-                          )}
-                          <div className="space-y-0.5">
-                            <h5 className="text-xs sm:text-sm font-extrabold leading-snug text-black flex items-center flex-wrap gap-1.5">
-                              <span>Day {day.dayNum}: {selectedLang === 'EN' ? day.title : day.titleEs}</span>
-                              {isLocked && (
-                                <span className="text-[10px] bg-red-600 text-white font-black uppercase px-1.5 py-0.5 rounded shadow-xs select-none">
-                                  PRO
-                                </span>
-                              )}
-                            </h5>
-                            <p className="text-[11px] sm:text-xs text-black font-medium leading-relaxed">
-                              {selectedLang === 'EN' ? day.objectives[0] : day.objectivesEs[0]}
-                            </p>
+                          </div>
+
+                          <div className="flex-shrink-0 self-end sm:self-center pt-0.5 sm:pt-0">
+                            {isLocked ? (
+                              <button
+                                onClick={() => alert(selectedLang === 'EN' 
+                                  ? 'This lesson requires a PRO account. Change your account to PRO above to unlock all lessons!'
+                                  : 'Esta lección requiere una cuenta PRO. ¡Cambia tu cuenta a PRO arriba para desbloquear todas las lecciones!'
+                                )}
+                                className="px-2.5 py-1 bg-neutral-200 hover:bg-neutral-300 text-black border border-black/20 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Lock className="w-3.5 h-3.5 text-black stroke-[2.5]" />
+                                <span>{selectedLang === 'EN' ? 'Locked' : 'Bloqueado'}</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => onAskVoyager(selectedLang === 'EN' 
+                                  ? (curriculumTrack === 'ciudadania' 
+                                    ? `Let's practice the USCIS Ciudadanía 128 Module ${day.dayNum}: ${day.title}. What is the first question?` 
+                                    : `Let's practice the Day ${day.dayNum} topic: ${day.title}. What is the first mission?`)
+                                  : (curriculumTrack === 'ciudadania'
+                                    ? `¡Practiquemos el tema de Ciudadanía y Cívica 128 para el Módulo ${day.dayNum}: ${day.titleEs}! ¿Cuál es la primera pregunta oficial?`
+                                    : `¡Practiquemos el tema del Día ${day.dayNum}: ${day.titleEs}! ¿Cuál es la primera misión?`)
+                                )}
+                                className="px-3 py-1.5 bg-black hover:bg-neutral-800 text-white rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 cursor-pointer shadow-xs border-none"
+                              >
+                                <span>{selectedLang === 'EN' ? 'Start' : 'Iniciar'}</span>
+                                <ChevronRight className="w-3.5 h-3.5 text-white stroke-[3]" />
+                              </button>
+                            )}
                           </div>
                         </div>
-
-                        <div className="flex-shrink-0 self-end sm:self-center pt-0.5 sm:pt-0">
-                          {isLocked ? (
-                            <button
-                              onClick={() => alert(selectedLang === 'EN' 
-                                ? 'This lesson requires a PRO account. Change your account to PRO above to unlock all lessons!'
-                                : 'Esta lección requiere una cuenta PRO. ¡Cambia tu cuenta a PRO arriba para desbloquear todas las lecciones!'
-                              )}
-                              className="px-2.5 py-1 bg-neutral-200 hover:bg-neutral-300 text-black border border-black/20 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 cursor-pointer"
-                            >
-                              <Lock className="w-3.5 h-3.5 text-black stroke-[2.5]" />
-                              <span>{selectedLang === 'EN' ? 'Locked' : 'Bloqueado'}</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => onAskVoyager(selectedLang === 'EN' 
-                                ? `Let's practice the Day ${day.dayNum} topic: ${day.title}. What is the first mission?`
-                                : `¡Practiquemos el tema del Día ${day.dayNum}: ${day.titleEs}! ¿Cuál es la primera misión?`
-                              )}
-                              className="px-3 py-1.5 bg-black hover:bg-neutral-800 text-white rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 cursor-pointer shadow-xs border-none"
-                            >
-                              <span>{selectedLang === 'EN' ? 'Start' : 'Iniciar'}</span>
-                              <ChevronRight className="w-3.5 h-3.5 text-white stroke-[3]" />
-                            </button>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Achievements Sub-tab Render */}
           {activeSubTab === 'achievements' && (
@@ -1035,153 +1540,10 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
               onAskVoyager={onAskVoyager}
             />
           )}
-
-          {/* Streaks Sub-tab Render */}
-          {activeSubTab === 'streak' && (
-            <div className="animate-fade-in">
-              <DailyStreakTracker
-                selectedLang={selectedLang}
-                initialStreak={user?.completedDays?.length ? Math.max(7, user.completedDays.length) : 7}
-                completedDays={user?.completedDays || [1, 2, 3, 4, 5, 6, 7]}
-                onAskVoyager={onAskVoyager}
-              />
-            </div>
-          )}
         </div>
       </div>
 
-        {/* Separate Chat messages sibling list */}
-        {(() => {
-          const profileMessages = chatMessages.filter(msg => msg.tab === 'roadmap');
-          const messagesToRender = profileMessages.length > 0 ? profileMessages : [
-            {
-              id: 'profile_welcome',
-              sender: 'splash' as const,
-              text: selectedLang === 'EN'
-                ? "Welcome to your Profile space. Here you can edit your fluency goals, view your Google account authentication details, monitor your grammar and pronunciation scores, track your daily learning curriculum roadmap, and check your master instructor session logs."
-                : "Bienvenido a tu sección de Perfil. Aquí puedes configurar tus metas de fluidez, revisar tu cuenta de Google, monitorear tus puntajes de gramática y pronunciación, seguir tu currículo diario de aprendizaje y ver el registro de tus clases particulares.",
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              timeMs: Date.now(),
-              tab: 'roadmap'
-            }
-          ];
-          return messagesToRender.filter(msg => {
-            if (msg.sender === 'system') return false;
-            if (msg.sender === 'user' && msg.text.startsWith('[')) return false;
-            return true;
-          }).map((msg, index) => {
-            const isUser = msg.sender === 'user';
-            let displayTxt = msg.text || '';
-            
-            // Clean system tags from user profile / roadmap questions
-            if (displayTxt.includes('INSTRUCCIÓN DE SISTEMA:')) {
-              const match = displayTxt.match(/Pregunta del usuario:\s*"(.*)"/i) || displayTxt.match(/Pregunta:\s*"(.*)"/i) || displayTxt.match(/Question:\s*"(.*)"/i);
-              if (match && match[1]) {
-                displayTxt = match[1];
-              } else {
-                displayTxt = displayTxt
-                  .replace(/\[INSTRUCCIÓN DE SISTEMA:[^]*?Pregunta del usuario:\s*"/i, '')
-                  .replace(/\[INSTRUCCIÓN DE SISTEMA:[^]*?Pregunta:\s*"/i, '')
-                  .replace(/"\]$/, '');
-              }
-            } else if (displayTxt.includes('INSTRUCCIÓN DE SISTEMA CRÍTICA Y MANDATORIA:')) {
-              const match = displayTxt.match(/Pregunta del usuario:\s*"(.*)"/i) || displayTxt.match(/Pregunta:\s*"(.*)"/i) || displayTxt.match(/Question:\s*"(.*)"/i);
-              if (match && match[1]) {
-                displayTxt = match[1];
-              }
-            }
 
-            return (
-              <div 
-                key={msg.id || index}
-                className={`w-full flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}
-              >
-                <div className={`max-w-[88%] flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                  <div className={`
-                    px-4 py-2.5 rounded-full text-sm leading-snug transition-all bg-white border-[5px]
-                    ${isUser 
-                      ? 'border-blue-600/30 text-black' 
-                      : 'border-[#FFD700] text-black font-serif'
-                    }
-                  `}>
-                    {isUser ? (
-                      <div className="flex items-center justify-end gap-2.5 mb-1.5 select-none">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!isConnected) return;
-                            if (isPaused) {
-                              resume();
-                              if (window.speechSynthesis && window.speechSynthesis.paused) {
-                                window.speechSynthesis.resume();
-                              }
-                            } else {
-                              pause();
-                              if (window.speechSynthesis && window.speechSynthesis.speaking) {
-                                window.speechSynthesis.pause();
-                              }
-                            }
-                          }}
-                          disabled={!isConnected}
-                          className={`flex items-center gap-1 group cursor-pointer transition-all duration-300 ${
-                            !isConnected ? 'opacity-30 cursor-not-allowed' : 'hover:scale-105 active:scale-95'
-                          }`}
-                        >
-                          {!isPaused && (
-                            <span 
-                              style={{ fontFamily: "'Lato', sans-serif" }} 
-                              className="text-[9px] font-black tracking-wider transition-all duration-300 text-blue-600/70 group-hover:text-red-600"
-                            >
-                              {selectedLang === 'EN' ? 'PAUSE' : 'PAUSA'}
-                            </span>
-                          )}
-                          {isPaused ? (
-                            <Play fill="currentColor" stroke="none" className="w-3.5 h-3.5 text-red-600 transition-all animate-pulse" />
-                          ) : (
-                            <Pause fill="currentColor" stroke="none" className="w-3.5 h-3.5 text-blue-600/70 group-hover:text-red-600 transition-all duration-300" />
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 mb-2 select-none">
-                        <Bot strokeWidth={2.5} className="w-5 h-5 text-red-600" />
-                      </div>
-                    )}
-                    <div className={`chat-message-text whitespace-pre-line tracking-wider leading-snug ${isUser ? 'text-right font-normal' : 'text-left'}`}>
-                      {(() => {
-                        if (!isUser && displayTxt.includes(" / ")) {
-                          const parts = displayTxt.split(" / ");
-                          if (parts.length >= 2) {
-                            return (
-                              <>
-                                <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(parts[0])}</div>
-                                <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="chat-message-english text-black font-semibold leading-snug mt-2">
-                                  {parseAndRenderEmojis(parts.slice(1).join(" / "))}
-                                </div>
-                              </>
-                            );
-                          }
-                        }
-                        return <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(displayTxt)}</div>;
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          });
-        })()}
-        <div className="flex justify-end w-full animate-fade-in my-1">
-          <ChatInputBox
-            selectedLang={selectedLang}
-            isConnected={isConnected}
-            isPaused={isPaused}
-            pause={pause}
-            resume={resume}
-            onSubmitText={onAskVoyager}
-          />
-        </div>
-        <div ref={chatEndRef} />
       </div>
 
       {/* Hidden File Input for Avatar Upload */}

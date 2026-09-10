@@ -130,7 +130,9 @@ async function startServer() {
   wss.on("connection", async (clientWs, request) => {
     const reqUrl = new URL(request?.url || "", "http://localhost");
     const lang = reqUrl.searchParams.get("lang") || "EN";
-    logToFile(`Client connected to server WebSocket wrapper. Selected Language Toggle: ${lang}`);
+    const userName = reqUrl.searchParams.get("userName") || "";
+    const userEmail = reqUrl.searchParams.get("userEmail") || "";
+    logToFile(`Client connected to server WebSocket wrapper. Language: ${lang}, User: ${userName || 'None'} (${userEmail || 'None'})`);
     
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
@@ -166,6 +168,10 @@ async function startServer() {
         ? "\n\nLANGUAGE CONFIGURATION: The user's preferred language is Spanish (ES). You must speak strictly in Spanish as your default, main conversational language. Do NOT translate your own Spanish conversational dialogue, responses, or sentences into English. Keep the dialogue entirely in Spanish. Only use English when correcting the user's grammar, teaching specific English vocabulary words (e.g. day lessons), or when the user explicitly asks for a translation. CRITICAL: Do NOT output [SCORES: ...], [LEARNED_WORDS: ...], [ACCENT: ...], or [MISSION_COMPLETE: ...] tags in your initial greeting or welcome response. Only output these tags on subsequent conversational turns after the user has spoken and you are evaluating their input. IMPORTANT: Whenever the conversation language switches (e.g. from Spanish to English), you MUST output the exact tag '[SWITCH_LANG: EN]' in your text transcription. If you switch from English to Spanish, you MUST output '[SWITCH_LANG: ES]'. Do not say these tags out loud, just output them in your text transcription at the start of your turn."
         : "\n\nLANGUAGE CONFIGURATION: The user's preferred language is English (EN). You should default to speaking and responding in English. However, if you hear people speaking Spanish, ask them if they prefer to switch to Spanish. If they confirm or prefer it, you are authorized to change your language and continue the conversation in Spanish. IMPORTANT: Whenever the conversation language switches (e.g. from English to Spanish), you MUST output the exact tag '[SWITCH_LANG: ES]' in your text transcription. If you switch from Spanish to English, you MUST output '[SWITCH_LANG: EN]'. Do not say these tags out loud, just output them in your text transcription at the start of your turn.";
 
+      const userIdentityInstruction = (userName || userEmail)
+        ? `\n\nCRITICAL USER IDENTITY & PROFILE: The user is ALREADY LOGGED IN with Google/USA Voyager account as "${userName || userEmail}"${userEmail ? ` (${userEmail})` : ''}. YOU ALREADY KNOW THEIR NAME (${userName || userEmail}). YOU MUST NEVER ASK "What is your name?", "Who am I speaking with?", or ask for their identity. Greet them warmly by their name "${userName || userEmail}".`
+        : ``;
+
       const newSession = await ai.live.connect({
         model: modelName,
         config: {
@@ -173,7 +179,7 @@ async function startServer() {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } },
           },
-          systemInstruction: SYSTEM_INSTRUCTION + languageInstruction,
+          systemInstruction: SYSTEM_INSTRUCTION + languageInstruction + userIdentityInstruction,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           tools: [
@@ -540,13 +546,22 @@ async function startServer() {
             }
             logToFile(`Gemini Live API connection closed callback for model ${modelName}. Code: ${code}, Reason: ${reason}`);
             
+            const reasonLower = (reason || "").toLowerCase();
             const isGoAwayOrTimeout = code === 1008 || 
-              reason.includes("GoAway") || 
-              reason.includes("aborted") || 
-              reason.includes("session duration") || 
-              reason.includes("normal") || 
+              reasonLower.includes("goaway") || 
+              reasonLower.includes("aborted") || 
+              reasonLower.includes("session duration") || 
+              reasonLower.includes("normal") || 
               code === 1000 || 
               code === 1001;
+
+            const isTransientError = reasonLower.includes("unavailable") ||
+              reasonLower.includes("503") ||
+              reasonLower.includes("overloaded") ||
+              reasonLower.includes("resource_exhausted") ||
+              reasonLower.includes("connection reset") ||
+              code === 1006 ||
+              code === 1011;
 
             try {
               if (session) {
@@ -556,26 +571,42 @@ async function startServer() {
             } catch (e) {}
 
             const elapsed = Date.now() - connectedTime;
-            if (elapsed < 2500 && modelName === "gemini-3.1-flash-live-preview" && !isTransitioning && !isGoAwayOrTimeout) {
+            if (elapsed < 2500 && modelName === "gemini-3.1-flash-live-preview" && !isTransitioning && !isGoAwayOrTimeout && !isTransientError) {
               logToFile(`Connection closed quickly (${elapsed}ms). Initiating fallback sequence...`);
               triggerFallback();
             } else if (!isTransitioning) {
-              if (isGoAwayOrTimeout && clientWs.readyState === WebSocket.OPEN) {
-                logToFile(`Gemini Live session reached duration limit/GoAway (code: ${code}). Automatically re-establishing session...`);
+              if ((isGoAwayOrTimeout || isTransientError) && clientWs.readyState === WebSocket.OPEN) {
+                logToFile(`Gemini Live session interrupted (${reason || code}). Automatically re-establishing session...`);
                 isTransitioning = true;
-                connectSession(currentModel).then(newSess => {
-                  session = newSess;
+                
+                (async () => {
+                  const modelsToTry = [currentModel];
+                  if (currentModel !== "gemini-2.0-flash-exp") {
+                    modelsToTry.push("gemini-2.0-flash-exp");
+                  }
+
+                  let reconnectedSess: any = null;
+                  for (const m of modelsToTry) {
+                    try {
+                      logToFile(`Attempting seamless reconnect using model ${m}...`);
+                      reconnectedSess = await connectSession(m);
+                      currentModel = m;
+                      break;
+                    } catch (err: any) {
+                      logToFile(`Seamless reconnect attempt for ${m} failed: ${err.message || err}`);
+                    }
+                  }
+
                   isTransitioning = false;
-                  logToFile(`Successfully re-established Gemini Live API session seamlessly.`);
-                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
-                }).catch(err => {
-                  isTransitioning = false;
-                  logToFile(`Auto-reconnect after GoAway failed: ${err.message || err}`);
-                  if (clientWs.readyState === WebSocket.OPEN) {
-                    clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
+                  if (reconnectedSess && clientWs.readyState === WebSocket.OPEN) {
+                    session = reconnectedSess;
+                    logToFile(`Successfully re-established Gemini Live API session seamlessly (model: ${currentModel}).`);
+                    clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                  } else if (clientWs.readyState === WebSocket.OPEN) {
+                    clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz se interrumpió temporalmente." }));
                     setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
                   }
-                });
+                })();
                 return;
               }
 
@@ -617,25 +648,43 @@ async function startServer() {
             }
             logToFile(`Gemini Live API onerror callback for model ${modelName}: ${errStr}`);
             
-            const isGoAwayOrAborted = errStr.includes("GoAway") || errStr.includes("aborted") || errStr.includes("session duration") || errStr.includes("1008");
-            if (isGoAwayOrAborted) {
-              logToFile(`Gemini Live API error handled for GoAway/session duration limit: ${errStr}`);
-              if (clientWs.readyState === WebSocket.OPEN && !isTransitioning) {
-                isTransitioning = true;
-                logToFile(`Auto-reconnecting session following GoAway onerror signal...`);
-                connectSession(currentModel).then(newSess => {
-                  session = newSess;
-                  isTransitioning = false;
-                  logToFile(`Successfully re-established Gemini Live API session after GoAway onerror.`);
-                }).catch(reconnErr => {
-                  isTransitioning = false;
-                  logToFile(`Auto-reconnect after GoAway error failed: ${reconnErr.message || reconnErr}`);
-                  if (clientWs.readyState === WebSocket.OPEN) {
-                    clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
-                    setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+            const errLower = errStr.toLowerCase();
+            const isTransient = errLower.includes("goaway") || 
+              errLower.includes("aborted") || 
+              errLower.includes("session duration") || 
+              errLower.includes("unavailable") || 
+              errLower.includes("503") || 
+              errLower.includes("1008") || 
+              errLower.includes("1006");
+
+            if (isTransient && clientWs.readyState === WebSocket.OPEN && !isTransitioning) {
+              logToFile(`Gemini Live API onerror handled for transient event: ${errStr}. Auto-reconnecting...`);
+              isTransitioning = true;
+              (async () => {
+                const modelsToTry = [currentModel];
+                if (currentModel !== "gemini-2.0-flash-exp") {
+                  modelsToTry.push("gemini-2.0-flash-exp");
+                }
+                let reconnectedSess: any = null;
+                for (const m of modelsToTry) {
+                  try {
+                    reconnectedSess = await connectSession(m);
+                    currentModel = m;
+                    break;
+                  } catch (reconnErr: any) {
+                    logToFile(`Auto-reconnect after onerror failed for ${m}: ${reconnErr.message || reconnErr}`);
                   }
-                });
-              }
+                }
+                isTransitioning = false;
+                if (reconnectedSess && clientWs.readyState === WebSocket.OPEN) {
+                  session = reconnectedSess;
+                  logToFile(`Successfully re-established Gemini Live API session after onerror.`);
+                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                } else if (clientWs.readyState === WebSocket.OPEN) {
+                  clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
+                  setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+                }
+              })();
               return;
             }
 

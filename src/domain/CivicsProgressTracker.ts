@@ -1,5 +1,6 @@
 import { db, auth } from '../services/firebaseAuth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { withTimeout } from '../services/userProfileService';
 import { ALL_CIVICS_128_QUESTIONS, CivicsQuestion } from '../data/civics128Data';
 
 export type QuestionMasteryStatus = 'known' | 'unsure' | 'review';
@@ -92,7 +93,7 @@ class CivicsProgressTrackerManager {
   private async syncFromFirestore(uid: string) {
     try {
       const docRef = doc(db, 'users', uid, 'civicsProgress', 'tracker');
-      const docSnap = await getDoc(docRef);
+      const docSnap = await withTimeout(getDoc(docRef), 3000);
       if (docSnap.exists()) {
         const remoteData = docSnap.data() as CivicsProgressData;
         // Merge remote data taking most recently updated statuses
@@ -132,7 +133,7 @@ class CivicsProgressTrackerManager {
     if (!this.userUid) return;
     try {
       const docRef = doc(db, 'users', this.userUid, 'civicsProgress', 'tracker');
-      await setDoc(docRef, this.data, { merge: true });
+      await withTimeout(setDoc(docRef, this.data, { merge: true }), 3000);
     } catch (e) {
       console.warn('Error pushing civics progress to Firestore:', e);
     }
@@ -253,6 +254,18 @@ class CivicsProgressTrackerManager {
 
   public getQuestionsByStatus(status: QuestionMasteryStatus): CivicsQuestion[] {
     return ALL_CIVICS_128_QUESTIONS.filter(q => this.data.questionStatus[q.id] === status);
+  }
+
+  public calculateMasteryMetrics() {
+    const stats = this.getOverallStats();
+    return {
+      knownCount: stats.known,
+      unsureCount: stats.unsure,
+      reviewCount: stats.review,
+      unattemptedCount: stats.unattempted,
+      totalCount: stats.total,
+      masteryPercentage: Math.round((stats.known / stats.total) * 100)
+    };
   }
 
   public getOverallStats() {

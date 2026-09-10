@@ -3,6 +3,7 @@
   "appId": "1:394492155492:web:1a6ddd82be5449f86e7171",
   "apiKey": "AIzaSyBplCHT7vRFUH3yqZHSPtTncdk4piiCXE8",
   "authDomain": "gen-lang-client-0369165455.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-voyagervoiceagen-69901a8c-3a3c-4b6a-9ddc-8e4c40cca951",
   "storageBucket": "gen-lang-client-0369165455.firebasestorage.app",
   "messagingSenderId": "394492155492",
   "measurementId": "",

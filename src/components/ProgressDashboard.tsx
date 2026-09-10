@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Award, BookOpen, Star, RefreshCw, BarChart2, AlertCircle, Mail, MapPin, Target, Edit3, UserCheck, Bookmark, Trash2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { auth } from '../services/firebaseAuth';
+import { saveSavedChatsToFirestore } from '../services/userProfileService';
 
 interface SavedChatSession {
   id: string;
@@ -46,7 +48,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   const savedAccount = React.useMemo(() => {
     if (userProfile?.name || userProfile?.email) {
       return {
-        name: userProfile.name || (selectedLang === 'EN' ? 'Learner' : 'Estudiante'),
+        name: userProfile.name || 'Federico Sandoval',
         email: userProfile.email || 'learner@usavoyager.com',
         age: userProfile.age || '',
         country: userProfile.country || (selectedLang === 'EN' ? 'Not specified' : 'No especificado'),
@@ -59,7 +61,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       try {
         const parsed = JSON.parse(saved);
         return {
-          name: parsed.name || (selectedLang === 'EN' ? 'Learner' : 'Estudiante'),
+          name: parsed.name || 'Federico Sandoval',
           email: parsed.email || 'learner@usavoyager.com',
           age: parsed.age || '',
           country: parsed.country || (selectedLang === 'EN' ? 'Not specified' : 'No especificado'),
@@ -69,7 +71,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       } catch (e) {}
     }
     return {
-      name: selectedLang === 'EN' ? 'Learner' : 'Estudiante',
+      name: 'Federico Sandoval',
       email: 'learner@usavoyager.com',
       age: '',
       country: selectedLang === 'EN' ? 'Not specified' : 'No especificado',
@@ -104,6 +106,10 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
     setSavedChats(updated);
     try {
       localStorage.setItem('voyager_saved_chats', JSON.stringify(updated));
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        saveSavedChatsToFirestore(uid, updated);
+      }
     } catch (e) {}
   };
 

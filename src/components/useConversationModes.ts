@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { ConversationMode } from './ConversationModes';
 import { ConversationEvent } from './LiveAgentTypes';
 
-export function useConversationModes(initialMode: ConversationMode = 'BILINGUAL') {
+export function useConversationModes(initialMode: ConversationMode = 'ADAPTIVE') {
   const [activeMode, setActiveModeState] = useState<ConversationMode>(initialMode);
   const [isTransitionLocked, setIsTransitionLocked] = useState(false);
   const modeLockTimeoutRef = useRef<NodeJS.Timeout | null>(null);

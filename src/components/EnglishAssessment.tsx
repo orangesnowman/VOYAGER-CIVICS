@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Award, Target, Sparkles, CheckCircle2, ChevronRight, RotateCw, BarChart2, TrendingUp, X, Volume2, BookOpen, MessageSquare, Check, Play, Pause, Zap, ArrowRight, ShieldCheck } from 'lucide-react';
+import { saveUserProfile } from '../services/userProfileService';
+import { auth } from '../services/firebaseAuth';
 
 export type AssessmentStage = 1 | 2 | 3 | 4 | 5;
 
@@ -202,20 +204,17 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
       timestamp: new Date().toISOString()
     };
 
-    // Save to localStorage
+    // Save to localStorage & Firestore
     try {
       localStorage.setItem('voyager_level_assessment', JSON.stringify(assessmentResult));
 
-      const savedAccount = localStorage.getItem('voyager_user_account');
-      if (savedAccount) {
-        const parsed = JSON.parse(savedAccount);
-        parsed.levelEstimate = mappedLevel;
-        parsed.assessmentCefr = determinedLevel;
-        parsed.assessmentDate = new Date().toISOString();
-        localStorage.setItem('voyager_user_account', JSON.stringify(parsed));
-      }
+      saveUserProfile(auth.currentUser?.uid || '', {
+        levelEstimate: mappedLevel,
+        assessmentCefr: determinedLevel,
+        assessmentDate: new Date().toISOString()
+      });
     } catch (e) {
-      console.warn('Failed to save assessment to localStorage:', e);
+      console.warn('Failed to save assessment profile:', e);
     }
 
     if (onApplyLevelToProfile) {

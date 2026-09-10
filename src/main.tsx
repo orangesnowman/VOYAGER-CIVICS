@@ -33,7 +33,10 @@ if (typeof window !== 'undefined') {
         msg.includes('Audio capture failed to start') ||
         msg.includes('Permission denied') ||
         msg.includes('NotAllowedError') ||
-        msg.includes('PermissionDeniedError')
+        msg.includes('PermissionDeniedError') ||
+        msg.includes('client is offline') ||
+        msg.includes('Failed to get document') ||
+        msg.includes('offline')
       );
     }
     return false;

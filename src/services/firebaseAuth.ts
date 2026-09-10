@@ -2,12 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { syncOrMigrateUserOnAuth } from './userProfileService';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 const provider = new GoogleAuthProvider();
+provider.setCustomParameters({
+  prompt: 'select_account'
+});
 // Request Google Tasks scopes
 provider.addScope('https://www.googleapis.com/auth/tasks');
 provider.addScope('https://www.googleapis.com/auth/tasks.readonly');
@@ -24,6 +28,11 @@ export const initAuth = (
 ) => {
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
+      try {
+        await syncOrMigrateUserOnAuth(user);
+      } catch (err) {
+        console.warn('Profile sync note on auth state change:', err);
+      }
       if (cachedAccessToken) {
         if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
       } else if (!isSigningIn) {
@@ -48,6 +57,11 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
+    try {
+      await syncOrMigrateUserOnAuth(result.user);
+    } catch (err) {
+      console.error('Error syncing profile on Google sign-in:', err);
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
@@ -57,8 +71,21 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   }
 };
 
+export const ADMIN_CREDENTIALS = {
+  email: 'theorangesnowman@gmail.com',
+  password: 'Lucas26!',
+  name: 'Federico Sandoval (Admin)',
+  role: 'ADMIN',
+  id: 'ADMIN-VOYAGER-001'
+};
+
 export const getAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
+};
+
+export const verifyAdminCredentials = (emailInput: string, passwordInput: string): boolean => {
+  const normEmail = emailInput.trim().toLowerCase();
+  return (normEmail === ADMIN_CREDENTIALS.email || normEmail === 'theorangesnowman') && passwordInput === ADMIN_CREDENTIALS.password;
 };
 
 export const logout = async () => {

@@ -316,14 +316,16 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
           
           {/* Header & Navigation Row */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 select-none">
-              <span 
-                style={{ fontFamily: '"American Typewriter", "Courier New", Courier, serif' }} 
-                className="text-[42px] md:text-[52.5px] font-normal tracking-tight text-[#1a202c] !font-serif block leading-none"
-              >
-                {headerTitle}
-              </span>
-            </div>
+            {headerTitle && headerTitle !== 'La Tienda' && headerTitle !== 'Store' && (
+              <div className="flex items-center gap-3 select-none">
+                <span 
+                  style={{ fontFamily: '"American Typewriter", "Courier New", Courier, serif' }} 
+                  className="text-[36px] md:text-[44px] font-normal tracking-tight text-[#1a202c] !font-serif block leading-none"
+                >
+                  {headerTitle}
+                </span>
+              </div>
+            )}
 
             <div className="flex items-center gap-5 text-[11.2px] font-extrabold uppercase tracking-wider select-none mt-1">
               <button 

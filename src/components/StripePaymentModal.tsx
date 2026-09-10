@@ -157,7 +157,8 @@ export const StripePaymentModal: React.FC<StripePaymentModalProps> = ({
           customerEmail,
           customerName,
           optionType: itemType
-        })
+        }),
+        signal: AbortSignal.timeout(6000)
       });
 
       const intentData = await intentRes.json();
@@ -185,7 +186,8 @@ export const StripePaymentModal: React.FC<StripePaymentModalProps> = ({
           amount: item.priceAmount,
           description: item.description,
           itemTitle: item.title
-        })
+        }),
+        signal: AbortSignal.timeout(6000)
       });
 
       const confirmData = await confirmRes.json();

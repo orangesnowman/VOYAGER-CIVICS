@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 180" width="100%" height="100%">
+  <!-- Vintage Pointing Hand (Manicule) in Engraving / Woodcut Style -->
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer Contour of Hand and Sleeve -->
+    <path stroke-width="4.5" fill="#FAF6EE" d="
+      M 30,55 
+      L 90,50 
+      C 105,48 120,40 140,32
+      C 175,18 215,18 260,22
+      C 290,25 320,26 350,28
+      C 362,29 370,36 370,45
+      C 370,54 362,61 350,62
+      L 275,65
+      C 278,68 280,72 278,77
+      C 275,83 268,87 255,87
+      L 260,92
+      C 265,97 262,105 250,108
+      C 240,110 220,110 205,115
+      C 190,120 180,128 165,134
+      C 145,142 110,146 88,142
+      L 30,138
+      Z
+    "/>
+
+    <!-- Sleeve Cuff Lines -->
+    <path stroke-width="4" d="M 30,55 L 30,138" />
+    <path stroke-width="3" d="M 80,51 C 82,80 82,110 80,141" />
+    <path stroke-width="2" d="M 88,50 C 90,80 90,110 88,142" />
+    <!-- Cuff Buttons / Trim -->
+    <line x1="45" y1="95" x2="68" y2="95" stroke-width="3" />
+    <line x1="45" y1="102" x2="68" y2="102" stroke-width="3" />
+
+    <!-- Index Finger Lines -->
+    <path stroke-width="3.5" d="M 260,22 C 290,25 320,26 350,28 C 362,29 370,36 370,45 C 370,54 362,61 350,62 L 275,65" />
+    <!-- Fingernail & Joint Creases on Index Finger -->
+    <path stroke-width="2" d="M 335,32 C 345,33 355,37 355,45 C 355,52 345,56 335,57" />
+    <path stroke-width="2" d="M 290,28 C 291,38 290,48 288,58" />
+    <path stroke-width="2" d="M 240,24 C 242,38 241,52 238,62" />
+
+    <!-- Thumb folded over knuckles -->
+    <path stroke-width="3.5" d="
+      M 160,50
+      C 180,45 210,48 230,55
+      C 245,60 252,70 248,80
+      C 242,90 225,92 200,90
+      C 180,88 165,80 160,70
+    " />
+    <!-- Thumb joint crease & nail -->
+    <path stroke-width="2" d="M 215,58 C 220,68 218,78 212,85" />
+    <path stroke-width="2" d="M 232,62 C 240,65 242,72 238,78" />
+
+    <!-- Folded Middle Finger -->
+    <path stroke-width="3" d="M 275,65 C 282,75 278,85 255,87 L 200,90" />
+    <!-- Folded Ring Finger -->
+    <path stroke-width="3" d="M 255,87 C 262,95 258,105 245,108 L 195,108" />
+    <!-- Folded Pinky Finger -->
+    <path stroke-width="3" d="M 245,108 C 250,118 240,126 220,128 C 195,130 175,125 160,120" />
+
+    <!-- Engraving Shading / Hatching Lines -->
+    <!-- Sleeve shading -->
+    <path stroke-width="1.2" d="
+      M 35,60 L 75,57 M 35,66 L 75,63 M 35,72 L 75,69 M 35,78 L 75,75
+      M 35,84 L 75,81 M 35,90 L 75,87 M 35,110 L 75,107 M 35,116 L 75,113
+      M 35,122 L 75,119 M 35,128 L 75,125 M 35,134 L 75,131
+    " />
+
+    <!-- Wrist & Back of Hand Shading -->
+    <path stroke-width="1.2" opacity="0.8" d="
+      M 95,55 C 110,65 125,75 140,85
+      M 100,60 C 115,70 130,80 145,90
+      M 105,65 C 120,75 135,85 150,95
+      M 110,70 C 125,80 140,90 155,100
+      M 115,75 C 130,85 145,95 160,105
+      M 120,80 C 135,90 150,100 165,110
+      M 125,85 C 140,95 155,105 170,115
+      M 130,90 C 145,100 160,110 175,120
+      M 135,95 C 150,105 165,115 180,125
+      M 140,100 C 155,110 170,120 185,130
+    " />
+
+    <!-- Index Finger Contour Hatching -->
+    <path stroke-width="1.2" opacity="0.75" d="
+      M 200,28 L 202,38 M 210,28 L 212,38 M 220,27 L 222,37 M 230,26 L 232,36
+      M 250,28 L 251,40 M 260,28 L 261,40 M 270,29 L 271,41 M 280,29 L 281,41
+      M 300,31 L 301,45 M 310,31 L 311,45 M 320,32 L 321,46 M 330,32 L 331,46
+      M 340,33 L 341,47 M 350,34 L 350,48
+    " />
+
+    <!-- Lower Index Finger Shadow Hatching -->
+    <path stroke-width="1.2" opacity="0.75" d="
+      M 250,52 L 251,62 M 260,53 L 261,63 M 270,54 L 271,64 M 280,54 L 281,64
+      M 290,55 L 291,64 M 300,55 L 301,64 M 310,55 L 311,63 M 320,55 L 321,63
+      M 330,55 L 331,62 M 340,54 L 341,60
+    " />
+
+    <!-- Folded Fingers Shadow Lines -->
+    <path stroke-width="1.2" opacity="0.8" d="
+      M 210,95 L 235,98 M 210,100 L 238,103 M 210,105 L 235,107
+      M 200,114 L 225,116 M 200,118 L 225,120 M 200,122 L 222,123
+    " />
+  </g>
+</svg>

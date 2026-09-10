@@ -5,6 +5,8 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedLang: 'EN' | 'ES';
+  initialIsRegister?: boolean;
+  initialShowEmail?: boolean;
   onEmailAuthSubmit: (e: React.FormEvent, isRegister: boolean, name: string, email: string, pass: string) => void;
   onGoogleLogin: () => void;
   onGuestLogin: () => void;
@@ -14,23 +16,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   selectedLang,
+  initialIsRegister = false,
+  initialShowEmail = false,
   onEmailAuthSubmit,
   onGoogleLogin,
   onGuestLogin,
 }) => {
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(initialShowEmail);
+  const [isRegister, setIsRegister] = useState(initialIsRegister);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsRegister(initialIsRegister);
+      setShowEmailForm(initialShowEmail);
+    }
+  }, [isOpen, initialIsRegister, initialShowEmail]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const fullName = `${firstName} ${lastName}`.trim();
-    onEmailAuthSubmit(e, isRegister, fullName, email, password);
+    onEmailAuthSubmit(e, isRegister, fullName, username, password);
   };
 
   return (
@@ -52,8 +63,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           
           <p className="text-sm sm:text-base text-neutral-800 font-medium leading-snug mb-6">
             {selectedLang === 'EN' 
-              ? 'Use your Google account, your email address or enter as a guest.' 
-              : 'Utiliza tu cuenta de Google, tu correo electronico o entra como invitado.'}
+              ? 'Use your Google account, your username or enter as a guest.' 
+              : 'Utiliza tu cuenta de Google, tu nombre de usuario o entra como invitado.'}
           </p>
 
           <div className="flex items-center gap-4">
@@ -75,11 +86,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </svg>
             </button>
 
-            {/* Email */}
+            {/* Username Credentials */}
             <button 
               type="button"
               onClick={() => setShowEmailForm(!showEmailForm)}
-              title={selectedLang === 'EN' ? 'Sign in with Email' : 'Iniciar con Correo'}
+              title={selectedLang === 'EN' ? 'Sign in with Username' : 'Iniciar con Usuario'}
               className={`w-12 h-12 rounded-full border-[2.5px] ${showEmailForm ? 'border-[#1A365D] bg-neutral-100 ring-2 ring-[#1A365D]/20' : 'border-black bg-white'} hover:bg-neutral-50 flex items-center justify-center active:scale-95 transition-all cursor-pointer shadow-xs`}
             >
               <svg className="w-6 h-6 text-[#1A365D]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -165,14 +176,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
                 <div>
                   <label className="block text-[10px] font-extrabold text-neutral-700 uppercase tracking-wider mb-1">
-                    {selectedLang === 'EN' ? 'Email Address' : 'Correo Electrónico'}
+                    {selectedLang === 'EN' ? 'Email or Username' : 'Correo o Nombre de Usuario'}
                   </label>
                   <input 
-                    type="email" 
+                    type="text" 
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@example.com"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={selectedLang === 'EN' ? 'theorangesnowman@gmail.com' : 'theorangesnowman@gmail.com'}
                     className="w-full px-3 py-2 border-2 border-[#1A365D] rounded-full text-xs font-bold bg-white text-neutral-800 placeholder-neutral-400 focus:outline-none"
                   />
                 </div>
@@ -189,6 +200,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     placeholder="••••••••"
                     className="w-full px-3 py-2 border-2 border-[#1A365D] rounded-full text-xs font-bold bg-white text-neutral-800 placeholder-neutral-400 focus:outline-none"
                   />
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUsername('theorangesnowman@gmail.com');
+                      setPassword('Lucas26!');
+                      setIsRegister(false);
+                    }}
+                    className="text-[#1A365D] hover:underline font-extrabold text-[10px] uppercase tracking-wider cursor-pointer"
+                  >
+                    🔑 {selectedLang === 'EN' ? 'Autofill Admin (Federico Sandoval)' : 'Autocompletar Admin (Federico Sandoval)'}
+                  </button>
                 </div>
 
                 <button

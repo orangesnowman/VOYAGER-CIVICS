@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pause, Play, Mic, MicOff, User, ArrowRight, ArrowUp, Send, SendHorizontal, Square, Type, Headphones, AudioLines, Keyboard, ChevronDown, Delete, CornerDownLeft, RotateCw, Languages } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Pause, Play, Send, ChevronDown, Mic, MicOff, Zap, RotateCw, Languages, X } from 'lucide-react';
 
 interface ChatInputBoxProps {
   selectedLang: 'EN' | 'ES';
@@ -25,215 +25,20 @@ interface ChatInputBoxProps {
   isLiveVoiceActive?: boolean;
   onToggleLiveVoice?: () => void;
   isDarkMode?: boolean;
+  currentMode?: string;
+  onSelectMode?: (modeId: string) => void;
 }
-
-interface VirtualKeyboardProps {
-  onKeyPress: (key: string) => void;
-  onClose: () => void;
-  selectedLang: 'EN' | 'ES';
-  isDarkMode?: boolean;
-}
-
-const VirtualKeyboard: React.FC<VirtualKeyboardProps> = ({ onKeyPress, onClose, selectedLang, isDarkMode }) => {
-  const [isShift, setIsShift] = useState(false);
-  const [isSymbols, setIsSymbols] = useState(false);
-
-  const numberRow = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
-
-  const letterRows = isSymbols ? [
-    ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')'],
-    ['-', '_', '=', '+', '[', ']', '{', '}', '\\', '|'],
-    [';', ':', '"', "'", '<', '>', '?', '/', '`', '~']
-  ] : [
-    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
-    ['z', 'x', 'c', 'v', 'b', 'n', 'm']
-  ];
-
-  return (
-    <div className="w-full bg-transparent p-1 sm:p-1.5 pb-2 select-none shadow-none rounded-none animate-in slide-in-from-bottom duration-200 mt-0">
-      {/* Top Bar with Hide Button */}
-      <div className="flex justify-between items-center px-2 py-0.5 mb-1 text-slate-500 text-xs">
-        <span className="font-semibold tracking-wider text-[10px] uppercase text-slate-600 flex items-center gap-1"></span>
-        <button
-          type="button"
-          onClick={onClose}
-          className={`p-1 rounded-full ${isDarkMode ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-300 text-slate-600'} transition-colors cursor-pointer`}
-          title={selectedLang === 'EN' ? 'Hide keyboard' : 'Ocultar teclado'}
-        >
-          <ChevronDown className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Number Row */}
-      <div className="flex justify-center gap-1 mb-1">
-        {numberRow.map((num) => (
-          <button
-            key={num}
-            type="button"
-            onClick={() => onKeyPress(num)}
-            className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
-              isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
-            } rounded-md font-semibold text-sm shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
-          >
-            {num}
-          </button>
-        ))}
-      </div>
-
-      {/* Row 1 Letters/Symbols */}
-      <div className="flex justify-center gap-1 mb-1">
-        {letterRows[0].map((char) => {
-          const display = isShift ? char.toUpperCase() : char;
-          return (
-            <button
-              key={char}
-              type="button"
-              onClick={() => {
-                onKeyPress(display);
-                if (isShift) setIsShift(false);
-              }}
-              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
-                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
-              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
-            >
-              {display}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Row 2 Letters/Symbols */}
-      <div className="flex justify-center gap-1 mb-1 px-1">
-        {letterRows[1].map((char) => {
-          const display = isShift ? char.toUpperCase() : char;
-          return (
-            <button
-              key={char}
-              type="button"
-              onClick={() => {
-                onKeyPress(display);
-                if (isShift) setIsShift(false);
-              }}
-              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
-                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
-              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
-            >
-              {display}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Row 3 Letters with Shift and Backspace */}
-      <div className="flex justify-center gap-1 mb-1">
-        {!isSymbols && (
-          <button
-            type="button"
-            onClick={() => setIsShift(!isShift)}
-            className={`px-2 sm:px-2.5 h-8 sm:h-9 rounded-md font-bold text-xs shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer ${
-              isShift ? 'bg-[#1A365D] text-white' : isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-300 text-slate-700 hover:bg-slate-400'
-            }`}
-          >
-            <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-          </button>
-        )}
-
-        {letterRows[2].map((char) => {
-          const display = isShift ? char.toUpperCase() : char;
-          return (
-            <button
-              key={char}
-              type="button"
-              onClick={() => {
-                onKeyPress(display);
-                if (isShift) setIsShift(false);
-              }}
-              className={`flex-1 max-w-[36px] h-8 sm:h-9 ${
-                isDarkMode ? 'bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100' : 'bg-white hover:bg-slate-100 active:bg-slate-300 text-slate-800'
-              } rounded-md font-medium text-base shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
-            >
-              {display}
-            </button>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={() => onKeyPress('BACKSPACE')}
-          className={`px-2 sm:px-2.5 h-8 sm:h-9 ${
-            isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-300 hover:bg-slate-400 text-slate-700'
-          } rounded-md font-bold text-xs shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer`}
-        >
-          <Delete className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="flex justify-center gap-1 sm:gap-1.5 items-center">
-        <button
-          type="button"
-          onClick={() => setIsSymbols(!isSymbols)}
-          className={`px-2.5 sm:px-3 h-8 sm:h-9 ${
-            isDarkMode ? 'bg-slate-700 hover:bg-slate-600 text-slate-200' : 'bg-slate-300 hover:bg-slate-400 text-slate-800'
-          } font-bold text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer`}
-        >
-          {isSymbols ? 'ABC' : '?123'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onKeyPress(',')}
-          className={`w-8 sm:w-9 h-8 sm:h-9 ${
-            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-white hover:bg-slate-100 text-slate-800'
-          } font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer`}
-        >
-          ,
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onKeyPress(' ')}
-          className={`flex-1 h-8 sm:h-9 ${
-            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white hover:bg-slate-100 text-slate-500'
-          } font-medium text-xs rounded-md shadow-none flex items-center justify-center cursor-pointer tracking-wider`}
-        >
-          {selectedLang === 'EN' ? 'space' : 'espacio'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onKeyPress('.')}
-          className={`w-8 sm:w-9 h-8 sm:h-9 ${
-            isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-100' : 'bg-white hover:bg-slate-100 text-slate-800'
-          } font-semibold text-base rounded-md shadow-none flex items-center justify-center cursor-pointer`}
-        >
-          .
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onKeyPress('ENTER')}
-          className="px-3 sm:px-3.5 h-8 sm:h-9 bg-[#10B981] hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs rounded-md shadow-none flex items-center justify-center transition-all active:scale-95 cursor-pointer"
-        >
-          <CornerDownLeft className="w-4 h-4 stroke-[2.5]" />
-        </button>
-      </div>
-    </div>
-  );
-};
 
 export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   selectedLang,
   isConnected,
-  isPaused,
+  isPaused = false,
   pause,
   resume,
   onSubmitText,
   value,
   onChangeValue,
   placeholderText,
-  onOpenProfile,
   isSpanishOnlyMode,
   setIsSpanishOnlyMode,
   isBilingualMode,
@@ -242,452 +47,354 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   setIsEnglishOnlyMode,
   isTranslateMode,
   setIsTranslateMode,
-  isListenOnly,
-  setIsListenOnly,
-  isLiveVoiceActive,
+  isLiveVoiceActive = false,
   onToggleLiveVoice,
-  isDarkMode
+  isDarkMode = true,
+  currentMode,
+  onSelectMode,
 }) => {
   const [internalText, setInternalText] = useState('');
-  const [activeMode, setActiveMode] = useState<'ESCUCHA' | 'DICTA' | 'ESCRIBE'>('ESCUCHA');
-  const [isListening, setIsListening] = useState(false);
-  const [isEscribeActive, setIsEscribeActive] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const [showVoiceModeMenu, setShowVoiceModeMenu] = useState(false);
-  const [showVirtualKeyboard, setShowVirtualKeyboard] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (typeof window !== 'undefined') {
-        setShowVirtualKeyboard(window.innerWidth < 768);
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const [isDictating, setIsDictating] = useState(false);
+  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const recognitionRef = useRef<any>(null);
-  const baseTextRef = useRef<string>('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Animated sound graph waveform state
-  const [waveformHeights, setWaveformHeights] = useState<number[]>(
-    Array.from({ length: 16 }, () => 20)
-  );
+  const initialTextRef = useRef<string>('');
 
   const currentText = value !== undefined ? value : internalText;
 
-  // Vibrating sound graph effect during dictation
+  // Clean up recognition on unmount
   useEffect(() => {
-    let interval: any;
-    if (isListening) {
-      interval = setInterval(() => {
-        setWaveformHeights(
-          Array.from({ length: 16 }, (_, i) => {
-            const centerDist = Math.abs(i - 8) / 8;
-            const baseFactor = Math.max(0.25, 1 - centerDist * 0.55);
-            const randomHeight = Math.floor(Math.random() * 80) + 20;
-            return Math.round(randomHeight * baseFactor);
-          })
-        );
-      }, 75);
-    } else {
-      setWaveformHeights(Array.from({ length: 16 }, () => 20));
-    }
-    return () => clearInterval(interval);
-  }, [isListening]);
-
-  const updateText = (newVal: string) => {
-    if (onChangeValue) {
-      onChangeValue(newVal);
-    } else {
-      setInternalText(newVal);
-    }
-  };
-
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    updateText(val);
-    if (isListening) {
-      baseTextRef.current = val;
-    }
-  };
-
-  // Auto-resize textarea height as content expands
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 110)}px`;
-    }
-  }, [currentText]);
-
-  // Setup Web Speech Recognition for continuous dictation
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = selectedLang === 'EN' ? 'en-US' : 'es-US';
-
-      recognition.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-
-        const prefix = baseTextRef.current;
-        const separator = prefix && !prefix.endsWith(' ') && !transcript.startsWith(' ') ? ' ' : '';
-        const combined = prefix + separator + transcript;
-        updateText(combined);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setIsListening(false);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-    } catch (err) {
-      console.warn('Error instantiating SpeechRecognition:', err);
-    }
-
     return () => {
       if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
+        try { recognitionRef.current.stop(); } catch (e) {}
+        recognitionRef.current = null;
       }
     };
-  }, [selectedLang]);
+  }, []);
 
-  const toggleListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert(selectedLang === 'EN' 
-        ? 'Voice dictation is not supported in this browser. You can type your message.' 
-        : 'La dictación por voz no es compatible con este navegador. Puedes escribir tu mensaje.');
-      return;
-    }
-
-    if (isListening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
-      setIsListening(false);
+  const updateText = (newText: string) => {
+    if (onChangeValue) {
+      onChangeValue(newText);
     } else {
-      if (isConnected && !isPaused) {
-        if (typeof pause === 'function') pause();
-      }
-      baseTextRef.current = currentText;
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.lang = selectedLang === 'EN' ? 'en-US' : 'es-US';
-          recognitionRef.current.start();
-          setIsListening(true);
-        } catch (e) {
-          console.warn('Failed to start speech recognition:', e);
-          setIsListening(false);
-        }
-      }
+      setInternalText(newText);
     }
   };
 
-  const handleEscuchaClick = () => {
-    if (isListening && recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      setIsListening(false);
-    }
-    setIsEscribeActive(false);
-    setActiveMode('ESCUCHA');
-    if (isConnected && isPaused) {
-      if (typeof resume === 'function') resume();
-    }
-    if (onToggleLiveVoice) {
-      onToggleLiveVoice();
-    }
-  };
-
-  const handleDictaClick = () => {
-    setActiveMode('DICTA');
-    if (isConnected && !isPaused) {
-      if (typeof pause === 'function') pause();
-    }
-    if (isListening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
-      setIsListening(false);
-    } else {
-      toggleListening();
-    }
-  };
-
-  const handleVirtualKeyPress = (key: string) => {
-    if (key === 'BACKSPACE') {
-      updateText(currentText.slice(0, -1));
-    } else if (key === 'ENTER') {
-      handleSubmit();
-    } else {
-      updateText(currentText + key);
-    }
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-  };
-
-  const handleEscribeClick = () => {
-    setActiveMode('ESCRIBE');
-    if (isListening) {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch (e) {}
-      }
-      setIsListening(false);
-    }
-    setIsEscribeActive(true);
-    setShowVirtualKeyboard(prev => !prev);
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
-    }, 50);
-  };
-
-  const handlePausaClick = () => {
-    if (!isConnected) return;
-    if (isPaused) {
-      if (typeof resume === 'function') resume();
-      if (window.speechSynthesis && window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-    } else {
-      if (typeof pause === 'function') pause();
-      if (window.speechSynthesis && window.speechSynthesis.speaking) {
-        window.speechSynthesis.pause();
-      }
-    }
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateText(e.target.value);
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (isListening && recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
-      setIsListening(false);
-    }
-
-    const trimmedText = (currentText || '').trim();
-    if (!trimmedText) {
-      return;
-    }
-
-    if (isConnected && isPaused) {
-      resume();
-    }
-    onSubmitText(trimmedText);
+    const trimmed = currentText.trim();
+    if (!trimmed) return;
+    onSubmitText(trimmed);
     updateText('');
-    setActiveMode('ESCUCHA');
-    setIsEscribeActive(false);
-    setShowVirtualKeyboard(false);
+    if (isDictating && recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+      setIsDictating(false);
+    }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
       e.preventDefault();
       handleSubmit();
     }
   };
 
-  const defaultPlaceholder = isListening
-    ? (selectedLang === 'EN' ? 'Listening... speak now' : 'Escuchando... habla ahora')
-    : (selectedLang === 'EN' ? 'Write or dictate...' : 'Escribe o dicta...');
+  const handlePauseToggle = () => {
+    if (isPaused) {
+      if (typeof resume === 'function') resume();
+    } else {
+      if (typeof pause === 'function') pause();
+    }
+  };
 
-  return isLiveVoiceActive ? null : (
-    <div className="flex justify-end w-full my-2 animate-fade-in select-none z-20">
-      <div className="w-full max-w-[98%] sm:max-w-[88%] flex flex-col items-end ml-auto">
-        <div className={`w-full bubble-user-gradient-wrapper rounded-[26px] ${
-          isFocused || isEscribeActive || isListening || currentText.trim().length > 0 ? 'is-latest' : ''
-        }`}>
-          <form 
-            onSubmit={handleSubmit} 
-            className={`w-full ${isDarkMode ? 'bg-[#1E293B] text-white border border-slate-700/60' : 'bg-white text-black'} rounded-[22px] px-3.5 py-2 flex items-center gap-2 min-h-[44px] shadow-sm transition-colors duration-300`}
-          >
-        {/* Textarea or Sound Graph + Action Controls */}
-        <div className="flex items-center gap-2 flex-1 min-h-[36px]">
-          {/* Action buttons on the Left */}
-          <div className="flex items-center gap-1.5 flex-shrink-0 pb-0.5">
-            {/* Human icon matching the human speech bubble */}
-            {onOpenProfile ? (
-              <button
-                type="button"
-                onClick={onOpenProfile}
-                title={selectedLang === 'EN' ? 'User Profile' : 'Perfil de Usuario'}
-                aria-label="User Profile"
-                className="p-1 rounded-full hover:bg-blue-500/10 active:scale-95 transition-all flex items-center justify-center cursor-pointer select-none"
-              >
-                <User strokeWidth={2.5} className="w-4 h-4 text-[#5382eb]" />
-              </button>
-            ) : (
-              <div className="p-1 flex items-center justify-center select-none" title={selectedLang === 'EN' ? 'User' : 'Usuario'}>
-                <User strokeWidth={2.5} className="w-4 h-4 text-[#5382eb]" />
+  const handleSelectModeOption = (modeId: string) => {
+    if (onSelectMode) {
+      onSelectMode(modeId);
+    } else {
+      if (modeId === 'SPANISH') {
+        setIsSpanishOnlyMode?.(true);
+        setIsBilingualMode?.(false);
+        setIsEnglishOnlyMode?.(false);
+        setIsTranslateMode?.(false);
+      } else if (modeId === 'BILINGUAL') {
+        setIsSpanishOnlyMode?.(false);
+        setIsBilingualMode?.(true);
+        setIsEnglishOnlyMode?.(false);
+        setIsTranslateMode?.(false);
+      } else if (modeId === 'AMERICAN_ENGLISH') {
+        setIsSpanishOnlyMode?.(false);
+        setIsBilingualMode?.(false);
+        setIsEnglishOnlyMode?.(true);
+        setIsTranslateMode?.(false);
+      } else if (modeId === 'LIVE_TRANSLATOR') {
+        setIsSpanishOnlyMode?.(false);
+        setIsBilingualMode?.(false);
+        setIsEnglishOnlyMode?.(false);
+        setIsTranslateMode?.(true);
+      }
+    }
+  };
+
+  const handleDictationToggle = () => {
+    if (onToggleLiveVoice) {
+      onToggleLiveVoice();
+      return;
+    }
+
+    if (isDictating) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+        recognitionRef.current = null;
+      }
+      setIsDictating(false);
+      return;
+    }
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert(selectedLang === 'EN' ? 'Speech recognition is not supported in this browser.' : 'El reconocimiento de voz no está soportado en este navegador.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRec();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = selectedLang === 'EN' ? 'en-US' : 'es-US';
+      initialTextRef.current = currentText;
+
+      recognition.onresult = (event: any) => {
+        let accumulatedFinal = '';
+        let interim = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const trans = event.results[i][0]?.transcript || '';
+          if (event.results[i].isFinal) {
+            accumulatedFinal += trans;
+          } else {
+            interim += trans;
+          }
+        }
+        const fullSpeech = (accumulatedFinal + interim).trim();
+        const base = initialTextRef.current;
+        const separator = base && !base.endsWith(' ') && fullSpeech && !fullSpeech.startsWith(' ') ? ' ' : '';
+        const transcribed = base + (fullSpeech ? separator + fullSpeech : '');
+        updateText(transcribed);
+      };
+
+      recognition.onerror = (err: any) => {
+        console.warn('Dictation speech recognition error:', err);
+        setIsDictating(false);
+      };
+
+      recognition.onend = () => {
+        setIsDictating(false);
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      setIsDictating(true);
+    } catch (e) {
+      console.warn('Dictation start error:', e);
+      setIsDictating(false);
+    }
+  };
+
+  const placeholder = placeholderText || (selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...');
+  const isListening = isDictating || isLiveVoiceActive;
+
+  // Active mode display text
+  const getDisplayBadgeText = () => {
+    if (isPaused) return selectedLang === 'EN' ? 'PAUSE' : 'PAUSA';
+    if (currentMode === 'SPANISH' || isSpanishOnlyMode) return 'ES';
+    if (currentMode === 'ADAPTIVE') return 'AD';
+    if (currentMode === 'BILINGUAL' || isBilingualMode) return 'BI';
+    if (currentMode === 'AMERICAN_ENGLISH' || isEnglishOnlyMode) return 'EN';
+    if (currentMode === 'LIVE_TRANSLATOR' || isTranslateMode) return 'TR';
+    return selectedLang === 'EN' ? 'EN' : 'ES';
+  };
+
+  const modesList = [
+    {
+      id: 'SPANISH',
+      nameEs: 'Español',
+      nameEn: 'Spanish',
+      icon: <span className="font-bold text-xs tracking-tight">ES</span>,
+    },
+    {
+      id: 'ADAPTIVE',
+      nameEs: 'Adaptivo',
+      nameEn: 'Adaptive',
+      icon: <Zap className="w-4 h-4 text-current" />,
+    },
+    {
+      id: 'BILINGUAL',
+      nameEs: 'Bilingüe',
+      nameEn: 'Bilingual',
+      icon: <RotateCw className="w-4 h-4 text-current" />,
+    },
+    {
+      id: 'AMERICAN_ENGLISH',
+      nameEs: 'Inglés',
+      nameEn: 'English',
+      icon: <span className="font-bold text-xs tracking-tight">EN</span>,
+    },
+    {
+      id: 'LIVE_TRANSLATOR',
+      nameEs: 'Traductor',
+      nameEn: 'Translator',
+      icon: <Languages className="w-4 h-4 text-current" />,
+    },
+  ];
+
+  return (
+    <div className={`w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-center gap-1 px-2 py-1 select-none relative ${isModeMenuOpen ? 'z-50' : 'z-30'}`}>
+      {/* Top Mode Indicator & Chevron Trigger */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsModeMenuOpen(prev => !prev)}
+          className="flex flex-col items-center justify-center text-slate-200 hover:text-[#FFD700] transition-all cursor-pointer active:scale-95 group"
+          title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+        >
+          <span className="text-xs sm:text-sm font-black tracking-widest text-slate-200 group-hover:text-[#FFD700] font-mono">
+            {getDisplayBadgeText()}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-[#FFD700] transition-transform -mt-0.5 ${isModeMenuOpen ? 'rotate-180 text-[#FFD700]' : 'group-hover:translate-y-0.5'}`} />
+        </button>
+
+        {/* Modo de Interactuar Modal Popover */}
+        {isModeMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px]"
+              onClick={() => setIsModeMenuOpen(false)}
+            />
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 w-64 sm:w-72 bg-[#0B172E] border border-slate-700/80 rounded-2xl p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] animate-fade-in flex flex-col text-white text-left ring-1 ring-slate-800">
+              {/* Header Title */}
+              <div className="px-1 pb-2 mb-1.5 flex items-center justify-between border-b border-slate-800">
+                <span className="text-sm font-bold text-white tracking-wide">
+                  {selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsModeMenuOpen(false)}
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5 rounded-lg hover:bg-slate-800"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            )}
 
-            {/* Secondary Button: Voice interaction mode (Go Live) */}
-            <button
-              type="button"
-              onClick={handleEscuchaClick}
-              title={selectedLang === 'EN' ? 'Go Live Voice Mode (ChatGPT style)' : 'Modo de Voz en Vivo (Estilo ChatGPT)'}
-              className={`p-1.5 rounded-full transition-all duration-300 cursor-pointer flex items-center justify-center ${
-                isLiveVoiceActive
-                  ? 'bg-amber-500 text-black shadow-lg scale-110 animate-pulse ring-2 ring-amber-300'
-                  : activeMode === 'ESCUCHA' && isConnected && !isPaused
-                  ? 'bg-[#1A365D] text-white shadow-md scale-105'
-                  : isDarkMode
-                  ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600 active:scale-95'
-                  : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200 active:scale-95'
-              }`}
-            >
-              <AudioLines className="w-4 h-4 stroke-[2.2]" />
-            </button>
+              {/* Interaction Modes Options */}
+              <div className="flex flex-col gap-1">
+                {modesList.map((mode) => {
+                  const isSelected = !isPaused && (
+                    currentMode ? currentMode === mode.id :
+                    (mode.id === 'SPANISH' && isSpanishOnlyMode) ||
+                    (mode.id === 'BILINGUAL' && isBilingualMode) ||
+                    (mode.id === 'AMERICAN_ENGLISH' && isEnglishOnlyMode) ||
+                    (mode.id === 'LIVE_TRANSLATOR' && isTranslateMode)
+                  );
 
-            {/* Dictate / Mic Button */}
-            {isListening ? (
-              <button
-                type="button"
-                onClick={handleDictaClick}
-                title={selectedLang === 'EN' ? 'Stop dictating' : 'Detener dictado'}
-                className="p-1.5 rounded-full bg-red-600 text-white shadow-md shadow-red-500/40 animate-pulse scale-105 hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5 fill-current stroke-none text-white" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleDictaClick}
-                title={selectedLang === 'EN' ? 'Dictate with voice' : 'Dictar por voz'}
-                className={`p-1.5 rounded-full ${
-                  isDarkMode 
-                    ? 'bg-slate-700/80 text-slate-200 hover:text-amber-400 hover:bg-slate-600' 
-                    : 'bg-neutral-100 text-neutral-600 hover:text-[#1A365D] hover:bg-neutral-200'
-                } active:scale-95 transition-all flex items-center justify-center cursor-pointer`}
-              >
-                <Mic className="w-4 h-4 stroke-[2.5]" />
-              </button>
-            )}
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => {
+                        if (isPaused && typeof resume === 'function') {
+                          resume();
+                        }
+                        handleSelectModeOption(mode.id);
+                        setIsModeMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-all cursor-pointer font-medium ${
+                        isSelected
+                          ? 'text-[#FFD700] font-bold bg-amber-400/10 border border-amber-400/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 flex items-center justify-center shrink-0 ${isSelected ? 'text-[#FFD700]' : 'text-slate-300'}`}>
+                        {mode.icon}
+                      </div>
+                      <span className="truncate">{selectedLang === 'EN' ? mode.nameEn : mode.nameEs}</span>
+                    </button>
+                  );
+                })}
 
-            {/* Paper Plane Send Button */}
-            <button
-              type="submit"
-              onClick={handleSubmit}
-              title={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
-              className={`p-1.5 rounded-full transition-all flex items-center justify-center cursor-pointer active:scale-95 ${
-                currentText.trim().length > 0
-                  ? 'bg-[#5A8DF8] hover:bg-blue-600 text-white shadow-md scale-105'
-                  : isDarkMode
-                  ? 'bg-slate-700/80 text-slate-400 hover:text-amber-400 hover:bg-slate-600'
-                  : 'bg-neutral-100 text-neutral-500 hover:text-[#1A365D] hover:bg-neutral-200'
-              }`}
-            >
-              <Send className="w-4 h-4 stroke-[2.2]" />
-            </button>
-          </div>
-
-          {/* Listening Waveform Indicator (Onda Visualizer) - visible when isListening is true */}
-          {isListening && (
-            <div className="flex-shrink-0 flex items-center justify-center h-[28px] px-2 bg-emerald-50 rounded-full border border-emerald-300/80 shadow-inner">
-              <div className="flex items-center justify-center gap-[2.5px] h-[20px] w-[42px]">
-                {waveformHeights.slice(0, 8).map((h, idx) => (
-                  <span
-                    key={idx}
-                    style={{ height: `${Math.max(20, h)}%` }}
-                    className="w-[2.5px] bg-emerald-500 rounded-full transition-all duration-75 ease-out shrink-0"
-                  />
-                ))}
+                {/* Pausa / Resume Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePauseToggle();
+                    setIsModeMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-all cursor-pointer font-medium ${
+                    isPaused
+                      ? 'text-[#FFD700] font-bold bg-amber-400/10 border border-amber-400/30'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
+                  }`}
+                >
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-300">
+                    {isPaused ? <Play className="w-4 h-4 text-[#FFD700] fill-[#FFD700]" /> : <Pause className="w-4 h-4 text-slate-300" />}
+                  </div>
+                  <span className="truncate">
+                    {isPaused
+                      ? (selectedLang === 'EN' ? 'Resume' : 'Reanudar')
+                      : (selectedLang === 'EN' ? 'Pause' : 'Pausa')}
+                  </span>
+                </button>
               </div>
             </div>
-          )}
-
-          {/* Text Area for real-time transcription and typing */}
-          <div className="relative flex-1 flex items-center min-w-0">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={currentText}
-              onChange={handleTextChange}
-              onKeyDown={handleKeyDown}
-              onClick={() => {
-                setActiveMode('ESCRIBE');
-                setIsEscribeActive(true);
-                setShowVirtualKeyboard(true);
-              }}
-              onFocus={() => {
-                setIsFocused(true);
-                setActiveMode('ESCRIBE');
-                setIsEscribeActive(true);
-                setShowVirtualKeyboard(true);
-              }}
-              onBlur={() => {
-                setIsFocused(false);
-              }}
-              inputMode="text"
-              placeholder={placeholderText || defaultPlaceholder}
-              style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }}
-              className={`w-full focus:outline-none transition-all border-none bg-transparent ${
-                isDarkMode ? 'text-white placeholder:text-slate-400' : 'text-black placeholder:text-black/40'
-              } text-left placeholder:text-left font-semibold text-[14px] leading-snug p-0 resize-none min-h-[28px] max-h-[100px] overflow-y-auto pl-1`}
-            />
-            {/* Blinking Caret / "I" Beam Indicator when ESCRIBE is active and empty */}
-            {isEscribeActive && !currentText && !isListening && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center pointer-events-none pl-0.5">
-                <span className="w-[2px] h-[16px] bg-blue-600 animate-pulse inline-block" />
-              </span>
-            )}
-          </div>
-        </div>
-      </form>
+          </>
+        )}
       </div>
 
-      {/* Virtual Soft Keyboard Drawer for Smartphones / Touch Screens */}
-      {showVirtualKeyboard && (
-        <div className="w-full -mx-2 sm:-mx-3 -mb-2 md:-mb-2.5 mt-1">
-          <VirtualKeyboard
-            onKeyPress={handleVirtualKeyPress}
-            onClose={() => setShowVirtualKeyboard(false)}
-            selectedLang={selectedLang}
-            isDarkMode={isDarkMode}
+      {/* Bottom Control Row (Input Pill + Circular Mic Button) */}
+      <form onSubmit={handleSubmit} className="w-full flex items-center gap-2 sm:gap-2.5">
+        {/* Input Pill */}
+        <div className="flex-1 border border-slate-500/50 hover:border-slate-400/80 focus-within:border-slate-300 bg-[#081530]/80 rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 shadow-xl backdrop-blur-md transition-all">
+          <button
+            type="submit"
+            className="text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0 -rotate-45 flex items-center justify-center"
+            title={selectedLang === 'EN' ? 'Send' : 'Enviar'}
+          >
+            <Send className="w-4 h-4 text-slate-300 hover:text-white" />
+          </button>
+
+          <input
+            type="text"
+            value={currentText}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            className="bg-transparent text-white text-xs sm:text-sm outline-none w-full placeholder-slate-400/90 font-normal"
           />
         </div>
-      )}
-      </div>
+
+        {/* Circular Microphone Button */}
+        <button
+          type="button"
+          onClick={handleDictationToggle}
+          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-500/50 hover:border-slate-300 bg-[#081530]/80 flex items-center justify-center transition-all cursor-pointer shadow-xl active:scale-95 shrink-0 group ${
+            isListening ? 'border-red-500/80 bg-red-950/80 text-red-400 animate-pulse' : 'text-gray-400 hover:text-white'
+          }`}
+          title={
+            isListening
+              ? (selectedLang === 'EN' ? 'Mic Listening (Click to stop)' : 'Micrófono Escuchando (Clic para detener)')
+              : (selectedLang === 'EN' ? 'Microphone Dictation' : 'Dictado por Micrófono')
+          }
+        >
+          {isListening ? (
+            <MicOff className="w-4 h-4 text-red-400" />
+          ) : (
+            <Mic className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+          )}
+        </button>
+      </form>
     </div>
   );
 };
 
+export default ChatInputBox;
