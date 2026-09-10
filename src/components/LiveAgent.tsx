@@ -4355,6 +4355,53 @@ ${greetingPrompt}`;
       </div>
     )}
 
+    {/* Passport Bottom Chat Input Controls (Mode Badge + Input Field + Mic) */}
+    <div className="w-full px-2 sm:px-3 z-30 flex flex-col items-center mt-1">
+      <ChatInputBox
+        isDarkMode={isDarkMode}
+        selectedLang={selectedLang}
+        isConnected={isConnected}
+        isPaused={isPaused}
+        pause={pause}
+        resume={resume}
+        currentMode={currentModeObj.id}
+        onSelectMode={(modeId) => {
+          if (isPaused && typeof resume === 'function') {
+            resume();
+          }
+          handleModeSelection(modeId as ConversationMode);
+          applyChosenMode(modeId as ConversationMode);
+          if (isConnected) {
+            const modeItem = modeDetails.find(m => m.id === modeId);
+            if (modeItem) {
+              sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${modeItem.nameEs}". Cambia tu estilo e idioma inmediatamente a este modo: "${modeItem.descEs}"]`);
+            }
+          }
+        }}
+        value={fullScreenInput}
+        onChangeValue={setFullScreenInput}
+        onSubmitText={(text) => {
+          if (!text.trim()) return;
+          setHasInteracted(true);
+          addUserMessage(text);
+          sendText(text);
+          setFullScreenInput('');
+          if (rightPanelTab !== 'chat') {
+            setRightPanelTab('chat');
+          }
+        }}
+        isSpanishOnlyMode={isSpanishOnlyMode}
+        setIsSpanishOnlyMode={setIsSpanishOnlyMode}
+        isBilingualMode={isBilingualMode}
+        setIsBilingualMode={setIsBilingualMode}
+        isEnglishOnlyMode={isEnglishOnlyMode}
+        setIsEnglishOnlyMode={setIsEnglishOnlyMode}
+        isTranslateMode={isTranslateMode}
+        setIsTranslateMode={setIsTranslateMode}
+        isLiveVoiceActive={isLiveVoiceActive}
+        onToggleLiveVoice={() => setIsLiveVoiceActive(!isLiveVoiceActive)}
+      />
+    </div>
 
   </div>
   </div>
@@ -6602,6 +6649,53 @@ ${greetingPrompt}`;
         </div>
       )}
     </div>
+
+    {/* Bottom Chat Controls in Chat View */}
+    {!isLiveVoiceActive && (
+      <div className="p-2 border-t border-slate-800/80 bg-[#0B1528] shrink-0 z-30">
+        <ChatInputBox
+          isDarkMode={isDarkMode}
+          selectedLang={selectedLang}
+          isConnected={isConnected}
+          isPaused={isPaused}
+          pause={pause}
+          resume={resume}
+          currentMode={currentModeObj.id}
+          onSelectMode={(modeId) => {
+            if (isPaused && typeof resume === 'function') {
+              resume();
+            }
+            handleModeSelection(modeId as ConversationMode);
+            applyChosenMode(modeId as ConversationMode);
+            if (isConnected) {
+              const modeItem = modeDetails.find(m => m.id === modeId);
+              if (modeItem) {
+                sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${modeItem.nameEs}". Cambia tu estilo e idioma inmediatamente a este modo: "${modeItem.descEs}"]`);
+              }
+            }
+          }}
+          value={fullScreenInput}
+          onChangeValue={setFullScreenInput}
+          onSubmitText={(text) => {
+            if (!text.trim()) return;
+            setHasInteracted(true);
+            addUserMessage(text);
+            sendText(text);
+            setFullScreenInput('');
+          }}
+          isSpanishOnlyMode={isSpanishOnlyMode}
+          setIsSpanishOnlyMode={setIsSpanishOnlyMode}
+          isBilingualMode={isBilingualMode}
+          setIsBilingualMode={setIsBilingualMode}
+          isEnglishOnlyMode={isEnglishOnlyMode}
+          setIsEnglishOnlyMode={setIsEnglishOnlyMode}
+          isTranslateMode={isTranslateMode}
+          setIsTranslateMode={setIsTranslateMode}
+          isLiveVoiceActive={isLiveVoiceActive}
+          onToggleLiveVoice={() => setIsLiveVoiceActive(!isLiveVoiceActive)}
+        />
+      </div>
+    )}
   </div>
   ) : rightPanelTab === 'roadmap' ? (
   <RoadmapPanel
