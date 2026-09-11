@@ -74,7 +74,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 export const ADMIN_CREDENTIALS = {
   email: 'theorangesnowman@gmail.com',
   password: 'Lucas26!',
-  name: 'Federico Sandoval (Admin)',
+  name: 'Federico Sandoval',
   role: 'ADMIN',
   id: 'ADMIN-VOYAGER-001'
 };

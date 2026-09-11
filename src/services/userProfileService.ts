@@ -295,7 +295,7 @@ export async function syncOrMigrateUserOnAuth(firebaseUser: User): Promise<UserP
       education: localCache.education || 'Universidad',
       goal: localCache.goal || 'Éxito académico',
       levelEstimate: localCache.levelEstimate || 'Intermediate',
-      timePerWeek: localCache.timePerWeek || '5 horas por semana',
+      timePerWeek: localCache.timePerWeek || '5 hr/wk',
       interests: localCache.interests || 'Viajes, tecnología, música',
       country: localCache.country || 'Costa Rica',
       usState: localCache.usState || localCache.state || 'Florida',

@@ -153,16 +153,16 @@ Be extremely brief, ask only one question, and start immediately.`;
     }
 
     if (options.activeTab === 'admin') {
-      const rawAdmin = displayName || "Federico Sandoval";
-      const adminName = rawAdmin.replace(/\s*\(.*?\)/g, '').trim() || "Federico Sandoval";
+      const rawAdmin = displayName || "Federico";
+      const adminName = rawAdmin.replace(/\s*\(.*?\)/g, '').trim().split(' ')[0] || "Federico";
       if (selectedLang === 'ES') {
         baseGreeting = `[SYSTEM INSTRUCTION: VOYAGER ADMIN CUSTOM GREETING]
-Por favor, preséntate de forma muy breve y profesional en español como "USA Voyager". Saluda al administrador por su nombre: ${adminName} (pronunciado exactamente "Fe-de-ri-co San-do-val", NUNCA "Federation"). Di: "¡Hola, ${adminName}! Bienvenido al Portal de Administración de USA Voyager. Como tu socio de inteligencia de negocios, estoy listo para revisar métricas del sistema, diagnósticos de estudiantes o economía del negocio. ¿En qué deseas enfocarte hoy?"
-Sé extremadamente breve y profesional. Haz una sola pregunta para iniciar la interacción de administración.`;
+Por favor, preséntate de forma muy breve en español como "USA Voyager". Di: "¡Hola, ${adminName}! Bienvenido al Portal de Administración de USA Voyager. Como tu socio de inteligencia de negocios, estoy listo para revisar métricas del sistema, diagnósticos de estudiantes o economía del negocio. ¿En qué deseas enfocarte hoy?"
+Sé extremadamente breve y profesional. Haz una sola pregunta para iniciar la interacción.`;
       } else {
         baseGreeting = `[SYSTEM INSTRUCTION: VOYAGER ADMIN CUSTOM GREETING]
-Please introduce yourself warmly and professionally in English as "USA Voyager". Greet the administrator by their name: ${adminName} (pronounced "Fe-de-ri-co San-do-val", NEVER say "Federation"). Say: "Hello, ${adminName}! Welcome to the USA Voyager Admin Portal. As your business intelligence AI partner, I am ready to review system metrics, student diagnostics, or business economics. What would you like to focus on today?"
-Be extremely brief and professional. Ask a single question to start the admin session.`;
+Please introduce yourself warmly and briefly in English as "USA Voyager". Say: "Hello, ${adminName}! Welcome to the USA Voyager Admin Portal. As your business intelligence AI partner, I am ready to review system metrics, student diagnostics, or business economics. What would you like to focus on today?"
+Be extremely brief and professional. Ask a single question to start the session.`;
       }
     } else if ((options.activeTab === 'civics' || options.activeTab === 'citizenship') && !initialPrompt) {
       if (selectedLang === 'ES') {

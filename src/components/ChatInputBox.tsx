@@ -207,7 +207,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
 
   // Active mode display text
   const getDisplayBadgeText = () => {
-    if (isPaused) return selectedLang === 'EN' ? 'PAUSE' : 'PAUSA';
+    if (isPaused) return selectedLang === 'EN' ? 'Pausa' : 'Pausa';
     if (currentMode === 'SPANISH' || isSpanishOnlyMode) return 'ES';
     if (currentMode === 'ADAPTIVE') return 'AD';
     if (currentMode === 'BILINGUAL' || isBilingualMode) return 'BI';
@@ -250,7 +250,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   ];
 
   return (
-    <div className={`w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-center gap-1 px-2 py-1 select-none relative ${isModeMenuOpen ? 'z-50' : 'z-30'}`}>
+    <div className={`w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-center gap-1.5 px-2 pt-2 sm:pt-3 pb-1 select-none relative ${isModeMenuOpen ? 'z-50' : 'z-30'}`}>
       {/* Top Mode Indicator & Chevron Trigger */}
       <div className="relative">
         <button
@@ -259,7 +259,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
           className="flex flex-col items-center justify-center text-slate-200 hover:text-[#FFD700] transition-all cursor-pointer active:scale-95 group"
           title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
         >
-          <span className="text-xs sm:text-sm font-black tracking-widest text-slate-200 group-hover:text-[#FFD700] font-mono">
+          <span className="text-xs sm:text-sm font-normal tracking-wide text-slate-200 group-hover:text-[#FFD700]">
             {getDisplayBadgeText()}
           </span>
           <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-[#FFD700] transition-transform -mt-0.5 ${isModeMenuOpen ? 'rotate-180 text-[#FFD700]' : 'group-hover:translate-y-0.5'}`} />

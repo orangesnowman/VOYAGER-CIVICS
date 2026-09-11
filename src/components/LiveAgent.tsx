@@ -2352,8 +2352,8 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     if (rightPanelTab === 'teachers') {
       return selectedLang === 'EN' ? 'MASTERS' : 'DOCENTES';
     }
-    if (rightPanelTab === 'roadmap') {
-      return selectedLang === 'EN' ? 'LEARNING' : 'MI RUTA';
+    if (rightPanelTab === 'roadmap' || rightPanelTab === 'welcome' || rightPanelTab === 'profile') {
+      return selectedLang === 'EN' ? 'MY PROFILE' : 'MI PERFIL';
     }
     if (rightPanelTab === 'settings') {
       return selectedLang === 'EN' ? 'SYSTEM' : 'SISTEMA';
@@ -2398,8 +2398,33 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
     if (rightPanelTab === 'teachers') {
       return selectedLang === 'EN' ? 'TEACHERS' : 'DOCENTES';
     }
-    if (rightPanelTab === 'roadmap') {
-      return selectedLang === 'EN' ? 'MY JOURNEY' : 'MI RUTA';
+    if (rightPanelTab === 'roadmap' || rightPanelTab === 'welcome' || rightPanelTab === 'profile') {
+      let firstName = '';
+      if (authUser?.displayName && authUser.displayName.trim()) {
+        firstName = authUser.displayName.trim().split(' ')[0];
+      } else if (auth.currentUser?.displayName && auth.currentUser.displayName.trim()) {
+        firstName = auth.currentUser.displayName.trim().split(' ')[0];
+      } else if (visitorFullName && visitorFullName.trim()) {
+        firstName = visitorFullName.trim().split(' ')[0];
+      } else if (userName && userName.trim() && userName !== 'Estudiante' && userName !== 'Learner') {
+        firstName = userName.trim().split(' ')[0];
+      } else {
+        try {
+          const saved = localStorage.getItem('voyager_user_account');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.firstName && parsed.firstName.trim()) {
+              firstName = parsed.firstName.trim().replace(/\(Admin\)/gi, '').split(/\s+/)[0];
+            } else if (parsed.name && parsed.name.trim() && parsed.name !== 'Estudiante' && parsed.name !== 'Learner') {
+              firstName = parsed.name.trim().replace(/\(Admin\)/gi, '').split(/\s+/)[0];
+            }
+          }
+        } catch (e) {}
+      }
+      if (firstName) {
+        return firstName.toUpperCase();
+      }
+      return selectedLang === 'EN' ? 'MY PROFILE' : 'MI PERFIL';
     }
     if (rightPanelTab === 'settings') {
       return selectedLang === 'EN' ? 'SETTINGS' : 'CONFIGURACIÓN';
@@ -2428,7 +2453,12 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
   useEffect(() => {
     const syncPhoto = () => {
       try {
-        if (auth.currentUser?.photoURL) {
+        if (!auth.currentUser) {
+          setAdminPhotoUrl('');
+          localStorage.removeItem('voyager_admin_photo_url');
+          return;
+        }
+        if (auth.currentUser.photoURL) {
           setAdminPhotoUrl(auth.currentUser.photoURL);
           setAdminImgError(false);
           localStorage.setItem('voyager_admin_photo_url', auth.currentUser.photoURL);
@@ -2784,7 +2814,7 @@ const LiveAgent: React.FC<LiveAgentProps> = ({ isWidgetMode = false, onClose }) 
  education: getEducationText() || parsed.education || (selectedLang === 'EN' ? 'University' : 'Universidad'),
  goal: getGoalText() || parsed.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'),
  levelEstimate: mapLevelEstimate(selectedLevel) || parsed.levelEstimate || 'Intermediate',
- timePerWeek: parsed.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'),
+ timePerWeek: parsed.timePerWeek || '5 hr/wk',
  interests: getInterestsText() || parsed.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'),
  completedDays: parsed.completedDays || [1],
  plan: parsed.plan || 'FREE',
@@ -3300,8 +3330,8 @@ Reglas esenciales:
  if (savedAdmin) {
    try { parsedAdmin = JSON.parse(savedAdmin); } catch (e) {}
  }
- const rawAdmin = parsedAdmin.displayName || parsedAdmin.name || userName || 'Federico Sandoval';
- const adminName = rawAdmin.replace(/\s*\(.*?\)/g, '').trim() || 'Federico Sandoval';
+ const rawAdmin = parsedAdmin.displayName || parsedAdmin.name || userName || 'Federico';
+ const adminName = rawAdmin.replace(/\s*\(.*?\)/g, '').trim().split(' ')[0] || 'Federico';
  const speech = selectedLang === 'EN'
  ? `Hello, ${adminName}! Welcome to the USA Voyager Admin Portal. As your business intelligence AI partner, I am ready to review system metrics, student diagnostics, or business economics. What would you like to focus on today?`
  : `¡Hola, ${adminName}! Bienvenido al Portal de Administración de USA Voyager. Como tu socio de inteligencia de negocios, estoy listo para revisar métricas del sistema, diagnósticos de estudiantes o economía del negocio. ¿En qué deseas enfocarte hoy?`;
@@ -3321,7 +3351,7 @@ Reglas esenciales:
  ];
  });
 
- const adminSystemInstructions = `[INSTRUCCIÓN DE SISTEMA URGENTE Y MANDATORIA: Desde este momento, estás actuando como el Asesor de Inteligencia de Negocios y Portal de Administración de USA Voyager para ${adminName} (pronunciado "Fe-de-ri-co San-do-val", NUNCA "Federation").
+ const adminSystemInstructions = `[INSTRUCCIÓN DE SISTEMA: Estás actuando como el Asesor de Inteligencia de Negocios y Portal de Administración de USA Voyager para ${adminName}.
 Eres un socio de inteligencia ejecutiva, estratégico, claro y conciso.
 Tu objetivo es ayudar a ${adminName} a revisar métricas de plataforma, retención de estudiantes, docentes, ingresos por país y diagnósticos del sistema.
 Escucha activamente la voz del administrador y responde con datos y análisis claros.]`;
@@ -3330,7 +3360,7 @@ Escucha activamente la voz del administrador y responde con datos y análisis cl
  sendText(adminSystemInstructions);
 
  setTimeout(() => {
- sendText(`[SYSTEM INSTRUCTION: Please speak aloud the following welcome message in your natural voice. Do not write any text in the transcript or chat, just speak this message: "${speech}". Always pronounce the administrator's name as "Federico Sandoval" (Fe-de-ri-co), NEVER say "Federation".]`);
+ sendText(`[SYSTEM INSTRUCTION: Please speak aloud the following welcome message in your natural voice. Do not write any text in the transcript or chat, just speak this message: "${speech}".]`);
  }, 1000);
  } else {
  connect(adminSystemInstructions, true);
@@ -4164,38 +4194,42 @@ ${greetingPrompt}`;
   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-amber-500/5 rounded-full blur-[100px] pointer-events-none" />
   {/* Top Logo */}
     {/* Top-Left + Button & Top-Right Maximize Button in Passport */}
-    <div className="absolute top-3 left-3 z-30">
-      <button
-        type="button"
-        onClick={() => setIsConversationalMenuOpen(prev => !prev)}
-        className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-600/60 bg-slate-800/80 hover:bg-slate-700/90 text-slate-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
-        title={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
-        aria-label={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
-      >
-        <Plus className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${isConversationalMenuOpen ? 'rotate-45' : ''}`} />
-      </button>
+    {rightPanelTab !== 'home' && (
+      <>
+        <div className="absolute top-3 left-3 z-30">
+          <button
+            type="button"
+            onClick={() => setIsConversationalMenuOpen(prev => !prev)}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-600/60 bg-slate-800/80 hover:bg-slate-700/90 text-slate-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
+            title={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
+            aria-label={selectedLang === 'EN' ? 'Conversational Menu' : 'Menú Conversacional'}
+          >
+            <Plus className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${isConversationalMenuOpen ? 'rotate-45' : ''}`} />
+          </button>
 
-      {isConversationalMenuOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-transparent"
-            onClick={() => setIsConversationalMenuOpen(false)}
-          />
-          <div className="absolute top-full left-0 mt-2 z-50">
-            {renderConversationalMenuContent()}
-          </div>
-        </>
-      )}
-    </div>
+          {isConversationalMenuOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40 bg-transparent"
+                onClick={() => setIsConversationalMenuOpen(false)}
+              />
+              <div className="absolute top-full left-0 mt-2 z-50">
+                {renderConversationalMenuContent()}
+              </div>
+            </>
+          )}
+        </div>
 
-    <button
-      type="button"
-      onClick={() => setIsLiveFullScreen(true)}
-      className="absolute top-3 right-3 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-600/60 bg-slate-800/80 hover:bg-slate-700/90 text-slate-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
-      title={selectedLang === 'EN' ? 'Maximize View' : 'Maximizar Vista'}
-    >
-      <Maximize className="w-5 h-5 text-slate-400" />
-    </button>
+        <button
+          type="button"
+          onClick={() => setIsLiveFullScreen(true)}
+          className="absolute top-3 right-3 z-30 w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-600/60 bg-slate-800/80 hover:bg-slate-700/90 text-slate-400 flex items-center justify-center transition-all cursor-pointer active:scale-95 shadow-sm"
+          title={selectedLang === 'EN' ? 'Maximize View' : 'Maximizar Vista'}
+        >
+          <Maximize className="w-5 h-5 text-slate-400" />
+        </button>
+      </>
+    )}
 
     <div className="pt-3 sm:pt-4 flex flex-col items-center justify-center text-center select-none z-20 w-full max-w-full px-2">
       {rightPanelTab === 'home' ? (
@@ -4232,14 +4266,17 @@ ${greetingPrompt}`;
               <button
                 type="button"
                 onClick={() => {
-                  setAuthIsRegister(false);
-                  setAuthModalMode('email');
+                  if (!authUser || !auth.currentUser) {
+                    handleGoogleLogin();
+                  } else {
+                    setRightPanelTab('welcome');
+                  }
                 }}
                 title={!authUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Account Profile' : 'Perfil de cuenta')}
                 aria-label={!authUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Account Profile' : 'Perfil de cuenta')}
                 className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full overflow-hidden relative bg-slate-900 flex items-center justify-center shadow-2xl transition-all duration-300 ring-2 ring-amber-400/30 hover:ring-amber-400 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border-0 p-0"
               >
-                {authUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
+                {authUser && auth.currentUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
                   <img 
                     src={authUser.photoURL || adminPhotoUrl} 
                     alt={rightPanelTab === 'admin' ? "Google ID Photo - Federico Sandoval" : `${userName || 'User'} Profile Photo`} 
@@ -4307,7 +4344,7 @@ ${greetingPrompt}`;
               aria-label={!authUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Account Profile' : 'Perfil de cuenta')}
               className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full overflow-hidden relative bg-slate-900 flex items-center justify-center shadow-2xl transition-all duration-300 ring-2 ring-amber-400/30 hover:ring-amber-400 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border-0 p-0"
             >
-              {authUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
+              {authUser && auth.currentUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
                 <img 
                   src={authUser.photoURL || adminPhotoUrl} 
                   alt={rightPanelTab === 'admin' ? "Google ID Photo - Federico Sandoval" : `${userName || 'User'} Profile Photo`} 
@@ -4327,9 +4364,10 @@ ${greetingPrompt}`;
         <button
           type="button"
           onClick={() => {
-            if (!authUser) {
-              setAuthIsRegister(false);
-              setAuthModalMode('email');
+            if (!authUser || !auth.currentUser) {
+              handleGoogleLogin();
+            } else {
+              setRightPanelTab('welcome');
             }
           }}
           className="cursor-pointer focus:outline-none border-0 p-0 hover:opacity-85 transition-opacity"
@@ -4342,50 +4380,52 @@ ${greetingPrompt}`;
     )}
 
     {/* Passport Bottom Chat Input Controls (Mode Badge + Input Field + Mic) */}
-    <div className="w-full px-2 sm:px-3 z-30 flex flex-col items-center mt-1">
-      <ChatInputBox
-        isDarkMode={isDarkMode}
-        selectedLang={selectedLang}
-        isConnected={isConnected}
-        isPaused={isPaused}
-        pause={pause}
-        resume={resume}
-        currentMode={currentModeObj.id}
-        onSelectMode={(modeId) => {
-          if (isPaused && typeof resume === 'function') {
-            resume();
-          }
-          handleModeSelection(modeId as ConversationMode);
-          applyChosenMode(modeId as ConversationMode);
-          if (isConnected) {
-            const modeItem = modeDetails.find(m => m.id === modeId);
-            if (modeItem) {
-              sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${modeItem.nameEs}". Cambia tu estilo e idioma inmediatamente a este modo: "${modeItem.descEs}"]`);
+    {rightPanelTab !== 'home' && (
+      <div className="w-full px-2 sm:px-3 z-30 flex flex-col items-center mt-4 sm:mt-6 pt-2 sm:pt-3">
+        <ChatInputBox
+          isDarkMode={isDarkMode}
+          selectedLang={selectedLang}
+          isConnected={isConnected}
+          isPaused={isPaused}
+          pause={pause}
+          resume={resume}
+          currentMode={currentModeObj.id}
+          onSelectMode={(modeId) => {
+            if (isPaused && typeof resume === 'function') {
+              resume();
             }
-          }
-        }}
-        value={fullScreenInput}
-        onChangeValue={setFullScreenInput}
-        onSubmitText={(text) => {
-          if (!text.trim()) return;
-          setHasInteracted(true);
-          addUserMessage(text);
-          sendText(text);
-          setFullScreenInput('');
-          if (rightPanelTab !== 'chat') {
-            setRightPanelTab('chat');
-          }
-        }}
-        isSpanishOnlyMode={isSpanishOnlyMode}
-        setIsSpanishOnlyMode={setIsSpanishOnlyMode}
-        isBilingualMode={isBilingualMode}
-        setIsBilingualMode={setIsBilingualMode}
-        isEnglishOnlyMode={isEnglishOnlyMode}
-        setIsEnglishOnlyMode={setIsEnglishOnlyMode}
-        isTranslateMode={isTranslateMode}
-        setIsTranslateMode={setIsTranslateMode}
-      />
-    </div>
+            handleModeSelection(modeId as ConversationMode);
+            applyChosenMode(modeId as ConversationMode);
+            if (isConnected) {
+              const modeItem = modeDetails.find(m => m.id === modeId);
+              if (modeItem) {
+                sendText(`[INSTRUCCIÓN DE SISTEMA: El usuario ha seleccionado el modo de conversación: "${modeItem.nameEs}". Cambia tu estilo e idioma inmediatamente a este modo: "${modeItem.descEs}"]`);
+              }
+            }
+          }}
+          value={fullScreenInput}
+          onChangeValue={setFullScreenInput}
+          onSubmitText={(text) => {
+            if (!text.trim()) return;
+            setHasInteracted(true);
+            addUserMessage(text);
+            sendText(text);
+            setFullScreenInput('');
+            if (rightPanelTab !== 'chat') {
+              setRightPanelTab('chat');
+            }
+          }}
+          isSpanishOnlyMode={isSpanishOnlyMode}
+          setIsSpanishOnlyMode={setIsSpanishOnlyMode}
+          isBilingualMode={isBilingualMode}
+          setIsBilingualMode={setIsBilingualMode}
+          isEnglishOnlyMode={isEnglishOnlyMode}
+          setIsEnglishOnlyMode={setIsEnglishOnlyMode}
+          isTranslateMode={isTranslateMode}
+          setIsTranslateMode={setIsTranslateMode}
+        />
+      </div>
+    )}
 
   </div>
   </div>
@@ -4462,7 +4502,7 @@ ${greetingPrompt}`;
  <div className="w-full h-full flex flex-col overflow-hidden bg-transparent">
  {/* Header / Tabs */}
  {/* Top Header with Hamburger Button */}
-  <div className={`w-full ${isDarkMode && rightPanelTab === "chat" ? "bg-[#0A1628] text-white" : "bg-white text-black"} pt-[24px] ${rightPanelTab === "civics" ? "pb-3 sm:pb-4" : "pb-1 sm:pb-1.5"} pl-4 sm:pl-6 pr-4 sm:pr-6 flex items-center justify-between sticky top-0 z-50 flex-shrink-0 relative transition-colors duration-300`}>
+  <div className={`w-full ${isDarkMode && rightPanelTab === "chat" ? "bg-[#0A1628] text-white" : "bg-white text-black"} pt-2 sm:pt-2.5 ${rightPanelTab === "civics" ? "pb-3 sm:pb-4" : "pb-1 sm:pb-1.5"} pl-4 sm:pl-6 pr-4 sm:pr-6 flex items-center justify-between sticky top-0 z-50 flex-shrink-0 relative transition-colors duration-300`}>
     {/* Left: Hamburger Toggle Button */}
     <div className="flex items-center gap-2 sm:gap-2.5 z-20">
       <button
@@ -4648,25 +4688,20 @@ ${greetingPrompt}`;
 
     {/* Center: Roadmap (MI RUTA / PERFIL) Submenu Navigation */}
     {rightPanelTab === 'roadmap' && (
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-2 sm:gap-3.5 md:gap-5 text-[11.2px] font-extrabold uppercase tracking-wider select-none z-20 max-w-[calc(100%-90px)] overflow-x-auto no-scrollbar whitespace-nowrap">
+      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-2.5 sm:gap-4 md:gap-6 text-[14.5px] sm:text-[15.5px] font-black uppercase tracking-wider select-none z-20 max-w-[calc(100%-90px)] overflow-x-auto no-scrollbar whitespace-nowrap">
         <button 
           onClick={() => setRoadmapSubTab('welcome')}
           className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 shrink-0 ${
             roadmapSubTab === 'welcome' ? 'text-red-600 font-black' : (isDarkMode && rightPanelTab === "chat" ? 'text-slate-200 hover:text-red-500' : 'text-slate-900 hover:text-red-600')
           }`}
         >
-          <User className={`w-4 h-4 transition-colors ${roadmapSubTab === 'welcome' ? 'text-red-600' : 'text-slate-900 group-hover:text-red-600'}`} />
-          <span>{visitorFullName ? (visitorFullName.length > 12 ? visitorFullName.slice(0,10) : visitorFullName).toUpperCase() : (selectedLang === 'EN' ? 'PROFILE' : 'PERFIL')}</span>
-        </button>
-
-        <button 
-          onClick={() => setRoadmapSubTab('level')}
-          className={`group flex items-center gap-1.5 transition-colors uppercase cursor-pointer bg-transparent border-none p-0 shrink-0 ${
-            roadmapSubTab === 'level' ? 'text-red-600 font-black' : (isDarkMode && rightPanelTab === "chat" ? 'text-slate-200 hover:text-red-500' : 'text-slate-900 hover:text-red-600')
-          }`}
-        >
-          <TrendingUp className={`w-4 h-4 transition-colors ${roadmapSubTab === 'level' ? 'text-red-600' : 'text-slate-900 group-hover:text-red-600'}`} />
-          <span>{selectedLang === 'EN' ? 'YOUR LEVEL' : 'TU NIVEL'}</span>
+          <span>
+            {(() => {
+              const cleanName = (visitorFullName || '').replace(/\s*\([a-z0-9\s_-]+\)/gi, '').trim();
+              const displayName = cleanName ? (cleanName.length > 14 ? `${cleanName.split(' ')[0]} ${cleanName.split(' ')[1] ? cleanName.split(' ')[1][0] : ''}`.trim() : cleanName) : (selectedLang === 'EN' ? 'PROFILE' : 'PERFIL');
+              return displayName.toUpperCase();
+            })()}
+          </span>
         </button>
 
         <button 
@@ -4675,7 +4710,6 @@ ${greetingPrompt}`;
             roadmapSubTab === 'lessons' ? 'text-red-600 font-black' : (isDarkMode && rightPanelTab === "chat" ? 'text-slate-200 hover:text-red-500' : 'text-slate-900 hover:text-red-600')
           }`}
         >
-          <Compass className={`w-4 h-4 transition-colors ${roadmapSubTab === 'lessons' ? 'text-red-600' : 'text-slate-900 group-hover:text-red-600'}`} />
           <span>{selectedLang === 'EN' ? 'LESSONS' : 'LECCIONES'}</span>
         </button>
 
@@ -4685,7 +4719,6 @@ ${greetingPrompt}`;
             roadmapSubTab === 'achievements' ? 'text-red-600 font-black' : (isDarkMode && rightPanelTab === "chat" ? 'text-slate-200 hover:text-red-500' : 'text-slate-900 hover:text-red-600')
           }`}
         >
-          <Award className={`w-4 h-4 transition-colors ${roadmapSubTab === 'achievements' ? 'text-red-600' : 'text-slate-900 group-hover:text-red-600'}`} />
           <span>{selectedLang === 'EN' ? 'ACHIEVEMENTS' : 'LOGROS'}</span>
         </button>
       </div>
@@ -4828,29 +4861,7 @@ ${greetingPrompt}`;
      </button>
    )}
 
-   {/* Subtle Log Out Button */}
-   {(authUser || auth.currentUser || isLoggedIn) && (
-     <button
-       type="button"
-       onClick={async () => {
-         try {
-           await logout();
-         } catch (e) {}
-         setAuthUser(null);
-         setRightPanelTab('home');
-         window.location.hash = '';
-       }}
-       title={selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
-       aria-label={selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
-       className={`p-1.5 sm:p-2 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center active:scale-95 bg-transparent border-none group ${
-         isDarkMode && rightPanelTab === 'chat'
-           ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'
-           : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-       }`}
-     >
-       <LogOut className="w-4.5 h-4.5 transition-transform group-hover:scale-105" strokeWidth={2} />
-     </button>
-   )}
+   
  </div>
 
  {/* Vertical Column Bar Dropdown Menu */}
@@ -4865,14 +4876,14 @@ ${greetingPrompt}`;
  {/* Column Menu Drawer */}
  <div className="absolute top-full left-2 mt-2 w-52 z-50 bg-[#0B1B3D]/95 border border-[#FFD700]/40 backdrop-blur-xl rounded-2xl p-1.5 shadow-2xl animate-fade-in flex flex-col text-white">
  {[
- { id: 'home', icon: Home, label: 'INICIO', hash: '' },
- { id: 'citizenship', icon: BookOpen, label: 'CIUDADANÍA', hash: '#/citizenship' },
- { id: 'chat', icon: Bot, label: 'CHATS', hash: '#/chat' },
- { id: 'teachers', icon: Apple, label: 'DOCENTES', hash: '#/teachers' },
- { id: 'roadmap', icon: User, label: visitorFullName ? visitorFullName.toUpperCase() : (userName && !['Estudiante', 'Learner', 'Guest', 'Invitado'].includes(userName) ? userName.toUpperCase() : 'MI RUTA'), hash: '#/roadmap' },
- { id: 'shopping', icon: ShoppingCart, label: 'TIENDA', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
- { id: 'settings', icon: Settings, label: 'CONFIGURACIÓN', hash: '#/settings' },
- { id: 'admin', icon: ShieldCheck, label: 'ADMINISTRACIÓN', hash: '#/admin' },
+ { id: 'home', icon: Home, label: selectedLang === 'EN' ? 'Home' : 'Inicio', hash: '' },
+ { id: 'citizenship', icon: BookOpen, label: selectedLang === 'EN' ? 'Citizenship' : 'Ciudadanía', hash: '#/citizenship' },
+ { id: 'chat', icon: Bot, label: selectedLang === 'EN' ? 'Chats' : 'Chats', hash: '#/chat' },
+ { id: 'teachers', icon: Apple, label: selectedLang === 'EN' ? 'Teachers' : 'Docentes', hash: '#/teachers' },
+ { id: 'roadmap', icon: User, label: (visitorFullName || userName || (selectedLang === 'EN' ? 'My Journey' : 'Mi Ruta')).replace(/\s*\([a-z0-9\s_-]+\)/gi, '').trim(), hash: '#/roadmap' },
+ { id: 'shopping', icon: ShoppingCart, label: selectedLang === 'EN' ? 'Shop' : 'Tienda', badge: cartCount > 0 ? cartCount : undefined, hash: '#/shop' },
+ { id: 'settings', icon: Settings, label: selectedLang === 'EN' ? 'Settings' : 'Configuración', hash: '#/settings' },
+ { id: 'admin', icon: ShieldCheck, label: selectedLang === 'EN' ? 'Administration' : 'Administración', hash: '#/admin' },
  ].map((item) => {
  const IconComponent = item.icon;
  const isCitizenshipActive = item.id === 'citizenship' && (rightPanelTab === 'citizenship' || rightPanelTab === 'civics');
@@ -4917,7 +4928,7 @@ ${greetingPrompt}`;
  <div className="w-4 h-4 flex items-center justify-center shrink-0">
  <IconComponent className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#FFD700]' : 'text-white/70'}`} />
  </div>
- <span className="text-xs uppercase tracking-wider leading-tight whitespace-nowrap">
+ <span className="text-xs tracking-wide leading-tight whitespace-nowrap">
  {item.label}
  </span>
  </div>
@@ -4951,8 +4962,8 @@ ${greetingPrompt}`;
        <div className="w-4 h-4 flex items-center justify-center shrink-0">
          <LogOut className="w-4 h-4 text-white/50 group-hover:text-rose-300 transition-colors" />
        </div>
-       <span className="uppercase tracking-wider leading-tight whitespace-nowrap text-[11px]">
-         CERRAR SESIÓN
+       <span className="tracking-wide leading-tight whitespace-nowrap text-[11px]">
+ {selectedLang === 'EN' ? 'Log Out' : 'Cerrar sesión'}
        </span>
      </button>
    </div>
@@ -7500,14 +7511,17 @@ Pregunta del usuario: "${text}"]`;
             <button
               type="button"
               onClick={() => {
-                setAuthIsRegister(false);
-                setAuthModalMode('email');
+                if (!authUser || !auth.currentUser) {
+                  handleGoogleLogin();
+                } else {
+                  setRightPanelTab('welcome');
+                }
               }}
               title={!authUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Account Profile' : 'Perfil de cuenta')}
               aria-label={!authUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Account Profile' : 'Perfil de cuenta')}
               className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-full overflow-hidden relative bg-slate-900 flex items-center justify-center shadow-2xl transition-all duration-300 hover:ring-2 hover:ring-amber-400 hover:scale-105 active:scale-95 cursor-pointer focus:outline-none border-0 p-0"
             >
-              {authUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
+              {authUser && auth.currentUser && (authUser.photoURL || adminPhotoUrl) && !adminImgError ? (
                 <img 
                   src={authUser.photoURL || adminPhotoUrl} 
                   alt={rightPanelTab === 'admin' ? "Google ID Photo - Federico Sandoval" : `${userName || 'User'} Profile Photo`} 

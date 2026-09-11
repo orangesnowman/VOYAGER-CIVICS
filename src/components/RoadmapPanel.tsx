@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings } from 'lucide-react';
+import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings, Pencil, Plus, Tag, Check } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { googleSignIn, logout, auth } from '../services/firebaseAuth';
-import { saveUserProfile, syncOrMigrateUserOnAuth, getLocalProfileCache } from '../services/userProfileService';
+import { saveUserProfile, syncOrMigrateUserOnAuth, getLocalProfileCache, setLocalProfileCache } from '../services/userProfileService';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import { IMMERSION_CURRICULUM, CIUDADANIA_CURRICULUM } from '../constants';
 import { TeacherInsightsPanel } from './TeacherInsightsPanel';
@@ -62,6 +62,61 @@ interface UserProfile {
   };
 }
 
+export const sanitizeUserProfileNames = (profile: Partial<UserProfile>): { firstName: string; lastName: string; fullName: string } => {
+  let rawName = (profile.name || '').replace(/\(Admin\)/gi, '').trim();
+  let rawFirst = (profile.firstName || '').replace(/\(Admin\)/gi, '').trim();
+  let rawLast = (profile.lastName || '').replace(/\(Admin\)/gi, '').trim();
+
+  // Deduplicate repeated adjacent words in rawFirst if present
+  if (rawFirst.includes(' ')) {
+    const firstWords = rawFirst.split(/\s+/);
+    const uniqueFirstWords = firstWords.filter((w, i) => i === 0 || w.toLowerCase() !== firstWords[i - 1].toLowerCase());
+    rawFirst = uniqueFirstWords[0] || 'Federico';
+    if (!rawLast && uniqueFirstWords.length > 1) {
+      rawLast = uniqueFirstWords.slice(1).join(' ');
+    }
+  }
+
+  // Deduplicate repeated adjacent words in rawLast if present
+  if (rawLast.includes(' ')) {
+    const lastWords = rawLast.split(/\s+/);
+    const uniqueLastWords = lastWords.filter((w, i) => i === 0 || w.toLowerCase() !== lastWords[i - 1].toLowerCase());
+    rawLast = uniqueLastWords.join(' ');
+  }
+
+  // If rawFirst and rawLast overlap (e.g. rawFirst = "Federico Sandoval", rawLast = "Sandoval")
+  if (rawFirst && rawLast && rawFirst.toLowerCase().endsWith(rawLast.toLowerCase())) {
+    rawFirst = rawFirst.slice(0, rawFirst.toLowerCase().lastIndexOf(rawLast.toLowerCase())).trim();
+  }
+
+  // If rawFirst is missing, extract from rawName
+  if (!rawFirst && rawName) {
+    const nameParts = rawName.split(/\s+/).filter((w, i, arr) => i === 0 || w.toLowerCase() !== arr[i - 1].toLowerCase());
+    rawFirst = nameParts[0] || 'Federico';
+    if (!rawLast && nameParts.length > 1) {
+      rawLast = nameParts.slice(1).join(' ');
+    }
+  }
+
+  if (!rawFirst) rawFirst = 'Federico';
+  if (!rawLast) rawLast = 'Sandoval';
+
+  // Construct full clean name without repeated words
+  const fullParts = [rawFirst, ...rawLast.split(/\s+/)].filter(Boolean);
+  const deduplicatedParts: string[] = [];
+  fullParts.forEach(part => {
+    if (deduplicatedParts.length === 0 || deduplicatedParts[deduplicatedParts.length - 1].toLowerCase() !== part.toLowerCase()) {
+      deduplicatedParts.push(part);
+    }
+  });
+
+  return {
+    firstName: rawFirst,
+    lastName: rawLast,
+    fullName: deduplicatedParts.join(' ')
+  };
+};
+
 export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   selectedLang,
   learnedWordsCount,
@@ -82,6 +137,20 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   activeSubTab: externalActiveSubTab,
   onSelectSubTab
 }) => {
+  const formatStudyTimeCompact = (rawTime?: string): string => {
+    if (!rawTime) return '5 hr/wk';
+    const val = rawTime.trim().toLowerCase();
+    if (val.includes('5')) return '5 hr/wk';
+    if (val.includes('2')) return '2 hr/wk';
+    if (val.includes('10')) return '10 hr/wk';
+    if (val.includes('7') || val.includes('diaria') || val.includes('daily')) return '7 hr/wk';
+    if (val.includes('1')) return '1 hr/wk';
+    if (val.includes('3')) return '3 hr/wk';
+    if (val.includes('4')) return '4 hr/wk';
+    if (val.includes('hr') || val.includes('wk')) return rawTime;
+    return '5 hr/wk';
+  };
+
   const defaultUser: UserProfile = {
     name: 'Federico Sandoval',
     firstName: 'Federico',
@@ -95,7 +164,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     age: 63,
     education: selectedLang === 'EN' ? 'University' : 'Universidad',
     interests: selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música',
-    timePerWeek: selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana',
+    timePerWeek: '5 hr/wk',
     avatarType: 'user',
     completedDays: [1],
     plan: 'FREE'
@@ -180,25 +249,33 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     };
   };
   const readAccountFromStorage = React.useCallback((): UserProfile => {
-    const adminPhoto = typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL || undefined) : undefined;
+    const isLoggedIn = Boolean(auth.currentUser);
+    const adminPhoto = isLoggedIn && typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL || undefined) : undefined;
     const saved = typeof window !== 'undefined' ? localStorage.getItem('voyager_user_account') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed) {
-          const resolvedPhoto = parsed.avatarUrl || parsed.photoURL || adminPhoto;
+          const resolvedPhoto = isLoggedIn ? (parsed.avatarUrl || parsed.photoURL || adminPhoto) : undefined;
+          const names = sanitizeUserProfileNames(parsed);
           return {
             ...defaultUser,
             ...parsed,
-            name: parsed.name && parsed.name !== 'Alex Johnson Placeholder' ? parsed.name : defaultUser.name,
+            name: names.fullName,
+            firstName: names.firstName,
+            lastName: names.lastName,
             avatarUrl: resolvedPhoto,
             avatarType: parsed.avatarType || (resolvedPhoto ? 'custom' : 'user')
           };
         }
       } catch (e) {}
     }
+    const defaultNames = sanitizeUserProfileNames(defaultUser);
     return {
       ...defaultUser,
+      name: defaultNames.fullName,
+      firstName: defaultNames.firstName,
+      lastName: defaultNames.lastName,
       avatarUrl: adminPhoto,
       avatarType: adminPhoto ? 'custom' : 'user'
     };
@@ -241,7 +318,33 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   const [editAge, setEditAge] = useState<number | string>(user.age ?? 63);
   const [editEducation, setEditEducation] = useState(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
   const [editInterests, setEditInterests] = useState(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
-  const [editTimePerWeek, setEditTimePerWeek] = useState(user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'));
+  const [newInterestInput, setNewInterestInput] = useState('');
+
+  const handleAddInterest = (itemToAdd?: string) => {
+    const item = (itemToAdd || newInterestInput).trim();
+    if (!item) return;
+    const currentList = editInterests
+      ? editInterests.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    if (!currentList.some(i => i.toLowerCase() === item.toLowerCase())) {
+      const updated = [...currentList, item].join(', ');
+      setEditInterests(updated);
+    }
+    setNewInterestInput('');
+  };
+
+  const handleRemoveInterest = (itemToRemove: string) => {
+    const currentList = editInterests
+      ? editInterests.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+    const updated = currentList.filter(i => i.toLowerCase() !== itemToRemove.toLowerCase()).join(', ');
+    setEditInterests(updated);
+  };
+
+  const suggestedInterests = selectedLang === 'EN'
+    ? ['Travel', 'Technology', 'Music', 'US Civics', 'Movies', 'Sports', 'Cooking', 'History', 'Business']
+    : ['Viajes', 'Tecnología', 'Música', 'Cívica EE.UU.', 'Cine & Series', 'Deportes', 'Gastronomía', 'Historia', 'Negocios'];
+  const [editTimePerWeek, setEditTimePerWeek] = useState(formatStudyTimeCompact(user.timePerWeek));
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [saveNotification, setSaveNotification] = useState<string | null>(null);
   const [internalSubTab, setInternalSubTab] = useState<'welcome' | 'level' | 'lessons' | 'achievements' | 'streak'>('welcome');
@@ -319,31 +422,20 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   }, [user?.name]);
 
   useEffect(() => {
-    if (user) {
-      let fName = user.firstName || '';
-      let lName = user.lastName || '';
-      if (!fName && !lName && user.name) {
-        const parts = user.name.trim().split(/\s+/);
-        if (parts.length > 1) {
-          fName = parts.slice(0, -1).join(' ');
-          lName = parts[parts.length - 1];
-        } else {
-          fName = parts[0] || (selectedLang === 'EN' ? 'Learner' : 'Estudiante');
-          lName = '';
-        }
-      }
-      setEditFirstName(fName);
-      setEditLastName(lName);
+    if (user && !isEditingProfile) {
+      const names = sanitizeUserProfileNames(user);
+      setEditFirstName(names.firstName);
+      setEditLastName(names.lastName);
       setEditCategory(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
       setEditCountry(user.country || 'Guatemala');
-      setEditAge(user.age ?? 63);
+      setEditAge(user.age ?? 21);
       setSelectedGoal(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
       setEditInterests(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
       setSelectedLevel(user.levelEstimate || 'Intermediate');
       setEditEducation(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
-      setEditTimePerWeek(user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'));
+      setEditTimePerWeek(formatStudyTimeCompact(user.timePerWeek));
     }
-  }, [user, isEditingProfile, selectedLang]);
+  }, [user, isEditingProfile]);
 
   const getAiStudentSummary = (u: UserProfile, lang: 'EN' | 'ES') => {
     const goalText = u.goal || 'Business English & Networking';
@@ -390,7 +482,11 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   };
 
   const renderAvatarContent = (u: UserProfile) => {
-    const photoUrl = u.avatarUrl || u.photoURL || (typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL) : null);
+    const isLoggedIn = Boolean(auth.currentUser);
+    const photoUrl = isLoggedIn
+      ? (u.avatarUrl || u.photoURL || (typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL) : null))
+      : null;
+
     if (photoUrl) {
       return (
         <img
@@ -490,13 +586,10 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
       );
     }
 
-    // Default neutral user icon in a clean light-neutral grey circle
+    // Default neutral outline user icon
     return (
-      <div className="w-full h-full rounded-full bg-[#eaeced] text-neutral-400 flex items-center justify-center overflow-hidden">
-        <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="50" cy="38" r="22" fill="#cbd5e1" />
-          <path d="M 16 95 C 16 70, 30 60, 50 60 C 70 60, 84 70, 84 95 Z" fill="#cbd5e1" />
-        </svg>
+      <div className="w-full h-full rounded-full bg-[#102244] text-slate-300 flex items-center justify-center border-2 border-slate-400/40 shadow-inner hover:border-amber-400/80 transition-colors p-2">
+        <User className="w-3/5 h-3/5 text-slate-300 hover:text-amber-300 transition-colors" strokeWidth={1.8} />
       </div>
     );
   };
@@ -531,11 +624,12 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
           const synced = await syncOrMigrateUserOnAuth(fbUser);
           const localCache = getLocalProfileCache() || {};
           const mergedData = { ...defaultUser, ...localCache, ...synced };
+          const names = sanitizeUserProfileNames(mergedData);
           const newUser: UserProfile = {
             ...mergedData,
-            name: mergedData.name || fbUser.displayName || 'Learner',
-            firstName: mergedData.firstName || (fbUser.displayName ? fbUser.displayName.split(' ')[0] : 'Federico'),
-            lastName: mergedData.lastName || (fbUser.displayName ? fbUser.displayName.split(' ').slice(1).join(' ') : 'Sandoval'),
+            name: names.fullName,
+            firstName: names.firstName,
+            lastName: names.lastName,
             email: mergedData.email || fbUser.email || 'learner@usavoyager.com',
             provider: (fbUser.providerData?.[0]?.providerId === 'google.com' ? 'Google' : (mergedData.provider || 'Email')) as any,
             goal: mergedData.goal || 'Academic success',
@@ -551,6 +645,16 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
         } catch (err) {
           console.error('Error syncing user on auth state change:', err);
         }
+      } else {
+        try {
+          localStorage.removeItem('voyager_admin_photo_url');
+        } catch (e) {}
+        setUser((prev) => ({
+          ...prev,
+          avatarUrl: undefined,
+          photoURL: undefined,
+          avatarType: (prev.avatarType && prev.avatarType !== 'custom' ? prev.avatarType : 'user')
+        }));
       }
     });
 
@@ -558,35 +662,58 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   }, []);
 
   const saveUser = (updated: UserProfile) => {
-    setUser(updated);
-    saveUserProfile(auth.currentUser?.uid || '', updated);
+    const names = sanitizeUserProfileNames(updated);
+    const cleanedUser: UserProfile = {
+      ...updated,
+      name: names.fullName,
+      firstName: names.firstName,
+      lastName: names.lastName
+    };
+    setUser(cleanedUser);
+    setLocalProfileCache(cleanedUser);
+    try {
+      localStorage.setItem('voyager_user_account', JSON.stringify(cleanedUser));
+      window.dispatchEvent(new Event('voyager_profile_updated'));
+    } catch (e) {}
+    saveUserProfile(auth.currentUser?.uid || '', cleanedUser);
   };
 
   const handleLogout = async () => {
     try {
       await logout();
+      localStorage.removeItem('voyager_admin_photo_url');
+      localStorage.removeItem('voyager_user_account');
     } catch (e) {}
-    saveUser(defaultUser);
+    if (onLogout) onLogout();
+    const loggedOutUser: UserProfile = {
+      ...defaultUser,
+      avatarUrl: undefined,
+      photoURL: undefined,
+      avatarType: 'user'
+    };
+    saveUser(loggedOutUser);
   };
 
   const handleUpdateProfile = () => {
     if (!user) return;
     const numAge = typeof editAge === 'number' ? editAge : parseInt(String(editAge), 10);
-    const fName = editFirstName.trim();
-    const lName = editLastName.trim();
-    const combinedName = [fName, lName].filter(Boolean).join(' ');
+    const names = sanitizeUserProfileNames({
+      name: `${editFirstName} ${editLastName}`,
+      firstName: editFirstName,
+      lastName: editLastName
+    });
     const updated: UserProfile = {
       ...user,
-      name: combinedName || user.name,
-      firstName: fName,
-      lastName: lName,
+      name: names.fullName,
+      firstName: names.firstName,
+      lastName: names.lastName,
       category: editCategory.trim() || user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'),
       country: editCountry.trim() || user.country || 'Guatemala',
       age: !isNaN(numAge) ? numAge : (user.age ?? 63),
       levelEstimate: selectedLevel,
       education: editEducation.trim() || user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'),
       goal: selectedGoal,
-      timePerWeek: editTimePerWeek.trim() || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'),
+      timePerWeek: formatStudyTimeCompact(editTimePerWeek),
       interests: editInterests.trim() || user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')
     };
     saveUser(updated);
@@ -642,34 +769,166 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
           {/* Tab Body Content */}
           <div className="pt-1">
             {activeSubTab === 'welcome' && (
-              <div className="animate-fade-in py-2">
+              <div className="animate-fade-in py-1 space-y-6">
+
+                {/* 📊 Student Performance Metrics (Top / First Row) */}
+                <div className="pt-0.5 pb-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-amber-500" />
+                    <span className="text-sm sm:text-[15.5px] font-black uppercase tracking-wider text-neutral-800 font-mono">
+                      {selectedLang === 'EN' 
+                        ? `Performance Metrics for ${(sanitizeUserProfileNames(user).firstName || 'Federico').toUpperCase()}` 
+                        : `ESTADÍSTICAS DE ${(sanitizeUserProfileNames(user).firstName || 'FEDERICO').toUpperCase()}`}
+                    </span>
+                  </div>
+
+                  {/* Score Circular Rings Section */}
+                  {(() => {
+                    const getPct = (val?: number, fallback: number = 80) => {
+                      if (val === undefined || val === null || val <= 1) return fallback;
+                      if (val <= 5) return Math.min(100, Math.round(val * 20));
+                      return Math.min(100, Math.round(val));
+                    };
+
+                    const statItems = [
+                      {
+                        title: selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación',
+                        val: getPct(scores?.pronunciation || pronunciationScore, 82),
+                        sub: selectedLang === 'EN' 
+                          ? 'Accuracy score after 30 days practice' 
+                          : 'Puntuación de precisión después de 30 días'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Fluency' : 'Fluidez',
+                        val: getPct(scores?.naturalness, 74),
+                        sub: selectedLang === 'EN' 
+                          ? 'Improvement in natural conversation flow' 
+                          : 'Mejora en el flujo natural de conversación'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario',
+                        val: getPct(scores?.grammar || grammarScore, 88),
+                        sub: selectedLang === 'EN' 
+                          ? 'New words retained after real use' 
+                          : 'Palabras nuevas retenidas tras su uso real'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
+                        val: getPct(scores?.confidence, 68),
+                        sub: selectedLang === 'EN' 
+                          ? 'Users reporting speaking with more security' 
+                          : 'Usuarios que reportan hablar con más seguridad'
+                      }
+                    ];
+
+                    const radius = 38;
+                    const strokeWidth = 11;
+                    const circumference = 2 * Math.PI * radius; // ~238.76
+
+                    return (
+                      <div className="bg-white p-3 sm:p-4 rounded-2xl space-y-1">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                          {statItems.map((item, idx) => {
+                            const pct = Math.max(0, Math.min(100, item.val));
+                            const strokeDashoffset = circumference - (pct / 100) * circumference;
+
+                            return (
+                              <div key={idx} className="flex flex-col items-center text-center group">
+                                {/* SVG Donut Circle */}
+                                <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-0.5">
+                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform">
+                                    {/* Background Dark Arc */}
+                                    <circle
+                                      cx="50"
+                                      cy="50"
+                                      r={radius}
+                                      fill="transparent"
+                                      stroke="#333333"
+                                      strokeWidth={strokeWidth}
+                                    />
+                                    {/* Foreground Bright Yellow Arc */}
+                                    <circle
+                                      cx="50"
+                                      cy="50"
+                                      r={radius}
+                                      fill="transparent"
+                                      stroke="#FACC15"
+                                      strokeWidth={strokeWidth}
+                                      strokeDasharray={circumference}
+                                      strokeDashoffset={strokeDashoffset}
+                                      strokeLinecap="butt"
+                                      className="transition-all duration-700 ease-out"
+                                    />
+                                  </svg>
+
+                                  {/* Percentage Text Centered */}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-neutral-900">
+                                      {pct}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Metric Title */}
+                                <h5 className="text-xs sm:text-sm font-black text-neutral-900 mt-1 font-mono tracking-tight">
+                                  {item.title}
+                                </h5>
+
+                                {/* Subtitle description */}
+                                <p className="text-[10px] sm:text-[11px] text-neutral-600 font-mono mt-0.5 leading-tight max-w-[150px]">
+                                  {item.sub}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* Minimalist 2-Column Identity Card */}
-                <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 sm:gap-10">
+                <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-6 sm:gap-10 pt-2">
                   
                   {/* Left Column (approx 30-35% width): Avatar */}
-                  <div className="w-full md:w-[35%] flex flex-col items-center justify-center text-center">
+                  <div className="w-full md:w-[35%] flex flex-col items-start justify-start text-left">
                     {/* Circular Avatar Container with Camera Icon & Gear Logout Badge on Border */}
                     <div className="relative group flex-shrink-0 w-36 h-36 sm:w-44 sm:h-44">
                       {/* Avatar Circle */}
                       <div 
-                        onClick={() => setIsAvatarModalOpen(true)}
+                        onClick={async () => {
+                          if (!auth.currentUser) {
+                            try {
+                              const res = await googleSignIn();
+                              if (res?.user) {
+                                const synced = await syncOrMigrateUserOnAuth(res.user);
+                                const rawEmail = (synced.email || res.user.email || '').toLowerCase().trim();
+                                const isAdminUser = rawEmail === 'theorangesnowman@gmail.com';
+                                const finalName = isAdminUser ? 'Federico Sandoval (Admin)' : (synced.name || res.user.displayName || 'Google Learner');
+                                const photoURL = res.user.photoURL || synced.photoURL || synced.avatarUrl || '';
+                                const updatedUser: UserProfile = {
+                                  ...defaultUser,
+                                  ...synced,
+                                  name: finalName,
+                                  email: isAdminUser ? 'theorangesnowman@gmail.com' : rawEmail,
+                                  photoURL,
+                                  avatarUrl: photoURL,
+                                  avatarType: photoURL ? 'custom' : 'user'
+                                };
+                                saveUser(updatedUser);
+                              }
+                            } catch (err) {
+                              console.error('Google sign in error:', err);
+                            }
+                          } else {
+                            setIsAvatarModalOpen(true);
+                          }
+                        }}
                         className="w-full h-full rounded-full bg-neutral-100 border border-neutral-200/80 shadow-xs cursor-pointer overflow-hidden flex items-center justify-center transition-transform duration-200 hover:scale-[1.02]"
+                        title={!auth.currentUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto')}
                       >
                         {renderAvatarContent(user)}
                       </div>
-
-                      {/* Camera Badge Button Positioned on Circle Border (Bottom Right) */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsAvatarModalOpen(true);
-                        }}
-                        className="absolute bottom-1 right-1 sm:bottom-1.5 sm:right-1.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-neutral-900 hover:bg-black text-white border-[3px] border-black ring-2 ring-white flex items-center justify-center shadow-md transition-all duration-200 cursor-pointer hover:scale-105 z-10"
-                        title={selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto'}
-                      >
-                        <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white stroke-[2.5]" />
-                      </button>
 
                       {/* Gear Account & Logout Popover Menu */}
                       {isGearMenuOpen && (
@@ -726,356 +985,535 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         </>
                       )}
                     </div>
+
+                    {/* ID, Status & Edit Link directly under Photo */}
+                    <div className="mt-3.5 flex flex-col items-start text-left gap-2 w-full">
+                      <span className="font-bold text-slate-800 text-xs sm:text-sm tracking-wide">
+                        {user.studentId || 'STU-001'}
+                      </span>
+
+                      <div className="inline-flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/90 rounded-full shadow-2xs">
+                        {/* 1. Photo Editor Button */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!auth.currentUser) {
+                              try {
+                                const res = await googleSignIn();
+                                if (res?.user) {
+                                  const synced = await syncOrMigrateUserOnAuth(res.user);
+                                  const rawEmail = (synced.email || res.user.email || '').toLowerCase().trim();
+                                  const isAdminUser = rawEmail === 'theorangesnowman@gmail.com';
+                                  const finalName = isAdminUser ? 'Federico Sandoval (Admin)' : (synced.name || res.user.displayName || 'Google Learner');
+                                  const photoURL = res.user.photoURL || synced.photoURL || synced.avatarUrl || '';
+                                  const updatedUser: UserProfile = {
+                                    ...defaultUser,
+                                    ...synced,
+                                    name: finalName,
+                                    email: isAdminUser ? 'theorangesnowman@gmail.com' : rawEmail,
+                                    photoURL,
+                                    avatarUrl: photoURL,
+                                    avatarType: photoURL ? 'custom' : 'user'
+                                  };
+                                  saveUser(updatedUser);
+                                }
+                              } catch (err) {
+                                console.error('Google sign in error:', err);
+                              }
+                            } else {
+                              setIsAvatarModalOpen(true);
+                            }
+                          }}
+                          className="w-8 h-8 rounded-full bg-white text-slate-800 hover:bg-slate-200/80 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95 border border-slate-200/80"
+                          title={!auth.currentUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto')}
+                        >
+                          <Camera className="w-4 h-4 text-slate-700 stroke-[2.2]" />
+                        </button>
+
+                        {/* 2. Active Account Status Badge */}
+                        <div
+                          className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 transition-all cursor-default flex items-center justify-center shadow-2xs border border-emerald-200/90"
+                          title={selectedLang === 'EN' ? 'Active Account' : 'Cuenta Activa'}
+                        >
+                          <Check className="w-4.5 h-4.5 text-emerald-600 stroke-[3]" />
+                        </div>
+
+                        {/* 3. Edit Answers Button */}
+                        {!isEditingProfile ? (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(true)}
+                            className="w-8 h-8 rounded-full bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95 border border-slate-200/80"
+                            title={selectedLang === 'EN' ? 'Edit Profile Answers' : 'Editar Respuestas'}
+                          >
+                            <Pencil className="w-4 h-4 stroke-[2.2]" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingProfile(false)}
+                            className="w-8 h-8 rounded-full bg-slate-200 text-slate-800 hover:bg-slate-300 transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95 border border-slate-300"
+                            title={selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado'}
+                          >
+                            <X className="w-4 h-4 stroke-[2.2]" />
+                          </button>
+                        )}
+
+                        {/* 4. Log Out Button */}
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="w-8 h-8 rounded-full bg-white text-rose-600 hover:bg-rose-50 hover:text-rose-700 transition-all cursor-pointer flex items-center justify-center shadow-2xs active:scale-95 border border-slate-200/80"
+                          title={selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
+                        >
+                          <LogOut className="w-4 h-4 text-rose-600 stroke-[2.2]" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Right Column: Clean Label-Value Identity Details or Onboarding Editor Card */}
                   {isEditingProfile ? (
-                    <div className="w-full md:w-[65%] flex flex-col bg-[#FFFDF3] p-5 sm:p-6 rounded-[22px] border-2 border-[#FFC72C] shadow-xs animate-fade-in">
-                      {/* Header with Toggle Button */}
-                      <div className="mb-3">
+                    <div className="w-full md:w-[65%] flex flex-col bg-white p-5 sm:p-6 rounded-[24px] border-2 border-amber-400 shadow-xl animate-fade-in text-neutral-900">
+                      {/* Header with Save/Cancel Controls */}
+                      <div className="mb-4 pb-3 border-b border-neutral-200">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleUpdateProfile();
-                            }}
-                            className="font-black text-black text-lg sm:text-xl flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer group text-left bg-transparent border-none p-0"
-                            title={selectedLang === 'EN' ? 'Click to Save and view saved responses' : 'Haz clic para guardar y ver respuestas guardadas'}
-                          >
-                            <span className="text-xl group-hover:scale-110 transition-transform">✏️</span>
-                            <span className="group-hover:text-amber-900 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-black text-neutral-900 text-base sm:text-lg">
                               {selectedLang === 'EN' ? 'Update Onboarding Answers' : 'Actualizar Respuestas de Registro'}
-                            </span>
-                          </button>
+                            </h3>
+                          </div>
 
                           <button
                             type="button"
                             onClick={() => setIsEditingProfile(false)}
-                            className="px-3.5 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-xl font-extrabold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-neutral-300 shadow-2xs"
+                            className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-neutral-300 shadow-2xs"
                           >
-                            <span>👁️</span>
-                            <span>{selectedLang === 'EN' ? 'Saved View' : 'Ver Guardado'}</span>
+                            <span>{selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado'}</span>
                           </button>
                         </div>
-                        <p className="text-xs sm:text-sm font-medium text-neutral-600 mt-1 mb-3">
+                        <p className="text-xs font-medium text-neutral-600 mt-1">
                           {selectedLang === 'EN'
                             ? 'Modify your responses to personalize your learning path and AI tutor instructions.'
                             : 'Modifica tus respuestas para personalizar tu ruta de aprendizaje e instrucciones del tutor IA.'}
                         </p>
-                        <div className="h-[1px] bg-neutral-200/90 w-full" />
                       </div>
 
                       {/* Toast Notification */}
                       {saveNotification && (
-                        <div className="mb-4 p-3 bg-emerald-100 border border-emerald-400 text-emerald-950 font-black rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in">
+                        <div className="mb-4 p-3 bg-emerald-100 border border-emerald-400 text-emerald-950 font-black rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in shadow-2xs">
                           <span>{saveNotification}</span>
                         </div>
                       )}
 
-                      {/* 1. Name & Apellido */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            👤 {selectedLang === 'EN' ? 'Name:' : 'Nombre:'}
-                          </label>
-                          <input
-                            type="text"
-                            value={editFirstName}
-                            onChange={(e) => setEditFirstName(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                            placeholder={selectedLang === 'EN' ? 'e.g. Federico' : 'ej. Federico'}
-                          />
+                      <div className="space-y-4">
+                        {/* Section 1: Personal Info */}
+                        <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-2xl border border-amber-200/80">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 mb-2.5 flex items-center gap-1.5">
+                            {selectedLang === 'EN' ? 'Personal Information' : 'Información Personal'}
+                          </h4>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
+                              </label>
+                              <input
+                                type="text"
+                                value={editFirstName}
+                                onChange={(e) => setEditFirstName(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                                placeholder="Federico"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
+                              </label>
+                              <input
+                                type="text"
+                                value={editLastName}
+                                onChange={(e) => setEditLastName(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                                placeholder="Sandoval"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Category' : 'Categoría'}
+                              </label>
+                              <select
+                                value={editCategory}
+                                onChange={(e) => setEditCategory(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
+                                <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
+                                <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
+                                <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Country' : 'País'}
+                              </label>
+                              <select
+                                value={editCountry}
+                                onChange={(e) => setEditCountry(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="Costa Rica">🇨🇷 Costa Rica</option>
+                                <option value="Mexico">🇲🇽 México</option>
+                                <option value="Colombia">🇨🇴 Colombia</option>
+                                <option value="Spain">🇪🇸 España</option>
+                                <option value="United States">🇺🇸 United States</option>
+                                <option value="Argentina">🇦🇷 Argentina</option>
+                                <option value="Peru">🇵🇪 Perú</option>
+                                <option value="Chile">🇨🇱 Chile</option>
+                                <option value="Guatemala">🇬🇹 Guatemala</option>
+                                <option value="Dominican Republic">🇩🇴 República Dominicana</option>
+                                <option value="Venezuela">🇻🇪 Venezuela</option>
+                                <option value="Ecuador">🇪🇨 Ecuador</option>
+                                <option value="Honduras">🇭🇳 Honduras</option>
+                                <option value="El Salvador">🇸🇻 El Salvador</option>
+                                <option value="Nicaragua">🇳🇮 Nicaragua</option>
+                                <option value="Panama">🇵🇦 Panamá</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Age' : 'Edad'}
+                              </label>
+                              <input
+                                type="number"
+                                value={editAge}
+                                onChange={(e) => setEditAge(e.target.value)}
+                                min={10}
+                                max={100}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            👤 {selectedLang === 'EN' ? 'Apellido:' : 'Apellido:'}
-                          </label>
-                          <input
-                            type="text"
-                            value={editLastName}
-                            onChange={(e) => setEditLastName(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                            placeholder={selectedLang === 'EN' ? 'e.g. Sandoval' : 'ej. Sandoval'}
-                          />
-                        </div>
-                      </div>
+                        {/* Section 2: Learning Profile */}
+                        <div className="bg-blue-50/70 p-3.5 sm:p-4 rounded-2xl border border-blue-200/80">
+                          <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 mb-2.5 flex items-center gap-1.5">
+                            {selectedLang === 'EN' ? 'Learning Profile' : 'Perfil de Aprendizaje'}
+                          </h4>
 
-                      {/* 2 & 3. Category + Country */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            🏷️ {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
-                          </label>
-                          <select
-                            value={editCategory}
-                            onChange={(e) => setEditCategory(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          >
-                            <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
-                            <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
-                            <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
-                            <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
-                          </select>
-                        </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
+                              </label>
+                              <select
+                                value={selectedLevel}
+                                onChange={(e) => setSelectedLevel(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="Intermediate">{selectedLang === 'EN' ? 'Intermediate (B1-B2)' : 'Intermedio (B1-B2)'}</option>
+                                <option value="Beginner">{selectedLang === 'EN' ? 'Beginner (A1-A2)' : 'Principiante (A1-A2)'}</option>
+                                <option value="Advanced">{selectedLang === 'EN' ? 'Advanced (C1-C2)' : 'Avanzado (C1-C2)'}</option>
+                                <option value="Not Sure">{selectedLang === 'EN' ? 'Not Sure' : 'No estoy seguro'}</option>
+                              </select>
+                            </div>
 
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            🌎 {selectedLang === 'EN' ? 'Country:' : 'País:'}
-                          </label>
-                          <select
-                            value={editCountry}
-                            onChange={(e) => setEditCountry(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          >
-                            <option value="Costa Rica">🇨🇷 Costa Rica</option>
-                            <option value="Mexico">🇲🇽 México</option>
-                            <option value="Colombia">🇨🇴 Colombia</option>
-                            <option value="Spain">🇪🇸 España</option>
-                            <option value="United States">🇺🇸 United States</option>
-                            <option value="Argentina">🇦🇷 Argentina</option>
-                            <option value="Peru">🇵🇪 Perú</option>
-                            <option value="Chile">🇨🇱 Chile</option>
-                            <option value="Guatemala">🇬🇹 Guatemala</option>
-                            <option value="Dominican Republic">🇩🇴 República Dominicana</option>
-                            <option value="Venezuela">🇻🇪 Venezuela</option>
-                            <option value="Ecuador">🇪🇨 Ecuador</option>
-                            <option value="Honduras">🇭🇳 Honduras</option>
-                            <option value="El Salvador">🇸🇻 El Salvador</option>
-                            <option value="Nicaragua">🇳🇮 Nicaragua</option>
-                            <option value="Panama">🇵🇦 Panamá</option>
-                          </select>
-                        </div>
-                      </div>
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Education Level' : 'Nivel de Educación'}
+                              </label>
+                              <select
+                                value={editEducation}
+                                onChange={(e) => setEditEducation(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="Universidad">{selectedLang === 'EN' ? 'University / College' : 'Universidad'}</option>
+                                <option value="Secundaria">{selectedLang === 'EN' ? 'High School / Secondary' : 'Secundaria'}</option>
+                                <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate / Master' : 'Posgrado'}</option>
+                                <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
+                              </select>
+                            </div>
+                          </div>
 
-                      {/* 4 & 5. Age + English Level */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            🎂 {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
-                          </label>
-                          <input
-                            type="number"
-                            value={editAge}
-                            onChange={(e) => setEditAge(e.target.value)}
-                            min={10}
-                            max={100}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          />
-                        </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
+                              </label>
+                              <select
+                                value={selectedGoal}
+                                onChange={(e) => setSelectedGoal(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
+                                <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
+                                <option value="Viajes y cultura">{selectedLang === 'EN' ? 'Travel & Culture' : 'Viajes y cultura'}</option>
+                                <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
+                                <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
+                              </select>
+                            </div>
 
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            📊 {selectedLang === 'EN' ? 'English Level:' : 'Nivel de Inglés:'}
-                          </label>
-                          <select
-                            value={selectedLevel}
-                            onChange={(e) => setSelectedLevel(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          >
-                            <option value="Intermediate">{selectedLang === 'EN' ? 'Intermediate (B1-B2)' : 'Intermedio (B1-B2)'}</option>
-                            <option value="Beginner">{selectedLang === 'EN' ? 'Beginner (A1-A2)' : 'Principiante (A1-A2)'}</option>
-                            <option value="Advanced">{selectedLang === 'EN' ? 'Advanced (C1-C2)' : 'Avanzado (C1-C2)'}</option>
-                            <option value="Not Sure">{selectedLang === 'EN' ? 'Not Sure' : 'No estoy seguro'}</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* 6 & 7. Education + Learning Goal */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-3.5">
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            🎓 {selectedLang === 'EN' ? 'Education:' : 'Educación:'}
-                          </label>
-                          <select
-                            value={editEducation}
-                            onChange={(e) => setEditEducation(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          >
-                            <option value="Universidad">{selectedLang === 'EN' ? 'University / College' : 'Universidad'}</option>
-                            <option value="Secundaria">{selectedLang === 'EN' ? 'High School / Secondary' : 'Secundaria'}</option>
-                            <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate / Master' : 'Posgrado'}</option>
-                            <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
-                          </select>
+                            <div>
+                              <label className="block font-bold text-neutral-800 text-xs mb-1">
+                                {selectedLang === 'EN' ? 'Weekly Study Time' : 'Tiempo de Estudio Semanal'}
+                              </label>
+                              <select
+                                value={formatStudyTimeCompact(editTimePerWeek)}
+                                onChange={(e) => setEditTimePerWeek(e.target.value)}
+                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
+                              >
+                                <option value="5 hr/wk">5 hr/wk</option>
+                                <option value="2 hr/wk">2 hr/wk</option>
+                                <option value="10 hr/wk">10 hr/wk</option>
+                                <option value="7 hr/wk">7 hr/wk</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
 
-                        <div>
-                          <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                            🎯 {selectedLang === 'EN' ? 'Learning Goal:' : 'Meta de Aprendizaje:'}
-                          </label>
-                          <select
-                            value={selectedGoal}
-                            onChange={(e) => setSelectedGoal(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          >
-                            <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
-                            <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
-                            <option value="Viajes y cultura">{selectedLang === 'EN' ? 'Travel & Culture' : 'Viajes y cultura'}</option>
-                            <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
-                            <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
-                          </select>
+                        {/* Section 3: Interests */}
+                        <div className="bg-purple-50/70 p-3.5 sm:p-4 rounded-2xl border border-purple-200/80 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="block font-black text-xs uppercase tracking-wider text-purple-900">
+                              💡 {selectedLang === 'EN' ? 'Interests & Favorite Topics' : 'Intereses y Temas Favoritos'}
+                            </label>
+                            <span className="text-[10px] font-extrabold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
+                              {editInterests ? editInterests.split(',').map(s => s.trim()).filter(Boolean).length : 0} {selectedLang === 'EN' ? 'active' : 'activos'}
+                            </span>
+                          </div>
+
+                          {/* Active Interest Badges */}
+                          <div className="flex flex-wrap gap-1.5 min-h-[38px] bg-white p-2.5 rounded-xl border border-neutral-200/90 shadow-2xs">
+                            {editInterests && editInterests.split(',').map(s => s.trim()).filter(Boolean).length > 0 ? (
+                              editInterests.split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-950 border border-purple-300 rounded-full text-xs font-black shadow-2xs transition-all hover:bg-purple-200"
+                                >
+                                  <span>{interest}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveInterest(interest)}
+                                    className="p-0.5 hover:bg-purple-300 rounded-full text-purple-700 hover:text-purple-950 transition-colors cursor-pointer"
+                                    title={selectedLang === 'EN' ? 'Remove interest' : 'Eliminar interés'}
+                                  >
+                                    <X className="w-3 h-3 stroke-[2.5]" />
+                                  </button>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs font-medium italic text-neutral-400 py-0.5 px-1">
+                                {selectedLang === 'EN' ? 'No interests added yet. Add one below!' : 'Sin temas añadidos. ¡Agrega uno abajo!'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Input and Plus (+) Button to Add Interest */}
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="text"
+                                value={newInterestInput}
+                                onChange={(e) => setNewInterestInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddInterest();
+                                  }
+                                }}
+                                className="w-full pl-3.5 pr-9 py-2 bg-white border border-neutral-300 rounded-xl font-bold text-neutral-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-xs sm:text-sm placeholder:font-normal placeholder:text-neutral-400"
+                                placeholder={selectedLang === 'EN' ? 'Type new interest (e.g. History, Cooking)...' : 'Escribe un nuevo interés (ej. Historia, Cocina)...'}
+                              />
+                              {newInterestInput.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() => setNewInterestInput('')}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-0.5"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Prominent Plus (+) Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleAddInterest()}
+                              disabled={!newInterestInput.trim()}
+                              className={`px-3.5 py-2 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95 ${
+                                newInterestInput.trim()
+                                  ? 'bg-purple-600 hover:bg-purple-700 text-white border border-purple-700 shadow-purple-600/20'
+                                  : 'bg-purple-200 text-purple-400 border border-purple-300 cursor-not-allowed opacity-75'
+                              }`}
+                              title={selectedLang === 'EN' ? 'Add interest' : 'Agregar interés'}
+                            >
+                              <Plus className="w-4 h-4 stroke-[3]" />
+                              <span>{selectedLang === 'EN' ? 'Add' : 'Agregar'}</span>
+                            </button>
+                          </div>
+
+                          {/* Quick Add Suggestions */}
+                          <div className="pt-1">
+                            <span className="text-[11px] font-extrabold text-purple-900/80 block mb-1.5">
+                              {selectedLang === 'EN' ? 'Quick suggestions (click + to add):' : 'Sugerencias rápidas (haz clic en + para agregar):'}
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {suggestedInterests.map((suggested, idx) => {
+                                const currentList = editInterests ? editInterests.split(',').map(s => s.trim().toLowerCase()) : [];
+                                const isAdded = currentList.includes(suggested.toLowerCase());
+                                return (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    disabled={isAdded}
+                                    onClick={() => handleAddInterest(suggested)}
+                                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                                      isAdded
+                                        ? 'bg-purple-100/70 text-purple-400 border-purple-200 cursor-default opacity-60'
+                                        : 'bg-white hover:bg-purple-100 text-purple-900 border-purple-200 hover:border-purple-300 shadow-2xs'
+                                    }`}
+                                  >
+                                    <Plus className="w-3 h-3 text-purple-600 stroke-[2.5]" />
+                                    <span>{suggested}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* 8. Study Time */}
-                      <div className="mb-3.5">
-                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                          ⏱️ {selectedLang === 'EN' ? 'Study Time:' : 'Tiempo de Estudio:'}
-                        </label>
-                        <select
-                          value={editTimePerWeek}
-                          onChange={(e) => setEditTimePerWeek(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                        >
-                          <option value="5 horas por semana">{selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana'}</option>
-                          <option value="2 horas por semana">{selectedLang === 'EN' ? '2 hours per week' : '2 horas por semana'}</option>
-                          <option value="10 horas por semana">{selectedLang === 'EN' ? '10 hours per week' : '10 horas por semana'}</option>
-                          <option value="Práctica diaria">{selectedLang === 'EN' ? 'Daily practice' : 'Práctica diaria'}</option>
-                        </select>
-                      </div>
-
-                      {/* 9. Interests */}
-                      <div className="mb-4">
-                        <label className="block font-black text-black text-xs sm:text-sm mb-1">
-                          💡 {selectedLang === 'EN' ? 'Interests & Topics:' : 'Intereses y Temas:'}
-                        </label>
-                        <input
-                          type="text"
-                          value={editInterests}
-                          onChange={(e) => setEditInterests(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white border border-neutral-300 rounded-2xl font-bold text-black focus:outline-none focus:border-[#FF9800] focus:ring-2 focus:ring-[#FF9800]/20 shadow-2xs text-sm sm:text-base"
-                          placeholder={selectedLang === 'EN' ? 'e.g. Travel, technology, music' : 'ej. Viajes, tecnología, música'}
-                        />
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex items-center gap-3.5 pt-2">
+                      <div className="flex items-center gap-3 pt-4 mt-2 border-t border-neutral-200">
                         <button
                           type="button"
                           onClick={handleUpdateProfile}
-                          className="px-6 py-3.5 bg-[#FF9800] hover:bg-[#E68A00] text-black font-black rounded-2xl text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-sm transition-all cursor-pointer active:scale-95 border border-[#E68A00]"
+                          className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-black font-black rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 border border-amber-500"
                         >
                           <span>💾</span>
-                          <span>{selectedLang === 'EN' ? 'Save Onboarding Answers' : 'Guardar Respuestas de Registro'}</span>
+                          <span>{selectedLang === 'EN' ? 'Save Changes' : 'Guardar Cambios'}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setIsEditingProfile(false)}
-                          className="px-6 py-3.5 bg-white hover:bg-neutral-50 text-neutral-800 font-extrabold border border-neutral-300 rounded-2xl text-sm sm:text-base cursor-pointer transition-all active:scale-95 shadow-2xs"
+                          className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-extrabold rounded-xl text-xs sm:text-sm cursor-pointer transition-all active:scale-95 border border-neutral-300"
                         >
                           {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="w-full md:w-[68%] flex flex-col justify-center pt-1 md:pt-2">
-                      {/* Top Action Row for Editing */}
-                      <div className="flex items-center justify-end mb-2">
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingProfile(true)}
-                          className="px-3 py-1 bg-amber-100 hover:bg-amber-200 text-amber-950 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-amber-300"
-                          title={selectedLang === 'EN' ? 'Edit Profile Answers' : 'Editar Respuestas'}
-                        >
-                          <span>✏️</span>
-                          <span>{selectedLang === 'EN' ? 'Edit Answers' : 'Editar Respuestas'}</span>
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-[160px_1fr] sm:grid-cols-[210px_1fr] gap-y-4 sm:gap-y-5 text-base sm:text-lg leading-snug">
+                    /* LIGHT MODE SAVED VIEW CARD */
+                    <div className="w-full md:w-[65%] flex flex-col bg-white p-5 sm:p-6 rounded-[24px] animate-fade-in text-neutral-900">
+                      
+                      {/* Clean Light Metric Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                         
-                        {/* 0. Student ID */}
-                        <div className="font-black text-neutral-900 flex items-center gap-2">
-                          <span className="p-1 rounded bg-purple-100 text-purple-700 text-sm font-bold">🆔</span>
-                          <span>{selectedLang === 'EN' ? 'Student ID:' : 'ID Estudiante:'}</span>
-                        </div>
-                        <div className="text-neutral-900 flex items-center gap-2 flex-wrap">
-                          <span className="font-extrabold text-blue-900 bg-[#DCEBFF] px-3 py-1 rounded-xl text-sm sm:text-base tracking-wide">
-                            {user.studentId || 'STU-001'}
+                        {/* Nombre */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
                           </span>
-                          <span className="text-xs sm:text-sm font-bold text-emerald-800 bg-[#E6F4EA] border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1">
-                            ✓ {selectedLang === 'EN' ? 'Active Account' : 'Cuenta Activa'}
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {sanitizeUserProfileNames(user).firstName}
                           </span>
                         </div>
 
-                        {/* 0b. Nombre */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Name:' : 'Nombre:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.firstName || (user.name ? user.name.trim().split(/\s+/)[0] : 'Federico')}
-                        </div>
-
-                        {/* 0c. Apellido */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Apellido:' : 'Apellido:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.lastName || (user.name ? user.name.trim().split(/\s+/).slice(1).join(' ') : 'Sandoval')}
+                        {/* Apellido */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {sanitizeUserProfileNames(user).lastName}
+                          </span>
                         </div>
 
-                        {/* 1. Categoría */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Category:' : 'Categoría:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante')}
-                        </div>
-
-                        {/* 2. País */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Country:' : 'País:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.country ? getCountryWithFlag(user.country) : 'Guatemala 🇬🇹'}
+                        {/* Categoría */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Category' : 'Categoría'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante')}
+                          </span>
                         </div>
 
-                        {/* 3. Edad */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Age:' : 'Edad:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.age ?? 63}
-                        </div>
-
-                        {/* 4. Nivel de inglés */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'English level:' : 'Nivel de inglés:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {getTranslatedLevel(user.levelEstimate || 'Intermediate')}
+                        {/* País */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Country' : 'País'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.country ? user.country.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim() || user.country : 'Guatemala'}
+                          </span>
                         </div>
 
-                        {/* 5. Educación */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Education:' : 'Educación:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.education || (selectedLang === 'EN' ? 'University' : 'Universidad')}
-                        </div>
-
-                        {/* 6. Meta de aprendizaje */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Learning goal:' : 'Meta de aprendizaje:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800 whitespace-pre-line">
-                          {user.goal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Travel & Daily Conversation')}
+                        {/* Edad */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Age' : 'Edad'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.age ?? 21}
+                          </span>
                         </div>
 
-                        {/* 7. Tiempo de estudio */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Study time:' : 'Tiempo de estudio:'}
-                        </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana')}
+                        {/* Nivel de Inglés */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {getTranslatedLevel(user.levelEstimate || 'Intermediate')}
+                          </span>
                         </div>
 
-                        {/* 8. Intereses */}
-                        <div className="font-extrabold text-neutral-900">
-                          {selectedLang === 'EN' ? 'Interests:' : 'Intereses:'}
+                        {/* Educación */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Education' : 'Educación'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.education || (selectedLang === 'EN' ? 'University' : 'Universidad')}
+                          </span>
                         </div>
-                        <div className="font-extrabold text-neutral-800">
-                          {user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')}
+
+                        {/* Tiempo de Estudio */}
+                        <div className="py-1.5 px-1">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Study Time' : 'Tiempo de Estudio'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {formatStudyTimeCompact(user.timePerWeek)}
+                          </span>
+                        </div>
+
+                        {/* Meta de Aprendizaje */}
+                        <div className="py-1.5 px-1 sm:col-span-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.goal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Travel & Daily Conversation')}
+                          </span>
+                        </div>
+
+                        {/* Intereses */}
+                        <div className="py-1.5 px-1 sm:col-span-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 block mb-0.5 font-mono">
+                            {selectedLang === 'EN' ? 'Interests' : 'Intereses'}
+                          </span>
+                          <span className="font-black text-neutral-900 text-sm sm:text-base font-mono tracking-tight">
+                            {user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')}
+                          </span>
                         </div>
 
                       </div>
@@ -1084,12 +1522,127 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
                 </div>
 
+                {/* 📊 Student Performance Metrics (Second Row) */}
+                <div className="pt-4 border-t border-neutral-200/80">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="w-5 h-5 text-amber-500" />
+                    <span className="text-sm sm:text-[15.5px] font-black uppercase tracking-wider text-neutral-800 font-mono">
+                      {selectedLang === 'EN' 
+                        ? `Performance Metrics for ${(sanitizeUserProfileNames(user).firstName || 'Federico').toUpperCase()}` 
+                        : `ESTADÍSTICAS DE ${(sanitizeUserProfileNames(user).firstName || 'FEDERICO').toUpperCase()}`}
+                    </span>
+                  </div>
+
+                  {/* Score Circular Rings Section matching exact format from level tab */}
+                  {(() => {
+                    const getPct = (val?: number, fallback: number = 80) => {
+                      if (val === undefined || val === null || val <= 1) return fallback;
+                      if (val <= 5) return Math.min(100, Math.round(val * 20));
+                      return Math.min(100, Math.round(val));
+                    };
+
+                    const statItems = [
+                      {
+                        title: selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación',
+                        val: getPct(scores?.pronunciation || pronunciationScore, 82),
+                        sub: selectedLang === 'EN' 
+                          ? 'Accuracy score after 30 days practice' 
+                          : 'Puntuación de precisión después de 30 días'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Fluency' : 'Fluidez',
+                        val: getPct(scores?.naturalness, 74),
+                        sub: selectedLang === 'EN' 
+                          ? 'Improvement in natural conversation flow' 
+                          : 'Mejora en el flujo natural de conversación'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario',
+                        val: getPct(scores?.grammar || grammarScore, 88),
+                        sub: selectedLang === 'EN' 
+                          ? 'New words retained after real use' 
+                          : 'Palabras nuevas retenidas tras su uso real'
+                      },
+                      {
+                        title: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
+                        val: getPct(scores?.confidence, 68),
+                        sub: selectedLang === 'EN' 
+                          ? 'Users reporting speaking with more security' 
+                          : 'Usuarios que reportan hablar con más seguridad'
+                      }
+                    ];
+
+                    const radius = 38;
+                    const strokeWidth = 11;
+                    const circumference = 2 * Math.PI * radius; // ~238.76
+
+                    return (
+                      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-neutral-200/90 shadow-2xs space-y-1">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
+                          {statItems.map((item, idx) => {
+                            const pct = Math.max(0, Math.min(100, item.val));
+                            const strokeDashoffset = circumference - (pct / 100) * circumference;
+
+                            return (
+                              <div key={idx} className="flex flex-col items-center text-center group">
+                                {/* SVG Donut Circle */}
+                                <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-0.5">
+                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform">
+                                    {/* Background Dark Arc */}
+                                    <circle
+                                      cx="50"
+                                      cy="50"
+                                      r={radius}
+                                      fill="transparent"
+                                      stroke="#333333"
+                                      strokeWidth={strokeWidth}
+                                    />
+                                    {/* Foreground Bright Yellow Arc */}
+                                    <circle
+                                      cx="50"
+                                      cy="50"
+                                      r={radius}
+                                      fill="transparent"
+                                      stroke="#FACC15"
+                                      strokeWidth={strokeWidth}
+                                      strokeDasharray={circumference}
+                                      strokeDashoffset={strokeDashoffset}
+                                      strokeLinecap="butt"
+                                      className="transition-all duration-700 ease-out"
+                                    />
+                                  </svg>
+
+                                  {/* Percentage Text Centered */}
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-neutral-900">
+                                      {pct}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Metric Title */}
+                                <h5 className="text-xs sm:text-sm font-black text-neutral-900 mt-1 font-mono tracking-tight">
+                                  {item.title}
+                                </h5>
+
+                                {/* Subtitle description */}
+                                <p className="text-[10px] sm:text-[11px] text-neutral-600 font-mono mt-0.5 leading-tight max-w-[150px]">
+                                  {item.sub}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 {/* 📊 Student Activity & Real-Time Statistics Section */}
                 <div className="mt-8 pt-6 border-t border-neutral-200/80 animate-fade-in">
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <div>
                       <h3 className="font-black text-black text-lg sm:text-xl flex items-center gap-2">
-                        <Activity className="w-5 h-5 text-amber-500 stroke-[2.5]" />
                         <span>
                           {selectedLang === 'EN' ? 'Student Activity & Real-Time Statistics' : 'Estadísticas y Registro de Actividad del Estudiante'}
                         </span>
@@ -1107,7 +1660,6 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         onClick={() => onNavigateTab('progress')}
                         className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:scale-[1.02]"
                       >
-                        <span>📊</span>
                         <span>{selectedLang === 'EN' ? 'Full Progress Report' : 'Ver Informe Completo'}</span>
                       </button>
                     )}
@@ -1238,16 +1790,18 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                 {/* Student Stats Divider & Section Header */}
                 <div className="pt-0.5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Activity className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-black uppercase tracking-wider text-neutral-800 font-mono">
-                      {selectedLang === 'EN' ? 'Student Performance Metrics' : 'ESTADÍSTICAS DEL ESTUDIANTE'}
+                    <Activity className="w-5 h-5 text-amber-500" />
+                    <span className="text-sm sm:text-[15.5px] font-black uppercase tracking-wider text-neutral-800 font-mono">
+                      {selectedLang === 'EN' 
+                        ? `Performance Metrics for ${(sanitizeUserProfileNames(user).firstName || 'Federico').toUpperCase()}` 
+                        : `ESTADÍSTICAS DE ${(sanitizeUserProfileNames(user).firstName || 'FEDERICO').toUpperCase()}`}
                     </span>
                   </div>
 
                   {/* Score Circular Rings Section matching exact format from image */}
                   {(() => {
                     const getPct = (val?: number, fallback: number = 80) => {
-                      if (val === undefined || val === null || val <= 0) return fallback;
+                      if (val === undefined || val === null || val <= 1) return fallback;
                       if (val <= 5) return Math.min(100, Math.round(val * 20));
                       return Math.min(100, Math.round(val));
                     };
@@ -1255,28 +1809,28 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                     const statItems = [
                       {
                         title: selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación',
-                        val: getPct(scores?.pronunciation || pronunciationScore, 80),
+                        val: getPct(scores?.pronunciation || pronunciationScore, 82),
                         sub: selectedLang === 'EN' 
                           ? 'Accuracy score after 30 days practice' 
                           : 'Puntuación de precisión después de 30 días'
                       },
                       {
                         title: selectedLang === 'EN' ? 'Fluency' : 'Fluidez',
-                        val: getPct(scores?.naturalness, 60),
+                        val: getPct(scores?.naturalness, 74),
                         sub: selectedLang === 'EN' 
                           ? 'Improvement in natural conversation flow' 
                           : 'Mejora en el flujo natural de conversación'
                       },
                       {
                         title: selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario',
-                        val: getPct(scores?.grammar || grammarScore, 80),
+                        val: getPct(scores?.grammar || grammarScore, 88),
                         sub: selectedLang === 'EN' 
                           ? 'New words retained after real use' 
                           : 'Palabras nuevas retenidas tras su uso real'
                       },
                       {
                         title: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
-                        val: getPct(scores?.confidence, 60),
+                        val: getPct(scores?.confidence, 68),
                         sub: selectedLang === 'EN' 
                           ? 'Users reporting speaking with more security' 
                           : 'Usuarios que reportan hablar con más seguridad'
@@ -1440,7 +1994,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
                         {selectedLang === 'EN' ? 'Study time:' : 'Tiempo de estudio:'}
                       </div>
                       <div className="text-neutral-800">
-                        {user.timePerWeek || (selectedLang === 'EN' ? '5 hours per week' : '5 horas por semana')}
+                        {formatStudyTimeCompact(user.timePerWeek)}
                       </div>
 
                       <div className="font-bold text-neutral-900">
