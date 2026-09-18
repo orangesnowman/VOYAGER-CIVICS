@@ -1,20 +1,23 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, updateProfile, User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { syncOrMigrateUserOnAuth } from './userProfileService';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = (firebaseConfig as any).firestoreDatabaseId 
+  ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
+  : getFirestore(app);
 
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({
   prompt: 'select_account'
 });
-// Request Google Tasks scopes
+// Request Google Workspace scopes
 provider.addScope('https://www.googleapis.com/auth/tasks');
 provider.addScope('https://www.googleapis.com/auth/tasks.readonly');
+provider.addScope('https://www.googleapis.com/auth/documents');
 
 // Flag to indicate if we are in the middle of a sign-in flow.
 let isSigningIn = false;
@@ -91,4 +94,56 @@ export const verifyAdminCredentials = (emailInput: string, passwordInput: string
 export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
+};
+
+export const emailSignUp = async (emailInput: string, passwordInput: string, displayName?: string): Promise<User | null> => {
+  let email = emailInput.trim();
+  if (!email.includes('@')) {
+    email = email.toLowerCase().replace(/[^a-z0-9]/g, "") + "@usavoyager.com";
+  }
+  try {
+    const safePassword = passwordInput.length >= 6 ? passwordInput : passwordInput.padEnd(6, "0");
+    const userCredential = await createUserWithEmailAndPassword(auth, email, safePassword);
+    if (displayName && userCredential.user) {
+      try {
+        await updateProfile(userCredential.user, { displayName });
+      } catch (pErr) {}
+    }
+    if (userCredential.user && userCredential.user.email && userCredential.user.email.includes('@')) {
+      try {
+        await sendEmailVerification(userCredential.user);
+        console.log('Verification email dispatched to:', userCredential.user.email);
+      } catch (vErr) {
+        console.warn('sendEmailVerification note:', vErr);
+      }
+    }
+    try {
+      await syncOrMigrateUserOnAuth(userCredential.user);
+    } catch (sErr) {}
+    return userCredential.user;
+  } catch (error: any) {
+    console.warn('Email sign up note:', error?.message || error);
+    if (error?.code === 'auth/email-already-in-use') {
+      return emailSignIn(emailInput, passwordInput);
+    }
+    return null;
+  }
+};
+
+export const emailSignIn = async (emailInput: string, passwordInput: string): Promise<User | null> => {
+  let email = emailInput.trim();
+  if (!email.includes('@')) {
+    email = email.toLowerCase().replace(/[^a-z0-9]/g, "") + "@usavoyager.com";
+  }
+  try {
+    const safePassword = passwordInput.length >= 6 ? passwordInput : passwordInput.padEnd(6, "0");
+    const userCredential = await signInWithEmailAndPassword(auth, email, safePassword);
+    try {
+      await syncOrMigrateUserOnAuth(userCredential.user);
+    } catch (sErr) {}
+    return userCredential.user;
+  } catch (error: any) {
+    console.warn('Email sign in note:', error?.message || error);
+    return null;
+  }
 };

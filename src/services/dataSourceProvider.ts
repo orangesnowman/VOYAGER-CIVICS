@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebaseAuth';
 import { collection, getDocs } from 'firebase/firestore';
-import { withTimeout } from './userProfileService';
+import { withTimeout, isFirestoreQuotaExceeded, handleFirestoreWriteError } from './userProfileService';
 
 export type DataSourceMode = 'demo' | 'live' | 'hybrid';
 
@@ -58,7 +58,7 @@ class DataSourceProviderManager {
     }
 
     try {
-      if (auth.currentUser) {
+      if (auth.currentUser && !isFirestoreQuotaExceeded()) {
         const snap = await withTimeout(getDocs(collection(db, 'users')), 3000);
         if (!snap.empty) {
           const liveCount = snap.size;
@@ -74,6 +74,7 @@ class DataSourceProviderManager {
         }
       }
     } catch (err) {
+      handleFirestoreWriteError(err, 'user stats');
       console.warn('DataSourceProvider: Error fetching live user stats from Firestore', err);
     }
 

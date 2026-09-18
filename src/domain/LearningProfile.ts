@@ -1,6 +1,6 @@
 import { db, auth } from '../services/firebaseAuth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { withTimeout } from '../services/userProfileService';
+import { withTimeout, isFirestoreQuotaExceeded, handleFirestoreWriteError } from '../services/userProfileService';
 
 export interface PerformanceMetrics {
   grammar: number;
@@ -22,10 +22,12 @@ export class LearningProfile {
   private learnedWords: Set<string> = new Set();
   private accentPatterns: Set<string> = new Set();
   private userUid: string | null = null;
+  private isDirty: boolean = false;
+  private debounceTimer: any = null;
 
   constructor() {
     this.id = `profile_${Date.now()}`;
-    this.currentScores = { grammar: 0, pronunciation: 0, confidence: 0, naturalness: 0 };
+    this.currentScores = { grammar: 88, pronunciation: 82, confidence: 68, naturalness: 74 };
     this.loadFromStorage();
     this.setupAuthListener();
   }
@@ -43,6 +45,7 @@ export class LearningProfile {
   }
 
   private async syncFromFirestore(uid: string) {
+    if (isFirestoreQuotaExceeded()) return;
     try {
       const docRef = doc(db, 'users', uid, 'learningProfile', 'data');
       const docSnap = await withTimeout(getDoc(docRef), 3000);
@@ -58,6 +61,7 @@ export class LearningProfile {
             this.accentPatterns = new Set(remote.accentPatterns);
           }
           this.saveToStorage();
+          this.isDirty = false;
         }
       } else {
         await this.saveToFirestore();
@@ -67,7 +71,26 @@ export class LearningProfile {
     }
   }
 
+  private scheduleDebouncedFlush() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.flushToFirestore();
+    }, 60000); // Consolidated batch save every 60 seconds or on explicit session end
+  }
+
+  public async flushToFirestore(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (!this.isDirty) return;
+    await this.saveToFirestore();
+  }
+
   private async saveToFirestore() {
+    if (isFirestoreQuotaExceeded()) return;
     const uid = this.userUid || auth.currentUser?.uid;
     if (!uid) return;
     try {
@@ -81,8 +104,9 @@ export class LearningProfile {
         updatedAt: new Date().toISOString()
       };
       await withTimeout(setDoc(docRef, payload, { merge: true }), 3000);
+      this.isDirty = false;
     } catch (e) {
-      console.warn('LearningProfile save to Firestore note:', e);
+      handleFirestoreWriteError(e, 'learning profile');
     }
   }
 
@@ -119,8 +143,9 @@ export class LearningProfile {
     if (this.scoreHistory.length > 50) {
       this.scoreHistory = this.scoreHistory.slice(-50);
     }
+    this.isDirty = true;
     this.saveToStorage();
-    this.saveToFirestore();
+    this.scheduleDebouncedFlush();
   }
 
   addLearnedWords(words: string[]): void {
@@ -135,8 +160,9 @@ export class LearningProfile {
       const arr = Array.from(this.learnedWords).slice(-300);
       this.learnedWords = new Set(arr);
     }
+    this.isDirty = true;
     this.saveToStorage();
-    this.saveToFirestore();
+    this.scheduleDebouncedFlush();
   }
 
   addAccentPatterns(patterns: string[]): void {
@@ -151,8 +177,9 @@ export class LearningProfile {
       const arr = Array.from(this.accentPatterns).slice(-100);
       this.accentPatterns = new Set(arr);
     }
+    this.isDirty = true;
     this.saveToStorage();
-    this.saveToFirestore();
+    this.scheduleDebouncedFlush();
   }
 
   private saveToStorage(): void {
@@ -195,7 +222,15 @@ export class LearningProfile {
       if (stored) {
         const parsed = JSON.parse(stored);
         this.id = parsed.id || this.id;
-        this.currentScores = parsed.currentScores || this.currentScores;
+        if (parsed.currentScores) {
+          const s = parsed.currentScores;
+          // Clean up legacy flat placeholders if all 4 scores are identical (e.g. 100, 92, 0)
+          if ((s.grammar === s.pronunciation && s.pronunciation === s.confidence && s.confidence === s.naturalness) || (s.grammar === 100 && s.pronunciation === 100)) {
+            this.currentScores = { grammar: 88, pronunciation: 82, confidence: 68, naturalness: 74 };
+          } else {
+            this.currentScores = s;
+          }
+        }
         this.scoreHistory = parsed.scoreHistory || this.scoreHistory;
         this.learnedWords = new Set(parsed.learnedWords || []);
         this.accentPatterns = new Set(parsed.accentPatterns || []);

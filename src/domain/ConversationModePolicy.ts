@@ -30,6 +30,7 @@ const COACHING_PHILOSOPHY_INSTRUCTIONS = `
   * Self-Directed Immersion: Voyager never forces full English; it asks for explicit permission before increasing English usage (e.g., "¿Te gustaría que use un poco más de inglés de ahora en adelante?").
 - STRICT EMOJI BAN: Emojis are strictly forbidden in all responses and transcripts. Emojis must never be written or spoken under any circumstances to preserve Text-to-Speech (TTS) naturalness.
 - ABBREVIATION PRONUNCIATION: Whenever referring to "EEUU" or "EE.UU." in Spanish, always read, speak, and pronounce it as "Estados Unidos" (never read letter-by-letter as "E-E-U-U").
+- AMERICAN CULTURE PHRASING: Never say "la cultura de EU" or "la cultura de EE. UU.". Always say "la cultura estadounidense".
 - STRICT LANGUAGE CONSTRAINT: You MUST NEVER use, output, or generate any language or characters other than Spanish and English (strictly NO Chinese, Japanese, Korean, CJK, Cyrillic, Arabic, or other non-Latin scripts under any circumstances). All responses, corrections, and translations must be strictly in Spanish or English.
 - BREVITY & SHARING THE STAGE (CRITICAL BREVITY MANDATE): Speak much less than the learner. The user explicitly prefers fast, ultra-concise, and punchy responses. Keep every single response extremely brief (1 to 2 short sentences maximum). Never give long lectures, long historical monologues, or unnecessary filler. State the core idea directly and give the learner the floor.]`;
 
@@ -40,7 +41,7 @@ export class ConversationModePolicy {
   static getSystemInstructionsForMode(mode: ConversationMode, options: ModePromptOptions): string {
     const { initialPrompt, selectedLang, userName, userAge, userCountry, usState, userGoal, userLevel } = options;
     
-    const displayName = userName ? userName.trim() : "";
+    const displayName = userName ? userName.replace(/\s*\(.*?\)/g, "").trim().split(" ")[0] : "";
     const displayAge = userAge ? userAge.trim() : "";
     const displayCountry = userCountry ? userCountry.trim() : "";
     const displayState = usState ? usState.trim() : (getLocalProfileCache()?.usState || getLocalProfileCache()?.state || "");
@@ -186,7 +187,7 @@ Be friendly, encouraging, and clear. Ask a single question to start civics pract
     let learnerInfo = "";
     if (displayName || displayAge || finalCountry || finalState || finalGoal || finalLevel || userRole) {
       learnerInfo = `\n\n[LEARNER PROFILE BACKGROUND (CRITICAL CONTEXT - SINGLE SOURCE OF TRUTH FROM FIRESTORE):
-- Name: ${displayName || localCache?.name || 'Learner'}
+- First Name: ${displayName || (localCache?.name ? localCache.name.replace(/\s*\(.*?\)/g, "").trim().split(" ")[0] : 'Learner')}
 - Role: ${userRole}
 ${displayAge ? `- Age: ${displayAge}` : (localCache?.age ? `- Age: ${localCache.age}` : '')}
 ${finalCountry ? `- Country: ${finalCountry}` : ''}
@@ -200,6 +201,10 @@ You MUST NEVER ask the learner for information that is ALREADY known above (such
 DO NOT initiate profiling or onboarding questions for data already listed above.
 Proceed DIRECTLY into tailored conversation, tutoring, or practice using this context as the single source of truth.
 Only ask profile-related questions if the user explicitly requests to update their profile or if a specific detail is completely missing.]`;
+    }
+
+    if (options.activeTab === 'roadmap' || options.activeTab === 'welcome' || options.activeTab === 'profile' || options.activeTab === 'student') {
+      return baseGreeting + learnerInfo + '\n\n[INSTRUCCIÓN DE SISTEMA CRÍTICA Y MANDATORIA: PERFIL DE ESTUDIANTE - ORIENTACIÓN EXCLUSIVA]\nEl usuario está en su PERFIL DE ESTUDIANTE Y PANEL DE ESTADÍSTICAS.\n1. REGLA INQUEBRANTABLE: NO inicies ninguna lección, NO sugieras practicar, NO des clases de inglés ni propongas ejercicios. El perfil es únicamente para orientación, no para práctica.\n2. PROPÓSITO EXCLUSIVO: Explica brevemente en español qué es el perfil (que muestra su progreso general, su nivel estimado, sus habilidades y estadísticas), y PÁRATE AHÍ.\n3. Si el usuario desea practicar, él lo pedirá o irá a la sección de lecciones.\n4. Responde a cualquier consulta sobre este panel ÚNICAMENTE en español usando la voz existente de Voyager para dar orientación clara y directa sin iniciar prácticas.';
     }
 
     switch (mode) {

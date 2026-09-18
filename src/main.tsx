@@ -24,19 +24,38 @@ if (typeof window !== 'undefined') {
   }
 
   const isIgnoredError = (msg: unknown) => {
+    if (!msg) return false;
+    let strMsg = '';
     if (typeof msg === 'string') {
+      strMsg = msg;
+    } else if (typeof msg === 'object') {
+      try {
+        strMsg = (msg as any)?.message || (msg as any)?.reason || JSON.stringify(msg) || '';
+      } catch (e) {
+        strMsg = String(msg);
+      }
+    }
+    if (strMsg) {
       return (
-        msg.includes('ResizeObserver') ||
-        msg.includes('calculateTotalQuantity') ||
-        msg.includes('OnPageLoaded') ||
-        msg.includes('Ecwid') ||
-        msg.includes('Audio capture failed to start') ||
-        msg.includes('Permission denied') ||
-        msg.includes('NotAllowedError') ||
-        msg.includes('PermissionDeniedError') ||
-        msg.includes('client is offline') ||
-        msg.includes('Failed to get document') ||
-        msg.includes('offline')
+        strMsg.includes('ResizeObserver') ||
+        strMsg.includes('calculateTotalQuantity') ||
+        strMsg.includes('OnPageLoaded') ||
+        strMsg.includes('Ecwid') ||
+        strMsg.includes('Audio capture failed to start') ||
+        strMsg.includes('Permission denied') ||
+        strMsg.includes('NotAllowedError') ||
+        strMsg.includes('PermissionDeniedError') ||
+        strMsg.includes('client is offline') ||
+        strMsg.includes('Failed to get document') ||
+        strMsg.includes('offline') ||
+        strMsg.includes('spending cap') ||
+        strMsg.includes('límite de gasto') ||
+        strMsg.includes('monthly spending') ||
+        strMsg.includes('Server reported error') ||
+        strMsg.includes('WebSocket error') ||
+        strMsg.includes('isTrusted') ||
+        strMsg.includes('RESOURCE_EXHAUSTED') ||
+        strMsg.includes('Server connection error')
       );
     }
     return false;

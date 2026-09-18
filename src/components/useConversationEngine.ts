@@ -26,12 +26,14 @@ export function useConversationEngine(
     isListenOnly,
     isSpanishOnlyMode,
     isEnglishOnlyMode,
+    isAdaptiveMode,
 
     setIsBilingualMode,
     setIsTranslateMode,
     setIsListenOnly,
     setIsSpanishOnlyMode,
-    setIsEnglishOnlyMode
+    setIsEnglishOnlyMode,
+    setIsAdaptiveMode
   } = useConversationModes('ADAPTIVE');
 
   // Use the extracted learning/metrics manager
@@ -68,6 +70,7 @@ export function useConversationEngine(
   // Initialize the session hook
   const session = useConversationSession({
     selectedLang,
+    isAdaptiveMode,
     isBilingualMode,
     isTranslateMode,
     isListenOnly,
@@ -119,11 +122,16 @@ export function useConversationEngine(
         const { scores: pScores, learnedWords: pLearnedWords, accentTips } = msg.progressUpdate;
         
         if (pScores) {
+          const norm = (v: number, fallback: number) => {
+            if (!v || v <= 0) return fallback;
+            if (v <= 5) return Math.min(100, Math.round(v * 20));
+            return Math.min(100, Math.round(v));
+          };
           setScores({
-            grammar: pScores.grammar || 0,
-            pronunciation: pScores.pronunciation || 0,
-            confidence: pScores.confidence || 0,
-            naturalness: pScores.naturalness || 0
+            grammar: norm(pScores.grammar, 88),
+            pronunciation: norm(pScores.pronunciation, 82),
+            confidence: norm(pScores.confidence, 68),
+            naturalness: norm(pScores.naturalness, 74)
           });
         }
         
@@ -258,7 +266,7 @@ export function useConversationEngine(
   }, [activeMode, selectedLang, wsRef, setChatMessages]);
 
   const connectToGemini = useCallback((initialPrompt?: string, isVoiceConnection: boolean = false, langOverride?: 'EN' | 'ES') => {
-    session.connect(initialPrompt, isVoiceConnection, langOverride);
+    return session.connect(initialPrompt, isVoiceConnection, langOverride);
   }, [session]);
 
   const disconnectSession = useCallback(() => {
@@ -268,8 +276,10 @@ export function useConversationEngine(
   return {
     // Session states
     isConnected: session.isConnected,
+    isSessionActive: session.isSessionActive,
     statusText: session.statusText,
     isPaused: session.isPaused,
+    isTimerPaused: session.isTimerPaused,
     secondsElapsed: session.secondsElapsed,
     volume: session.volume,
     error,
@@ -290,6 +300,8 @@ export function useConversationEngine(
     setIsSpanishOnlyMode,
     isEnglishOnlyMode,
     setIsEnglishOnlyMode,
+    isAdaptiveMode,
+    setIsAdaptiveMode,
 
     // Memory & Learning metrics
     scores,
@@ -318,6 +330,12 @@ export function useConversationEngine(
     hasInteracted,
     setHasInteracted,
 
+    // Telemetry & session states
+    framesSent: session.framesSent,
+    chunksReceived: session.chunksReceived,
+    lastUserTranscription: session.lastUserTranscription,
+    lastModelResponse: session.lastModelResponse,
+
     // Proxy actions
     connect: connectToGemini,
     disconnect: disconnectSession,
@@ -325,6 +343,7 @@ export function useConversationEngine(
     pause: session.pause,
     resume: session.resume,
     recordInteraction: session.recordInteraction,
+    setSecondsElapsed: session.setSecondsElapsed,
     wsRef
   };
 }

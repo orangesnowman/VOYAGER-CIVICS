@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pause, Play, Send, ChevronDown, Mic, MicOff, Zap, RotateCw, Languages, X } from 'lucide-react';
+import { Pause, Play, Send, ChevronDown, Mic, MicOff, Zap, RotateCw, Languages, X, Plus, Bookmark, BookmarkCheck, FolderOpen } from 'lucide-react';
 
 interface ChatInputBoxProps {
   selectedLang: 'EN' | 'ES';
@@ -14,6 +14,8 @@ interface ChatInputBoxProps {
   onOpenProfile?: () => void;
   isSpanishOnlyMode?: boolean;
   setIsSpanishOnlyMode?: (v: boolean) => void;
+  isAdaptiveMode?: boolean;
+  setIsAdaptiveMode?: (v: boolean) => void;
   isBilingualMode?: boolean;
   setIsBilingualMode?: (v: boolean) => void;
   isEnglishOnlyMode?: boolean;
@@ -27,6 +29,11 @@ interface ChatInputBoxProps {
   isDarkMode?: boolean;
   currentMode?: string;
   onSelectMode?: (modeId: string) => void;
+  onNewChat?: () => void;
+  onSaveChat?: () => void;
+  onOpenSavedChats?: () => void;
+  savedChatsCount?: number;
+  isCurrentChatSaved?: boolean;
 }
 
 export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
@@ -41,6 +48,8 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   placeholderText,
   isSpanishOnlyMode,
   setIsSpanishOnlyMode,
+  isAdaptiveMode,
+  setIsAdaptiveMode,
   isBilingualMode,
   setIsBilingualMode,
   isEnglishOnlyMode,
@@ -52,6 +61,11 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   isDarkMode = true,
   currentMode,
   onSelectMode,
+  onNewChat,
+  onSaveChat,
+  onOpenSavedChats,
+  savedChatsCount = 0,
+  isCurrentChatSaved = false,
 }) => {
   const [internalText, setInternalText] = useState('');
   const [isDictating, setIsDictating] = useState(false);
@@ -205,29 +219,18 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   const placeholder = placeholderText || (selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...');
   const isListening = isDictating || isLiveVoiceActive;
 
-  // Active mode display text
-  const getDisplayBadgeText = () => {
-    if (isPaused) return selectedLang === 'EN' ? 'Pausa' : 'Pausa';
-    if (currentMode === 'SPANISH' || isSpanishOnlyMode) return 'ES';
-    if (currentMode === 'ADAPTIVE') return 'AD';
-    if (currentMode === 'BILINGUAL' || isBilingualMode) return 'BI';
-    if (currentMode === 'AMERICAN_ENGLISH' || isEnglishOnlyMode) return 'EN';
-    if (currentMode === 'LIVE_TRANSLATOR' || isTranslateMode) return 'TR';
-    return selectedLang === 'EN' ? 'EN' : 'ES';
-  };
-
   const modesList = [
-    {
-      id: 'SPANISH',
-      nameEs: 'Español',
-      nameEn: 'Spanish',
-      icon: <span className="font-bold text-xs tracking-tight">ES</span>,
-    },
     {
       id: 'ADAPTIVE',
       nameEs: 'Adaptivo',
       nameEn: 'Adaptive',
       icon: <Zap className="w-4 h-4 text-current" />,
+    },
+    {
+      id: 'SPANISH',
+      nameEs: 'Español',
+      nameEn: 'Spanish',
+      icon: <span className="font-bold text-xs tracking-tight">ES</span>,
     },
     {
       id: 'BILINGUAL',
@@ -249,20 +252,39 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     },
   ];
 
+  // Active mode display text
+  const getDisplayBadgeText = () => {
+    const matchedMode = modesList.find(m => m.id === currentMode);
+    if (matchedMode) {
+      return selectedLang === 'EN' ? matchedMode.nameEn : matchedMode.nameEs;
+    }
+    if (currentMode === 'ADAPTIVE' || isAdaptiveMode) return selectedLang === 'EN' ? 'Adaptive' : 'Adaptivo';
+    if (currentMode === 'SPANISH' || isSpanishOnlyMode) return selectedLang === 'EN' ? 'Spanish' : 'Español';
+    if (currentMode === 'BILINGUAL' || isBilingualMode) return selectedLang === 'EN' ? 'Bilingual' : 'Bilingüe';
+    if (currentMode === 'AMERICAN_ENGLISH' || isEnglishOnlyMode) return selectedLang === 'EN' ? 'English' : 'Inglés';
+    if (currentMode === 'LIVE_TRANSLATOR' || isTranslateMode) return selectedLang === 'EN' ? 'Translator' : 'Traductor';
+    return selectedLang === 'EN' ? 'Adaptive' : 'Adaptivo';
+  };
+
   return (
     <div className={`w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center justify-center gap-1.5 px-2 pt-2 sm:pt-3 pb-1 select-none relative ${isModeMenuOpen ? 'z-50' : 'z-30'}`}>
       {/* Top Mode Indicator & Chevron Trigger */}
-      <div className="relative">
+      <div className="relative mb-2 sm:mb-3">
         <button
           type="button"
           onClick={() => setIsModeMenuOpen(prev => !prev)}
-          className="flex flex-col items-center justify-center text-slate-200 hover:text-[#FFD700] transition-all cursor-pointer active:scale-95 group"
+          className="flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 group text-white hover:text-[#FFD700]"
           title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
         >
-          <span className="text-xs sm:text-sm font-normal tracking-wide text-slate-200 group-hover:text-[#FFD700]">
+          {isPaused && (
+            <Pause className="w-4 h-4 mb-1 animate-pulse text-white fill-white" />
+          )}
+          <span className="text-xs sm:text-sm font-normal tracking-wide text-white group-hover:text-[#FFD700]">
             {getDisplayBadgeText()}
           </span>
-          <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-[#FFD700] transition-transform -mt-0.5 ${isModeMenuOpen ? 'rotate-180 text-[#FFD700]' : 'group-hover:translate-y-0.5'}`} />
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform -mt-0.5 text-slate-200 group-hover:text-[#FFD700] ${
+            isModeMenuOpen ? 'rotate-180 text-amber-400' : 'group-hover:translate-y-0.5'
+          }`} />
         </button>
 
         {/* Modo de Interactuar Modal Popover */}
@@ -292,6 +314,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                 {modesList.map((mode) => {
                   const isSelected = !isPaused && (
                     currentMode ? currentMode === mode.id :
+                    (mode.id === 'ADAPTIVE' && isAdaptiveMode) ||
                     (mode.id === 'SPANISH' && isSpanishOnlyMode) ||
                     (mode.id === 'BILINGUAL' && isBilingualMode) ||
                     (mode.id === 'AMERICAN_ENGLISH' && isEnglishOnlyMode) ||
@@ -354,13 +377,19 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
       {/* Bottom Control Row (Input Pill + Circular Mic Button) */}
       <form onSubmit={handleSubmit} className="w-full flex items-center gap-2 sm:gap-2.5">
         {/* Input Pill */}
-        <div className="flex-1 border border-slate-500/50 hover:border-slate-400/80 focus-within:border-slate-300 bg-[#081530]/80 rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 shadow-xl backdrop-blur-md transition-all">
+        <div className={`flex-1 border rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 shadow-xl backdrop-blur-md transition-all ${
+          isDarkMode 
+            ? 'border-slate-500/50 hover:border-slate-400/80 focus-within:border-slate-300 bg-[#081530]/80 text-white' 
+            : 'border-slate-300 hover:border-slate-400 focus-within:border-slate-500 bg-slate-100 text-slate-900 shadow-sm'
+        }`}>
           <button
             type="submit"
-            className="text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0 -rotate-45 flex items-center justify-center"
+            className={`transition-colors cursor-pointer shrink-0 -rotate-45 flex items-center justify-center ${
+              isDarkMode ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+            }`}
             title={selectedLang === 'EN' ? 'Send' : 'Enviar'}
           >
-            <Send className="w-4 h-4 text-slate-300 hover:text-white" />
+            <Send className="w-4 h-4" />
           </button>
 
           <input
@@ -369,7 +398,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="bg-transparent text-white text-xs sm:text-sm outline-none w-full placeholder-slate-400/90 font-normal"
+            className={`bg-transparent text-xs sm:text-sm outline-none w-full font-normal ${
+              isDarkMode ? 'text-white placeholder-slate-400/90' : 'text-slate-900 placeholder-slate-500 font-medium'
+            }`}
           />
         </div>
 
@@ -377,8 +408,12 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
         <button
           type="button"
           onClick={handleDictationToggle}
-          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-slate-500/50 hover:border-slate-300 bg-[#081530]/80 flex items-center justify-center transition-all cursor-pointer shadow-xl active:scale-95 shrink-0 group ${
-            isListening ? 'border-red-500/80 bg-red-950/80 text-red-400 animate-pulse' : 'text-gray-400 hover:text-white'
+          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center transition-all cursor-pointer shadow-xl active:scale-95 shrink-0 group ${
+            isListening 
+              ? 'border-red-500/80 bg-red-950/80 text-red-400 animate-pulse' 
+              : isDarkMode 
+                ? 'border-slate-500/50 hover:border-slate-300 bg-[#081530]/80 text-gray-400 hover:text-white' 
+                : 'border-slate-300 hover:border-slate-400 bg-slate-100 text-slate-700 hover:text-slate-900 shadow-sm'
           }`}
           title={
             isListening
@@ -389,7 +424,9 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
           {isListening ? (
             <MicOff className="w-4 h-4 text-red-400" />
           ) : (
-            <Mic className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+            <Mic className={`w-4 h-4 transition-colors ${
+              isDarkMode ? 'text-gray-400 group-hover:text-white' : 'text-slate-600 group-hover:text-slate-900'
+            }`} />
           )}
         </button>
       </form>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Award, BookOpen, Star, RefreshCw, BarChart2, AlertCircle, Mail, MapPin, Target, Edit3, UserCheck, Bookmark, Trash2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { auth } from '../services/firebaseAuth';
 import { saveSavedChatsToFirestore } from '../services/userProfileService';
+import { ActivityCalendar } from './ActivityCalendar';
 
 interface SavedChatSession {
   id: string;
@@ -33,6 +34,8 @@ interface ProgressDashboardProps {
     level?: string;
   };
   onEditProfile?: () => void;
+  onLoadChat?: (chat: SavedChatSession) => void;
+  onNewChat?: () => void;
 }
 
 export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
@@ -42,14 +45,24 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   accentPatterns,
   onAskVoyager,
   userProfile,
-  onEditProfile
+  onEditProfile,
+  onLoadChat,
+  onNewChat,
 }) => {
   // Retrieve saved account if not provided via props
   const savedAccount = React.useMemo(() => {
+    const isLoggedIn = Boolean(auth.currentUser);
+    const defaultName = isLoggedIn 
+      ? (auth.currentUser?.displayName || (selectedLang === 'EN' ? 'Learner' : 'Estudiante'))
+      : (selectedLang === 'EN' ? 'Guest Learner' : 'Estudiante Invitado');
+    const defaultEmail = isLoggedIn 
+      ? (auth.currentUser?.email || '')
+      : (selectedLang === 'EN' ? 'Not signed in' : 'Sin iniciar sesión');
+
     if (userProfile?.name || userProfile?.email) {
       return {
-        name: userProfile.name || 'Federico Sandoval',
-        email: userProfile.email || 'learner@usavoyager.com',
+        name: userProfile.name || defaultName,
+        email: userProfile.email || defaultEmail,
         age: userProfile.age || '',
         country: userProfile.country || (selectedLang === 'EN' ? 'Not specified' : 'No especificado'),
         goal: userProfile.goal || (selectedLang === 'EN' ? 'Travel & Conversation' : 'Viaje y Conversación'),
@@ -57,12 +70,12 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       };
     }
     const saved = typeof window !== 'undefined' ? localStorage.getItem('voyager_user_account') : null;
-    if (saved) {
+    if (saved && isLoggedIn) {
       try {
         const parsed = JSON.parse(saved);
         return {
-          name: parsed.name || 'Federico Sandoval',
-          email: parsed.email || 'learner@usavoyager.com',
+          name: parsed.name || defaultName,
+          email: parsed.email || defaultEmail,
           age: parsed.age || '',
           country: parsed.country || (selectedLang === 'EN' ? 'Not specified' : 'No especificado'),
           goal: parsed.goal || (selectedLang === 'EN' ? 'Travel & Conversation' : 'Viaje y Conversación'),
@@ -71,8 +84,8 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       } catch (e) {}
     }
     return {
-      name: 'Federico Sandoval',
-      email: 'learner@usavoyager.com',
+      name: defaultName,
+      email: defaultEmail,
       age: '',
       country: selectedLang === 'EN' ? 'Not specified' : 'No especificado',
       goal: selectedLang === 'EN' ? 'Travel & Conversation' : 'Viaje y Conversación',
@@ -293,6 +306,14 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
           </div>
         </div>
 
+        {/* Voyager Activity Calendar */}
+        <ActivityCalendar 
+          selectedLang={selectedLang}
+          savedChats={savedChats}
+          targetGoalMinutes={15}
+          onLoadChat={onLoadChat}
+        />
+
         {/* Saved Conversations & Bookmarks Section */}
         <div className="space-y-2">
           <span className="block text-[9px] font-mono font-bold tracking-widest text-amber-400 uppercase flex items-center justify-between">
@@ -342,6 +363,19 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      {onLoadChat && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onLoadChat(chat);
+                          }}
+                          className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-bold rounded transition-colors"
+                          title={selectedLang === 'EN' ? 'Load & Continue Chat' : 'Cargar y Continuar Chat'}
+                        >
+                          {selectedLang === 'EN' ? 'Load' : 'Cargar'}
+                        </button>
+                      )}
                       <button
                         onClick={(e) => handleDeleteSavedChat(chat.id, e)}
                         className="p-1 hover:bg-red-500/20 rounded text-zinc-400 hover:text-red-400 transition-colors"

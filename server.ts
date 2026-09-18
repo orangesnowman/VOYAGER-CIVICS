@@ -555,13 +555,20 @@ async function startServer() {
               code === 1000 || 
               code === 1001;
 
-            const isTransientError = reasonLower.includes("unavailable") ||
+            const isQuotaOrSpendCap = reasonLower.includes("spending cap") || 
+              reasonLower.includes("spend cap") || 
+              reasonLower.includes("billing") ||
+              reasonLower.includes("monthly spending");
+
+            const isTransientError = !isQuotaOrSpendCap && (
+              reasonLower.includes("unavailable") ||
               reasonLower.includes("503") ||
               reasonLower.includes("overloaded") ||
               reasonLower.includes("resource_exhausted") ||
               reasonLower.includes("connection reset") ||
               code === 1006 ||
-              code === 1011;
+              code === 1011
+            );
 
             try {
               if (session) {
@@ -569,6 +576,20 @@ async function startServer() {
                 session = null;
               }
             } catch (e) {}
+
+            if (isQuotaOrSpendCap) {
+              logToFile(`Gemini Live API quota/spending cap reached: ${reason}`);
+              if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(JSON.stringify({ 
+                  sessionEnded: true,
+                  isQuotaNotice: true,
+                  error: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend",
+                  info: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend"
+                }));
+              }
+              setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+              return;
+            }
 
             const elapsed = Date.now() - connectedTime;
             if (elapsed < 2500 && modelName === "gemini-3.1-flash-live-preview" && !isTransitioning && !isGoAwayOrTimeout && !isTransientError) {
@@ -742,14 +763,26 @@ async function startServer() {
       }
     }
 
+    let clientAudioFrames = 0;
     clientWs.on("message", async (data) => {
       try {
         const payload = JSON.parse(data.toString());
         if (session && !isTransitioning) {
           if (payload.audio) {
-            await session.sendRealtimeInput({
-              audio: { data: payload.audio, mimeType: "audio/pcm;rate=16000" }
-            });
+            clientAudioFrames++;
+            if (clientAudioFrames === 1 || clientAudioFrames % 50 === 0) {
+              logToFile(`[Server WS] Received audio frame #${clientAudioFrames} (${payload.audio.length} base64 chars). Relaying to Gemini...`);
+            }
+            try {
+              await session.sendRealtimeInput({
+                audio: { data: payload.audio, mimeType: "audio/pcm;rate=16000" }
+              });
+              if (clientAudioFrames === 1 || clientAudioFrames % 50 === 0) {
+                logToFile(`[Server WS] Frame #${clientAudioFrames} successfully relayed to Gemini.`);
+              }
+            } catch (audioErr: any) {
+              logToFile(`[Server WS ERROR] Failed to relay audio frame #${clientAudioFrames} to Gemini: ${audioErr?.message || audioErr}`);
+            }
           } else if (payload.text) {
             logToFile(`Relaying client text input to Gemini: ${payload.text}`);
             session.sendClientContent({
@@ -762,12 +795,13 @@ async function startServer() {
               turnComplete: true
             });
           }
+        } else {
+          if (payload.audio) {
+            logToFile(`[Server WS WARN] Dropped incoming audio frame because session active=${!!session}, isTransitioning=${isTransitioning}`);
+          }
         }
       } catch (err: any) {
         logToFile(`Error processing client WebSocket message: ${err.message || err}`);
-        try {
-          clientWs.close();
-        } catch (closeErr) {}
       }
     });
 

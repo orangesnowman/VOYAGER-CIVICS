@@ -1,6 +1,6 @@
 import { db, auth } from '../services/firebaseAuth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { withTimeout } from '../services/userProfileService';
+import { withTimeout, isFirestoreQuotaExceeded, handleFirestoreWriteError } from '../services/userProfileService';
 import { ALL_CIVICS_128_QUESTIONS, CivicsQuestion } from '../data/civics128Data';
 
 export type QuestionMasteryStatus = 'known' | 'unsure' | 'review';
@@ -42,6 +42,8 @@ class CivicsProgressTrackerManager {
   private listeners: Set<ProgressListener> = new Set();
   private userUid: string | null = null;
   private isLoaded = false;
+  private isDirty: boolean = false;
+  private debounceTimer: any = null;
 
   constructor() {
     this.loadFromLocalStorage();
@@ -91,6 +93,7 @@ class CivicsProgressTrackerManager {
   }
 
   private async syncFromFirestore(uid: string) {
+    if (isFirestoreQuotaExceeded()) return;
     try {
       const docRef = doc(db, 'users', uid, 'civicsProgress', 'tracker');
       const docSnap = await withTimeout(getDoc(docRef), 3000);
@@ -106,6 +109,7 @@ class CivicsProgressTrackerManager {
           };
           this.saveToLocalStorage();
           this.notify();
+          this.isDirty = false;
         } else {
           // Local is newer or equal, push local to remote
           await this.saveToFirestore();
@@ -119,6 +123,24 @@ class CivicsProgressTrackerManager {
     }
   }
 
+  private scheduleDebouncedFlush() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.flushToFirestore();
+    }, 60000); // Consolidated batch save every 60 seconds or on explicit session end
+  }
+
+  public async flushToFirestore(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (!this.isDirty) return;
+    await this.saveToFirestore();
+  }
+
   private saveToLocalStorage() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -130,12 +152,14 @@ class CivicsProgressTrackerManager {
   }
 
   private async saveToFirestore() {
+    if (isFirestoreQuotaExceeded()) return;
     if (!this.userUid) return;
     try {
       const docRef = doc(db, 'users', this.userUid, 'civicsProgress', 'tracker');
       await withTimeout(setDoc(docRef, this.data, { merge: true }), 3000);
+      this.isDirty = false;
     } catch (e) {
-      console.warn('Error pushing civics progress to Firestore:', e);
+      handleFirestoreWriteError(e, 'civics progress');
     }
   }
 
@@ -143,7 +167,8 @@ class CivicsProgressTrackerManager {
     this.data.lastUpdated = Date.now();
     this.saveToLocalStorage();
     this.notify();
-    await this.saveToFirestore();
+    this.isDirty = true;
+    this.scheduleDebouncedFlush();
   }
 
   // --- PUBLIC API ---

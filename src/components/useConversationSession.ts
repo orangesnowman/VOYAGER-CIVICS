@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { AudioCapture, AudioPlayback, VoiceActivityDetector } from '../domain/AudioSystem';
 import { ConversationModePolicy } from '../domain/ConversationModePolicy';
 import { ConversationMemory } from '../domain/ConversationMemory';
-import { getLocalProfileCache } from '../services/userProfileService';
+import { getLocalProfileCache, flushAllPendingUserData } from '../services/userProfileService';
 import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 
 interface UseConversationSessionConfig {
   selectedLang: 'EN' | 'ES';
+  isAdaptiveMode?: boolean;
   isBilingualMode: boolean;
   isTranslateMode: boolean;
   isListenOnly: boolean;
@@ -35,6 +36,7 @@ interface UseConversationSessionConfig {
 export function useConversationSession(config: UseConversationSessionConfig) {
   const {
     selectedLang,
+    isAdaptiveMode,
     isBilingualMode,
     isTranslateMode,
     isListenOnly,
@@ -61,6 +63,11 @@ export function useConversationSession(config: UseConversationSessionConfig) {
   } = config;
 
   const [isConnected, setIsConnected] = useState(false);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [framesSent, setFramesSent] = useState(0);
+  const [chunksReceived, setChunksReceived] = useState(0);
+  const [lastUserTranscriptionState, setLastUserTranscriptionState] = useState('');
+  const [lastModelResponseState, setLastModelResponseState] = useState('');
   const [statusText, setStatusText] = useState('Disconnected');
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -74,6 +81,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
   const wsRef = useRef<WebSocket | null>(null);
 
   const isPausedRef = useRef(false);
+  const isSessionActiveRef = useRef(false);
   const isListenOnlyRef = useRef(isListenOnly);
   const onUserTranscriptionRef = useRef(onUserTranscription);
   const onTextResponseRef = useRef(onTextResponse);
@@ -81,6 +89,9 @@ export function useConversationSession(config: UseConversationSessionConfig) {
   const onMessageReceivedRef = useRef(onMessageReceived);
   const onErrorRef = useRef(onError);
   const onCloseRef = useRef(onClose);
+
+  const isAnnouncingPauseRef = useRef<boolean>(false);
+  const announcementTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Keep references updated to avoid closure stale-state issues
   useEffect(() => {
@@ -102,6 +113,11 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
   const recordInteraction = useCallback(() => {
     vadRef.current.recordActivity();
+    if (isTimerPausedRef.current || !lastActiveStartTimestampRef.current) {
+      lastActiveStartTimestampRef.current = Date.now();
+      setIsTimerPaused(false);
+      isTimerPausedRef.current = false;
+    }
   }, []);
 
   const ensureAudioContexts = useCallback(() => {
@@ -138,28 +154,71 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     return () => cancelAnimationFrame(animationFrameId);
   }, [isConnected]);
 
-  // Session timer
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
+  const isTimerPausedRef = useRef(false);
+
+  // Timestamp-based active session timer
+  const activeAccumulatedMsRef = useRef<number>(0);
+  const lastActiveStartTimestampRef = useRef<number | null>(null);
+
+  const pauseTimer = useCallback(() => {
+    if (lastActiveStartTimestampRef.current) {
+      activeAccumulatedMsRef.current += (Date.now() - lastActiveStartTimestampRef.current);
+      lastActiveStartTimestampRef.current = null;
+    }
+    setIsTimerPaused(true);
+    isTimerPausedRef.current = true;
+  }, []);
+
+  const resumeTimer = useCallback(() => {
+    if (isTimerPausedRef.current || !lastActiveStartTimestampRef.current) {
+      lastActiveStartTimestampRef.current = Date.now();
+      setIsTimerPaused(false);
+      isTimerPausedRef.current = false;
+    }
+    vadRef.current.recordActivity();
+  }, []);
+
+  // Session timer using local timestamps (Date.now())
   useEffect(() => {
     if (!isConnected) {
       setSecondsElapsed(0);
+      setIsTimerPaused(false);
+      isTimerPausedRef.current = false;
+      activeAccumulatedMsRef.current = 0;
+      lastActiveStartTimestampRef.current = null;
       return;
     }
-    if (isPaused) {
+    if (isPaused || isTimerPaused) {
       return;
     }
+
+    if (!lastActiveStartTimestampRef.current) {
+      lastActiveStartTimestampRef.current = Date.now();
+    }
+
     const interval = setInterval(() => {
-      setSecondsElapsed(prev => prev + 1);
+      if (lastActiveStartTimestampRef.current && !isPausedRef.current && !isTimerPausedRef.current) {
+        const currentActiveMs = activeAccumulatedMsRef.current + (Date.now() - lastActiveStartTimestampRef.current);
+        setSecondsElapsed(Math.floor(currentActiveMs / 1000));
+      }
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [isConnected, isPaused]);
+  }, [isConnected, isPaused, isTimerPaused]);
 
   // Clean WebSocket and media resources using domain abstractions
   const disconnect = useCallback(() => {
+    // Flush accumulated dirty state to Firestore upon ending session
+    flushAllPendingUserData().catch(() => {});
+
     setIsConnected(false);
+    setIsSessionActive(false);
     setStatusText('Disconnected');
     setVolume(0);
     setIsPaused(false);
     isPausedRef.current = false;
+    isSessionActiveRef.current = false;
 
     if (wsRef.current) {
       const ws = wsRef.current;
@@ -196,14 +255,58 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     setError(null);
     setIsPaused(false);
     isPausedRef.current = false;
+    setIsSessionActive(false);
+    isSessionActiveRef.current = false;
     vadRef.current.reset();
     ensureAudioContexts();
+    setFramesSent(0);
+    setChunksReceived(0);
+    setLastUserTranscriptionState('');
+    setLastModelResponseState('');
 
     try {
       setStatusText('Connecting...');
       
       if (!captureRef.current) {
         captureRef.current = new AudioCapture();
+      }
+      if (!playbackRef.current) {
+        playbackRef.current = new AudioPlayback();
+      }
+      playbackRef.current.init();
+
+      // Start capture immediately in the gesture call stack
+      try {
+        let sentFrames = 0;
+        await captureRef.current.start((base64Data) => {
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && !isPausedRef.current && isSessionActiveRef.current) {
+            sentFrames++;
+            setFramesSent(prev => prev + 1);
+            vadRef.current.recordActivity();
+            wsRef.current.send(JSON.stringify({ audio: base64Data }));
+            if (sentFrames === 1 || sentFrames % 50 === 0) {
+              console.log(`[Client Session] Sent audio frame #${sentFrames} to WS server`);
+            }
+          }
+        });
+      } catch (captureErr: any) {
+        console.warn('Audio capture failed to start immediately:', captureErr);
+        const errStr = String(captureErr?.message || captureErr || '').toLowerCase();
+        const errName = String(captureErr?.name || '');
+        const isPermissionDenied = errName === 'NotAllowedError' || 
+          errName === 'PermissionDeniedError' || 
+          errStr.includes('permission') || 
+          errStr.includes('denied');
+
+        const userErrMsg = isPermissionDenied 
+          ? (selectedLang === 'EN' 
+              ? 'Microphone permission denied. Voice mode is disabled, but you can continue using text chat.' 
+              : 'Permiso de micrófono denegado. El modo de voz está desactivado, pero puedes continuar usando el chat de texto.')
+          : (selectedLang === 'EN'
+              ? 'Microphone initialization failed. You can continue using text chat.'
+              : 'No se pudo iniciar el micrófono. Puedes continuar usando el chat de texto.');
+
+        onErrorRef.current(userErrMsg);
       }
 
       const activeLang = langOverride || selectedLang;
@@ -222,37 +325,8 @@ export function useConversationSession(config: UseConversationSessionConfig) {
         console.log('WebSocket connection to server established');
         
         onOpenRef.current();
-
-        try {
-          // Delegate voice capture initialization to AudioCapture
-          await captureRef.current?.start((base64Data) => {
-            if (ws.readyState !== WebSocket.OPEN) return;
-            if (isPausedRef.current) return;
-            
-            vadRef.current.recordActivity();
-            ws.send(JSON.stringify({ audio: base64Data }));
-          });
-        } catch (captureErr: any) {
-          console.warn('Audio capture failed to start:', captureErr);
-          if (captureRef.current) {
-            captureRef.current.stop();
-          }
-          const errStr = String(captureErr?.message || captureErr || '').toLowerCase();
-          const errName = String(captureErr?.name || '');
-          const isPermissionDenied = errName === 'NotAllowedError' || 
-            errName === 'PermissionDeniedError' || 
-            errStr.includes('permission') || 
-            errStr.includes('denied');
-
-          const userErrMsg = isPermissionDenied 
-            ? (selectedLang === 'EN' 
-                ? 'Microphone permission denied. Voice mode is disabled, but you can continue using text chat.' 
-                : 'Permiso de micrófono denegado. El modo de voz está desactivado, pero puedes continuar usando el chat de texto.')
-            : (selectedLang === 'EN'
-                ? 'Microphone initialization failed. You can continue using text chat.'
-                : 'No se pudo iniciar el micrófono. Puedes continuar usando el chat de texto.');
-
-          onErrorRef.current(userErrMsg);
+        if (captureRef.current) {
+          await captureRef.current.resume();
         }
       };
 
@@ -265,6 +339,8 @@ export function useConversationSession(config: UseConversationSessionConfig) {
           onMessageReceivedRef.current(msg);
 
           if (msg.status === 'connected') {
+            setIsSessionActive(true);
+            isSessionActiveRef.current = true;
             console.log('Gemini session active on backend. Mapping mode instructions via ConversationModePolicy.');
             if (msg.reconnected) {
               console.log('Seamless reconnection complete. Session active.');
@@ -272,12 +348,13 @@ export function useConversationSession(config: UseConversationSessionConfig) {
             }
             
             // Map state variables back to a typed Mode for ConversationModePolicy
-            const currentMode = isBilingualMode ? 'BILINGUAL'
+            const currentMode = isAdaptiveMode ? 'ADAPTIVE'
+                              : isBilingualMode ? 'BILINGUAL'
                               : isTranslateMode ? 'LIVE_TRANSLATOR'
                               : isListenOnly ? 'LISTEN_ONLY'
                               : isSpanishOnlyMode ? 'SPANISH'
                               : isEnglishOnlyMode ? 'AMERICAN_ENGLISH'
-                              : 'BILINGUAL';
+                              : 'ADAPTIVE';
 
             if (hasInteracted) {
               let greetingPrompt = "";
@@ -397,16 +474,13 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                   wsRef.current.send(JSON.stringify({ text: greetingPrompt }));
                 }
               } else {
-                const welcomeSpeech = "¡Bienvenido! Yo soy Voyager, tutor de Inglés Americano. Necesito saber más de ti para servirte mejor. Dime, ¿a qué te dedicas?";
-                const welcomePrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Estás guiando al usuario en el cuestionario de perfil inicial. 
-Habla en tu voz natural de Voyager y lee en voz alta ÚNICAMENTE el siguiente mensaje en español: "${welcomeSpeech}".
-REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué te trae por aquí hoy?" ni intentes iniciar una charla casual. Solo di este mensaje claramente y guarda silencio absoluto esperando la respuesta del usuario en la interfaz.]`;
-                
-                const onboardingInstruction = `[INSTRUCCIÓN DE SISTEMA DE SOPORTE DE ONBOARDING: El usuario está completando el formulario. Quédate en silencio y NO respondas a ruidos, habla o ruidos de fondo. Mantén el silencio absoluto hasta recibir una nueva instrucción.]`;
+                const welcomeSpeech = selectedLang === 'EN'
+                  ? "Welcome! I am USA Voyager, your American English tutor. How can I help you today?"
+                  : "¡Bienvenido! Yo soy USA Voyager, tu tutor de Inglés Americano. ¿En qué te puedo ayudar hoy?";
+                const welcomePrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Preséntate y saluda al usuario en voz alta con tu voz natural de Voyager diciendo: "${welcomeSpeech}". Luego escucha atentamente la respuesta del usuario y conversa naturalmente en voz alta.]`;
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                   wsRef.current.send(JSON.stringify({ text: welcomePrompt }));
-                  wsRef.current.send(JSON.stringify({ text: onboardingInstruction }));
                 }
               }
             }
@@ -415,6 +489,14 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
           
           if (msg.sessionEnded) {
             console.log('Session ended gracefully by server:', msg.info);
+            if (msg.isQuotaNotice || (msg.info && (msg.info.includes('spending cap') || msg.info.includes('límite de gasto')))) {
+              const quotaNotice = msg.info || (selectedLang === 'EN'
+                ? 'Gemini API monthly spending cap reached. Voice session paused.'
+                : 'Se ha alcanzado el límite de gasto mensual de Gemini API. Sesión de voz pausada.');
+              setError(quotaNotice);
+              if (onErrorRef.current) onErrorRef.current(quotaNotice);
+              setStatusText(selectedLang === 'EN' ? 'Quota Exceeded' : 'Límite de Cuota');
+            }
             disconnect();
             return;
           }
@@ -431,23 +513,53 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
                disconnect();
                return;
              }
-             console.error('Server reported error:', msg.error);
-             setError(msg.error);
+             const isQuotaOrSpendCap = msg.isQuotaError || (typeof msg.error === 'string' && (
+               msg.error.includes("spending cap") ||
+               msg.error.includes("límite de gasto") ||
+               msg.error.includes("cuota") ||
+               msg.error.includes("RESOURCE_EXHAUSTED")
+             ));
+             if (isQuotaOrSpendCap) {
+               console.warn('Voice session quota notice:', msg.error);
+               const quotaErrText = typeof msg.error === 'string' ? msg.error : (
+                 selectedLang === 'EN'
+                   ? 'Gemini API monthly spending cap reached. Manage API quota at https://ai.studio/spend.'
+                   : 'Se ha alcanzado el límite de gasto mensual de Gemini API. Administra tu cuota en https://ai.studio/spend.'
+               );
+               setError(quotaErrText);
+               if (onErrorRef.current) onErrorRef.current(quotaErrText);
+               setStatusText(selectedLang === 'EN' ? 'Quota Exceeded' : 'Límite de Cuota');
+               disconnect();
+               return;
+             }
+             console.warn('Server session notice:', msg.error);
+             const errText = typeof msg.error === 'string' ? msg.error : JSON.stringify(msg.error);
+             setError(errText);
+             if (onErrorRef.current) onErrorRef.current(errText);
              disconnect();
              return;
           }
 
-          if (msg.userTranscription && !isPausedRef.current) {
+          if (msg.userTranscription && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+            console.log('[Client Session] User transcription received from server:', msg.userTranscription);
+            setLastUserTranscriptionState(msg.userTranscription);
             onUserTranscriptionRef.current(msg.userTranscription);
           }
 
-          if (msg.text && !isPausedRef.current) {
+          if (msg.text && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+            console.log('[Client Session] Text response received from server:', msg.text);
+            setLastModelResponseState(msg.text);
             onTextResponseRef.current(msg.text, !!msg.showForm);
           }
 
-          if (msg.audio && !isListenOnlyRef.current && !isPausedRef.current) {
-            // Delegate audio queue and timing-based playback to AudioPlayback module
-            playbackRef.current?.playRawPCM(msg.audio);
+          if (msg.audio && !isListenOnlyRef.current && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+            setChunksReceived(prev => prev + 1);
+            if (!playbackRef.current) {
+              playbackRef.current = new AudioPlayback();
+              playbackRef.current.init();
+            }
+            console.log('[Client Session] Playing raw PCM audio chunk (len:', msg.audio.length, ')');
+            playbackRef.current.playRawPCM(msg.audio);
           }
         } catch (e) {
           console.error('Error reading message:', e);
@@ -460,13 +572,12 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
       };
 
       ws.onerror = (err) => {
-         console.error('WebSocket error:', err);
-         setError('Server connection error');
+         console.warn('WebSocket notification:', err);
          disconnect();
       };
 
     } catch (err: any) {
-        console.error('Connection Failed', err);
+        console.warn('Connection notice:', err);
         setError(err.message || 'Error connecting or accessing microphone. Please ensure microphone permissions are granted.');
         setStatusText('Disconnected');
     }
@@ -495,7 +606,14 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
     return false;
   }, []);
 
-  const pause = useCallback(() => {
+  const pause = useCallback((customAnnouncement?: string) => {
+    // Freeze timestamp accumulation cleanly
+    if (lastActiveStartTimestampRef.current) {
+      activeAccumulatedMsRef.current += (Date.now() - lastActiveStartTimestampRef.current);
+      lastActiveStartTimestampRef.current = null;
+    }
+    setSecondsElapsed(Math.floor(activeAccumulatedMsRef.current / 1000));
+
     setIsPaused(true);
     isPausedRef.current = true;
     setVolume(0);
@@ -507,14 +625,28 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
     }
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
-        wsRef.current.send(JSON.stringify({ text: '[INSTRUCCIÓN DE SISTEMA: La conversación está en PAUSA. No envíes más respuestas ni audio.]' }));
+        const textToAnnounce = customAnnouncement || (selectedLang === 'EN' ? 'Conversation is in pause.' : 'La conversación está en pausa.');
+        isAnnouncingPauseRef.current = true;
+        if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
+        announcementTimerRef.current = setTimeout(() => {
+          isAnnouncingPauseRef.current = false;
+        }, 6000);
+        wsRef.current.send(JSON.stringify({ 
+          text: `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Di ÚNICAMENTE la siguiente frase en voz alta con tu voz natural de Voyager: "${textToAnnounce}". No agregues ninguna otra palabra y entra en silencio absoluto.]`
+        }));
       } catch (e) {}
     }
-  }, []);
+  }, [selectedLang]);
 
   const resume = useCallback(() => {
     setIsPaused(false);
     isPausedRef.current = false;
+    isAnnouncingPauseRef.current = false;
+    lastActiveStartTimestampRef.current = Date.now();
+    if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
+    if (captureRef.current) {
+      captureRef.current.resume();
+    }
     if (playbackRef.current) {
       playbackRef.current.init();
     }
@@ -524,32 +656,47 @@ REGLA CRÍTICA: NO digas nada más, NO saludes con "Hola", NO preguntes "¿Qué 
     }
   }, []);
 
-  // Inactivity auto-pause (3 minutes threshold for natural learning cadence)
+  // Inactivity auto-pause for USER TIMER ONLY (2 minutes threshold for user inactivity)
   useEffect(() => {
-    if (!isConnected || isPaused) return;
+    if (!isConnected) return;
     const interval = setInterval(() => {
       const inactiveMs = vadRef.current.getInactiveMs();
-      if (inactiveMs > 180000) {
-        console.log('Auto-pausing session due to 180s inactivity tracked by VoiceActivityDetector');
-        pause();
-        if (onAutoPause) onAutoPause();
+      if (inactiveMs > 120000) {
+        if (!isTimerPausedRef.current) {
+          console.log('Pausing user active session timer due to 120s inactivity');
+          pauseTimer();
+          if (onAutoPause) onAutoPause();
+        }
+      } else {
+        if (isTimerPausedRef.current) {
+          resumeTimer();
+        }
       }
-    }, 3000);
+    }, 1000);
     return () => clearInterval(interval);
-  }, [isConnected, isPaused, pause, onAutoPause]);
+  }, [isConnected, pauseTimer, resumeTimer, onAutoPause]);
 
   return {
     isConnected,
+    isSessionActive,
     statusText,
     error,
     isPaused,
+    isTimerPaused,
     secondsElapsed,
+    setSecondsElapsed,
     volume,
+    framesSent,
+    chunksReceived,
+    lastUserTranscription: lastUserTranscriptionState,
+    lastModelResponse: lastModelResponseState,
     connect,
     disconnect,
     sendText,
     pause,
     resume,
+    pauseTimer,
+    resumeTimer,
     recordInteraction,
     wsRef
   };

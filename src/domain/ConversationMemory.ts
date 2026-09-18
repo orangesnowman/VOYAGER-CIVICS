@@ -1,6 +1,6 @@
 import { db, auth } from '../services/firebaseAuth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { withTimeout } from '../services/userProfileService';
+import { withTimeout, isFirestoreQuotaExceeded, handleFirestoreWriteError } from '../services/userProfileService';
 
 export interface PreviousConversation {
   timestamp: number;
@@ -23,6 +23,8 @@ export class ConversationMemory {
   private previousConversations: PreviousConversation[] = [];
   private personalContext: PersonalContext = {};
   private userUid: string | null = null;
+  private isDirty: boolean = false;
+  private debounceTimer: any = null;
 
   constructor() {
     this.id = `memory_${Date.now()}`;
@@ -43,6 +45,7 @@ export class ConversationMemory {
   }
 
   private async syncFromFirestore(uid: string) {
+    if (isFirestoreQuotaExceeded()) return;
     try {
       const docRef = doc(db, 'users', uid, 'conversationMemory', 'data');
       const docSnap = await withTimeout(getDoc(docRef), 3000);
@@ -55,6 +58,7 @@ export class ConversationMemory {
           this.previousConversations = remote.previousConversations || this.previousConversations;
           this.personalContext = remote.personalContext || this.personalContext;
           this.saveToStorage();
+          this.isDirty = false;
         }
       } else {
         await this.saveToFirestore();
@@ -64,7 +68,26 @@ export class ConversationMemory {
     }
   }
 
+  private scheduleDebouncedFlush() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+    this.debounceTimer = setTimeout(() => {
+      this.flushToFirestore();
+    }, 60000); // Consolidated batch save every 60 seconds or on explicit session end
+  }
+
+  public async flushToFirestore(): Promise<void> {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    if (!this.isDirty) return;
+    await this.saveToFirestore();
+  }
+
   private async saveToFirestore() {
+    if (isFirestoreQuotaExceeded()) return;
     const uid = this.userUid || auth.currentUser?.uid;
     if (!uid) return;
     try {
@@ -79,8 +102,9 @@ export class ConversationMemory {
         updatedAt: new Date().toISOString()
       };
       await withTimeout(setDoc(docRef, payload, { merge: true }), 3000);
+      this.isDirty = false;
     } catch (e) {
-      console.warn('ConversationMemory save to Firestore note:', e);
+      handleFirestoreWriteError(e, 'conversation memory');
     }
   }
 
@@ -302,7 +326,8 @@ export class ConversationMemory {
         // Silently ignore if browser storage quota is completely full
       }
     }
-    this.saveToFirestore();
+    this.isDirty = true;
+    this.scheduleDebouncedFlush();
   }
 
   private loadFromStorage(): void {

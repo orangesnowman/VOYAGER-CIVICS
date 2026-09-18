@@ -790,7 +790,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (fbUser) {
       const fbEmail = (fbUser.email || '').toLowerCase().trim();
       const isFbAdmin = fbEmail === 'theorangesnowman@gmail.com' || fbEmail.startsWith('theorangesnowman');
-      if (fbUser.photoURL) {
+      if (fbUser?.photoURL) {
         setAdminPhotoUrl(fbUser.photoURL);
       }
       if (isFbAdmin) {

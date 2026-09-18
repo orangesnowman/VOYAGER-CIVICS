@@ -17,7 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   selectedLang,
   initialIsRegister = false,
-  initialShowEmail = false,
+  initialShowEmail = true,
   onEmailAuthSubmit,
   onGoogleLogin,
   onGuestLogin,
@@ -32,9 +32,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       setIsRegister(initialIsRegister);
-      setShowEmailForm(initialShowEmail);
+      setShowEmailForm(true);
     }
-  }, [isOpen, initialIsRegister, initialShowEmail]);
+  }, [isOpen, initialIsRegister]);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -42,11 +52,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     e.preventDefault();
     const fullName = `${firstName} ${lastName}`.trim();
     onEmailAuthSubmit(e, isRegister, fullName, username, password);
+    onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-neutral-100 w-full max-w-sm p-6 sm:p-8 relative overflow-hidden animate-scale-up">
+    <div 
+      onClick={onClose}
+      className="fixed inset-0 z-[999999] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in cursor-pointer"
+    >
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl shadow-2xl border border-neutral-100 w-full max-w-sm p-6 sm:p-8 relative overflow-hidden animate-scale-up cursor-default"
+      >
         {/* Close button */}
         <button 
           onClick={onClose}
@@ -58,13 +75,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         <div className="flex flex-col items-start text-left w-full">
           <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1A365D] tracking-tight leading-tight mb-3">
-            {selectedLang === 'EN' ? 'Sign In' : 'Iniciar Sesión'}
+            {isRegister 
+              ? (selectedLang === 'EN' ? 'Create Account' : 'Crear Cuenta') 
+              : (selectedLang === 'EN' ? 'Sign In' : 'Iniciar Sesión')}
           </h2>
           
           <p className="text-sm sm:text-base text-neutral-800 font-medium leading-snug mb-6">
-            {selectedLang === 'EN' 
-              ? 'Use your Google account, your username or enter as a guest.' 
-              : 'Utiliza tu cuenta de Google, tu nombre de usuario o entra como invitado.'}
+            {isRegister
+              ? (selectedLang === 'EN' 
+                  ? 'Register with your name, email/username, and password.' 
+                  : 'Regístrate con tu nombre, correo/usuario y contraseña.')
+              : (selectedLang === 'EN' 
+                  ? 'Sign in with your email/username, Google, or guest mode.' 
+                  : 'Ingresa con tu correo/usuario, Google o modo invitado.')}
           </p>
 
           <div className="flex items-center gap-4">
@@ -89,8 +112,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             {/* Username Credentials */}
             <button 
               type="button"
-              onClick={() => setShowEmailForm(!showEmailForm)}
-              title={selectedLang === 'EN' ? 'Sign in with Username' : 'Iniciar con Usuario'}
+              onClick={() => setShowEmailForm(true)}
+              title={selectedLang === 'EN' ? 'Sign in with Email' : 'Iniciar con Correo'}
               className={`w-12 h-12 rounded-full border-[2.5px] ${showEmailForm ? 'border-[#1A365D] bg-neutral-100 ring-2 ring-[#1A365D]/20' : 'border-black bg-white'} hover:bg-neutral-50 flex items-center justify-center active:scale-95 transition-all cursor-pointer shadow-xs`}
             >
               <svg className="w-6 h-6 text-[#1A365D]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -201,6 +224,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     className="w-full px-3 py-2 border-2 border-[#1A365D] rounded-full text-xs font-bold bg-white text-neutral-800 placeholder-neutral-400 focus:outline-none"
                   />
                 </div>
+
+                {isRegister && (
+                  <p className="text-[10px] font-semibold text-blue-900/80 bg-blue-50/90 p-2 rounded-xl border border-blue-200/80 mt-1">
+                    📧 {selectedLang === 'EN' 
+                      ? 'A verification link will be sent to your email upon registration. (Please check Spam/Junk if not in inbox).' 
+                      : 'Se enviará un enlace de verificación a tu correo al registrarte. (Revisa Spam/Correo no deseado si no aparece en entrada).'}
+                  </p>
+                )}
 
                 <div className="pt-1 flex items-center justify-between text-[11px]">
                   <button
