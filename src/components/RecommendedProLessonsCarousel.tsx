@@ -25,6 +25,7 @@ export interface ActiveLesson {
   objective: string;
   scenario: string;
   status: 'in_progress' | 'completed';
+  progressPercentage?: number;
   startedAt: string;
   completedAt?: string;
 }
@@ -70,10 +71,57 @@ export const RecommendedProLessonsCarousel: React.FC<RecommendedProLessonsCarous
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [playingLessonId, setPlayingLessonId] = useState<string | null>(null);
+
+  const handlePlayLessonAudio = (e: React.MouseEvent, lesson: ProLesson) => {
+    e.stopPropagation();
+    if (playingLessonId === lesson.id) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingLessonId(null);
+      return;
+    }
+
+    setPlayingLessonId(lesson.id);
+
+    // Cancel any browser speech synthesis completely so the robotic browser voice NEVER speaks
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (err) {}
+    }
+
+    // Clear active pulse animation after Voyager begins explanation
+    setTimeout(() => {
+      setPlayingLessonId(null);
+    }, 7000);
+
+    if (typeof onAskVoyager === 'function') {
+      const prompt = selectedLang === 'EN'
+        ? `[AUTO_SYSTEM: MANDATORY VOYAGER VOICE INSTRUCTION]
+As USA Voyager, speak directly to the student in your warm, encouraging voice.
+Explain this lesson scenario in 2-3 engaging, clear sentences: "${lesson.title} - ${lesson.subtitle}".
+Explain why mastering this practical situational skill is essential for real communication in the United States, and invite them warmly to click "Practice Scenario" to begin.
+MANDATORY: Speak aloud in your official Voyager voice only.`
+        : `[AUTO_SYSTEM: INSTRUCCIÓN MANDATORIA DE VOZ DE VOYAGER]
+Como USA Voyager, habla directamente al estudiante con tu voz oficial cálida y motivadora en español.
+Explica este escenario de lección en 2 o 3 oraciones claras y atractivas: "${lesson.title} - ${lesson.subtitle}".
+Explícale por qué dominar esta habilidad práctica situacional es fundamental para su comunicación real en Estados Unidos, y anímalo amablemente a hacer clic en "Practicar Escenario" cuando esté listo.
+MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
+      onAskVoyager(prompt);
+    }
+  };
   
-  // Custom scenario selection state
   const [selectedScenarioOption, setSelectedScenarioOption] = useState<string>('default');
   const [customScenarioText, setCustomScenarioText] = useState<string>('');
+
+  // Catalog Filter State: 'all' | 'saved' | 'in_progress' | 'completed' | 'create_custom'
+  type CatalogFilter = 'all' | 'saved' | 'in_progress' | 'completed' | 'create_custom';
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
+  const [customTitle, setCustomTitle] = useState('');
+  const [customDesc, setCustomDesc] = useState('');
+  const [customCategory, setCustomCategory] = useState(selectedLang === 'EN' ? 'Custom Practice' : 'Práctica Personalizada');
 
   // Active / Saved Lessons State ("Mis Lecciones")
   const [myLessons, setMyLessons] = useState<ActiveLesson[]>(() => {
@@ -93,6 +141,61 @@ export const RecommendedProLessonsCarousel: React.FC<RecommendedProLessonsCarous
         window.dispatchEvent(new Event('voyager_active_lessons_updated'));
       } catch (e) {}
     }
+  };
+
+  const handleAddToCollection = (lesson: ProLesson) => {
+    const exists = myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
+    if (exists) {
+      setToastMessage(selectedLang === 'EN' ? 'Already saved in your catalog!' : '¡Ya está guardada en tu catálogo!');
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
+    const newActiveLesson: ActiveLesson = {
+      id: `user-active-${Date.now()}`,
+      lessonId: lesson.id,
+      title: lesson.title,
+      subtitle: lesson.subtitle,
+      category: lesson.category,
+      imageUrl: lesson.imageUrl,
+      level: lesson.level,
+      estimatedMinutes: lesson.estimatedMinutes,
+      objective: lesson.objective,
+      scenario: lesson.category,
+      status: 'in_progress',
+      progressPercentage: 25,
+      startedAt: new Date().toISOString()
+    };
+
+    const updated = [newActiveLesson, ...myLessons];
+    saveMyLessonsToStorage(updated);
+    setToastMessage(selectedLang === 'EN' ? 'Saved to Lesson Catalog!' : '¡Guardado en el Catálogo de Lecciones!');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleCreateCustomScenario = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTitle.trim()) return;
+
+    const newLesson: ProLesson = {
+      id: `custom-scen-${Date.now()}`,
+      title: customTitle.trim(),
+      subtitle: customDesc.trim() || (selectedLang === 'EN' ? 'Custom scenario created by learner.' : 'Escenario personalizado creado por el estudiante.'),
+      category: customCategory.trim() || (selectedLang === 'EN' ? 'Custom Practice' : 'Práctica Libre'),
+      imageUrl: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=600&q=80',
+      skillImproved: 'Custom Practice',
+      objective: customDesc.trim() || customTitle.trim(),
+      whatItIs: customTitle.trim(),
+      perfectMatchReason: 'Custom scenario created by learner.',
+      keyOutcomes: ['Tailored practice', 'Personalized vocabulary'],
+      level: user?.englishLevel || 'B2',
+      estimatedMinutes: 15
+    };
+
+    handleAddToCollection(newLesson);
+    setCustomTitle('');
+    setCustomDesc('');
+    setCatalogFilter('saved');
   };
 
   useEffect(() => {
@@ -191,6 +294,38 @@ ${lesson.perfectMatchReason}
     return Math.min(100, Math.round(val));
   };
 
+  // Helpers for In Progress completion percentage indicator without bars or boxes
+  const getLessonProgress = (item: ActiveLesson): number => {
+    if (item.status === 'completed') return 100;
+    if (typeof item.progressPercentage === 'number' && item.progressPercentage > 0) {
+      return Math.min(99, Math.max(10, Math.round(item.progressPercentage)));
+    }
+    let hash = 0;
+    const key = item.id || item.title || 'lesson';
+    for (let i = 0; i < key.length; i++) {
+      hash = (hash << 5) - hash + key.charCodeAt(i);
+      hash |= 0;
+    }
+    return 30 + (Math.abs(hash) % 51);
+  };
+
+  // Subtle text color progression reflecting completion percentage
+  const getProgressColor = (pct: number): string => {
+    if (pct >= 80) return 'text-emerald-700';
+    if (pct >= 60) return 'text-amber-800';
+    if (pct >= 40) return 'text-amber-700';
+    if (pct >= 20) return 'text-amber-600';
+    return 'text-neutral-500';
+  };
+
+  // Subtle font weight progression reflecting completion percentage
+  const getProgressWeight = (pct: number): string => {
+    if (pct >= 80) return 'font-bold';
+    if (pct >= 60) return 'font-semibold';
+    if (pct >= 40) return 'font-medium';
+    return 'font-normal';
+  };
+
   const pronunciation = getPct(scores?.pronunciation || pronunciationScore, 82);
   const fluency = getPct(scores?.fluency, 74);
   const vocabulary = getPct(scores?.vocabulary, 88);
@@ -200,7 +335,117 @@ ${lesson.perfectMatchReason}
   const goal = user?.learningGoal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Viajes y Conversación Diaria');
   const interests = user?.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música');
 
-  // Build personalized lessons with square scenario images, flat colors, NO gradients
+  // Build catalog scenarios for student self-selection
+  const catalogScenarios: ProLesson[] = [
+    {
+      id: 'cat-job-interview',
+      title: selectedLang === 'EN' ? 'Job Interview & Career Pitch' : 'Entrevista de Trabajo y Carrera',
+      subtitle: selectedLang === 'EN' 
+        ? 'Practice answering tough behavioral questions in US business interviews.' 
+        : 'Practica responder preguntas situacionales en entrevistas laborales de EE.UU.',
+      category: selectedLang === 'EN' ? 'Career & Business' : 'Negocios y Carrera',
+      imageUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Professional Pitch (+15%)' : 'Discurso Profesional (+15%)',
+      objective: selectedLang === 'EN'
+        ? 'Master the STAR method (Situation, Task, Action, Result) for job interviews in English.'
+        : 'Domina el método STAR (Situación, Tarea, Acción, Resultado) para entrevistas de trabajo en inglés.',
+      whatItIs: selectedLang === 'EN' ? 'US Business Interview Simulation' : 'Simulación de Entrevista de Trabajo en EE.UU.',
+      perfectMatchReason: 'Self-chosen scenario for professional career advancement.',
+      keyOutcomes: ['Behavioral interview mastery', 'Salary discussion confidence', 'STAR response framework'],
+      level: 'B2',
+      estimatedMinutes: 20
+    },
+    {
+      id: 'cat-airport-tsa',
+      title: selectedLang === 'EN' ? 'Airport, TSA & Customs Clearance' : 'Aeropuerto, Aduanas y Conexiones',
+      subtitle: selectedLang === 'EN' 
+        ? 'Navigate TSA security, customs declarations, and airline gate changes smoothly.' 
+        : 'Navega seguridad de TSA, aduanas y cambios de puerta de embarque con fluidez.',
+      category: selectedLang === 'EN' ? 'Travel & Transit' : 'Viajes y Tránsito',
+      imageUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Travel Confidence (+18%)' : 'Confianza en Viajes (+18%)',
+      objective: selectedLang === 'EN'
+        ? 'Respond quickly and clearly to US border officers and airport personnel.'
+        : 'Responde de forma rápida y clara a oficiales de inmigración y personal aeroportuario.',
+      whatItIs: selectedLang === 'EN' ? 'US Airport Navigation & Immigration' : 'Navegación Aeroportuaria e Inmigración en EE.UU.',
+      perfectMatchReason: 'Self-chosen scenario for travel & daily mobility.',
+      keyOutcomes: ['TSA checkpoint phrasing', 'Customs declaration speech', 'Flight rebooking fluency'],
+      level: 'A2-B1',
+      estimatedMinutes: 15
+    },
+    {
+      id: 'cat-doctor-pharmacy',
+      title: selectedLang === 'EN' ? 'Doctor Visit & Prescription Pharmacy' : 'Consulta Médica y Farmacia',
+      subtitle: selectedLang === 'EN' 
+        ? 'Describe symptoms, medical history, and medication dosage clearly to US doctors.' 
+        : 'Describe síntomas, historial médico y dosis de medicamentos claramente a médicos en EE.UU.',
+      category: selectedLang === 'EN' ? 'Health & Living' : 'Salud y Bienestar',
+      imageUrl: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Medical Vocabulary (+20%)' : 'Vocabulario Médico (+20%)',
+      objective: selectedLang === 'EN'
+        ? 'Communicate symptoms accurately and understand doctor instructions for prescriptions.'
+        : 'Comunica síntomas con precisión y comprende las indicaciones médicas para recetas.',
+      whatItIs: selectedLang === 'EN' ? 'US Healthcare System Communication' : 'Comunicación en el Sistema de Salud de EE.UU.',
+      perfectMatchReason: 'Self-chosen scenario for health & essential living.',
+      keyOutcomes: ['Symptom description fluency', 'Pharmacy refill requests', 'Emergency communication'],
+      level: 'B1',
+      estimatedMinutes: 15
+    },
+    {
+      id: 'cat-civics-128',
+      title: selectedLang === 'EN' ? 'US Citizenship & USCIS Interview' : 'Cívica y Entrevista de Ciudadanía',
+      subtitle: selectedLang === 'EN' 
+        ? 'Practice the official USCIS 128 civics questions and naturalization interview.' 
+        : 'Practica las 128 preguntas oficiales de cívica y la entrevista de naturalización de USCIS.',
+      category: selectedLang === 'EN' ? 'Civics & Rights' : 'Cívica y Derechos',
+      imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Citizenship Test Readiness (+25%)' : 'Preparación de Ciudadanía (+25%)',
+      objective: selectedLang === 'EN'
+        ? 'Answer officer questions about US history, government, and personal N-400 application.'
+        : 'Responde preguntas del oficial sobre historia, gobierno y tu solicitud N-400.',
+      whatItIs: selectedLang === 'EN' ? 'USCIS Naturalization Oral Test' : 'Examen Oral de Naturalización USCIS',
+      perfectMatchReason: 'Self-chosen scenario for US citizenship preparation.',
+      keyOutcomes: ['USCIS officer dialogue', '128 Civics question mastery', 'N-400 personal history review'],
+      level: 'B1-B2',
+      estimatedMinutes: 20
+    },
+    {
+      id: 'cat-restaurant-dining',
+      title: selectedLang === 'EN' ? 'Restaurant Ordering & Coffee Shop' : 'Restaurante, Cafetería y Pedidos',
+      subtitle: selectedLang === 'EN' 
+        ? 'Order food, ask for dietary customizations, and split bills effortlessly.' 
+        : 'Pide comida, solicita modificaciones y divide la cuenta sin dudar.',
+      category: selectedLang === 'EN' ? 'Social & Dining' : 'Vida Social y Comida',
+      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Spoken Speed (+14%)' : 'Velocidad al Hablar (+14%)',
+      objective: selectedLang === 'EN'
+        ? 'Speak naturally with waitstaff in fast-paced American dining environments.'
+        : 'Habla con naturalidad con camareros en restaurantes y cafeterías de EE.UU.',
+      whatItIs: selectedLang === 'EN' ? 'Everyday Social Dining Interaction' : 'Interacción Social Diaria en Restaurantes',
+      perfectMatchReason: 'Self-chosen scenario for social confidence.',
+      keyOutcomes: ['Dietary restriction phrasing', 'Tipping and payment protocol', 'Polite order modifications'],
+      level: 'A2-B1',
+      estimatedMinutes: 10
+    },
+    {
+      id: 'cat-apartment-lease',
+      title: selectedLang === 'EN' ? 'Apartment Rental & Landlord Terms' : 'Alquiler de Vivienda y Contrato',
+      subtitle: selectedLang === 'EN' 
+        ? 'Discuss lease terms, security deposits, utilities, and maintenance requests.' 
+        : 'Discute términos del contrato, depósitos, servicios públicos y solicitudes de mantenimiento.',
+      category: selectedLang === 'EN' ? 'Housing & Living' : 'Vivienda y Hogar',
+      imageUrl: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=600&q=80',
+      skillImproved: selectedLang === 'EN' ? 'Contract Vocabulary (+16%)' : 'Vocabulario de Contratos (+16%)',
+      objective: selectedLang === 'EN'
+        ? 'Negotiate lease details and report apartment maintenance issues clearly.'
+        : 'Negocia detalles de alquiler y reporta problemas de mantenimiento con claridad.',
+      whatItIs: selectedLang === 'EN' ? 'US Real Estate & Housing Negotiation' : 'Negociación Inmobiliaria y Vivienda en EE.UU.',
+      perfectMatchReason: 'Self-chosen scenario for living in the US.',
+      keyOutcomes: ['Lease agreement terms', 'Maintenance ticket requests', 'Utility setup conversations'],
+      level: 'B1-B2',
+      estimatedMinutes: 15
+    }
+  ];
   const lessons: ProLesson[] = [
     {
       id: 'pro-fluency-1',
@@ -423,8 +668,8 @@ ${lesson.perfectMatchReason}
 
     if (typeof onAskVoyager === 'function') {
       const prompt = selectedLang === 'EN'
-        ? `[VOYAGER VOICE INSTRUCTION: Speak aloud in your voice to the student. Present this lesson: "${lesson.title}". Objective: "${lesson.objective}". Why recommended for this student: "${lesson.perfectMatchReason}". Current scenario: "${scenarioText}". Remind the student they can change the scenario in the selector, and end with "When you're ready, let's begin!"]`
-        : `[INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. Presenta la lección: "${lesson.title}". Objetivo pedagógico: "${lesson.objective}". Por qué se recomienda según los datos reales del estudiante: "${lesson.perfectMatchReason}". Escenario actual: "${scenarioText}". Recuerda al estudiante que puede cambiar el escenario en el selector, y finaliza diciendo "Cuando estés listo, comenzamos."]`;
+        ? `[AUTO_SYSTEM: VOYAGER VOICE INSTRUCTION: Speak aloud in your voice to the student. Present this lesson: "${lesson.title}". Objective: "${lesson.objective}". Why recommended for this student: "${lesson.perfectMatchReason}". Current scenario: "${scenarioText}". Remind the student they can change the scenario in the selector, and end with "When you're ready, let's begin!"]`
+        : `[AUTO_SYSTEM: INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. Presenta la lección: "${lesson.title}". Objetivo pedagógico: "${lesson.objective}". Por qué se recomienda según los datos reales del estudiante: "${lesson.perfectMatchReason}". Escenario actual: "${scenarioText}". Recuerda al estudiante que puede cambiar el escenario en el selector, y finaliza diciendo "Cuando estés listo, comenzamos."]`;
       onAskVoyager(prompt);
     }
   };
@@ -450,8 +695,8 @@ ${lesson.perfectMatchReason}
 
     if (typeof onAskVoyager === 'function') {
       const adjustmentScript = selectedLang === 'EN'
-        ? `[VOYAGER VOICE INSTRUCTION: Speak aloud in your voice. The student updated the scenario to "${scenarioText}" for lesson "${selectedLesson.title}". Acknowledge this scenario change while keeping the pedagogical objective: "${selectedLesson.objective}". Say "When you're ready, let's begin!"]`
-        : `[INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. El estudiante adaptó el escenario a "${scenarioText}" para la lección "${selectedLesson.title}". Confirma el cambio manteniendo el objetivo pedagógico: "${selectedLesson.objective}". Dile "Cuando estés listo, comenzamos."]`;
+        ? `[AUTO_SYSTEM: VOYAGER VOICE INSTRUCTION: Speak aloud in your voice. The student updated the scenario to "${scenarioText}" for lesson "${selectedLesson.title}". Acknowledge this scenario change while keeping the pedagogical objective: "${selectedLesson.objective}". Say "When you're ready, let's begin!"]`
+        : `[AUTO_SYSTEM: INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. El estudiante adaptó el escenario a "${scenarioText}" para la lección "${selectedLesson.title}". Confirma el cambio manteniendo el objetivo pedagógico: "${selectedLesson.objective}". Dile "Cuando estés listo, comenzamos."]`;
       onAskVoyager(adjustmentScript);
     }
   };
@@ -497,6 +742,7 @@ ${lesson.perfectMatchReason}
       objective: selectedLesson.objective,
       scenario: scenarioLabel,
       status: 'in_progress',
+      progressPercentage: 40,
       startedAt: nowIso,
     };
 
@@ -566,6 +812,7 @@ ${lesson.perfectMatchReason}
         return {
           ...item,
           status: 'completed' as const,
+          progressPercentage: 100,
           completedAt: now.toISOString(),
         };
       }
@@ -619,189 +866,29 @@ ${lesson.perfectMatchReason}
         </div>
       )}
 
-      {/* ────── Mis Lecciones (Active & Saved Lessons Section) ────── */}
-      {myLessons.length > 0 && (
-        <div className="mb-6 p-4 bg-amber-50/90 border-2 border-amber-400 rounded-2xl shadow-xs text-left animate-fade-in">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-amber-400 text-neutral-950 font-bold shadow-xs">
-                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm sm:text-base font-black text-neutral-900 font-mono tracking-tight flex items-center gap-2">
-                  <span>{selectedLang === 'EN' ? 'My Lessons' : 'Mis Lecciones'}</span>
-                  <span className="text-[10px] font-mono font-bold bg-amber-400 text-neutral-950 px-2 py-0.5 rounded-full">
-                    {myLessons.filter(l => l.status === 'in_progress').length} {selectedLang === 'EN' ? 'active' : 'en curso'}
-                  </span>
-                </h4>
-                <p className="text-[11px] text-neutral-600 font-mono mt-0.5">
-                  {selectedLang === 'EN' ? 'Your active and completed personalized lessons' : 'Tus lecciones personalizadas activas y completadas'}
-                </p>
-              </div>
-            </div>
-          </div>
+      {/* ────── SECTION 1: Recommended Lessons (Lecciones Recomendadas) ────── */}
+      <div className="mb-4 px-1 flex flex-col gap-2">
+        <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase">
+          {selectedLang === 'EN' ? 'Recommended Lessons' : 'Lecciones Recomendadas'}
+        </h4>
 
-          {/* List of Active / Completed Lessons */}
-          <div className="space-y-2.5">
-            {myLessons.map((item) => (
-              <div 
-                key={item.id}
-                className={`p-3 sm:p-3.5 rounded-xl border-2 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                  item.status === 'in_progress' 
-                    ? 'border-amber-400 shadow-xs' 
-                    : 'border-emerald-300 bg-emerald-50/40'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Square thumbnail */}
-                  <div className="w-14 h-14 aspect-square shrink-0 rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100">
-                    <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Status Badge */}
-                      {item.status === 'in_progress' ? (
-                        <span className="text-[10px] font-black uppercase font-mono px-2 py-0.5 rounded-md bg-amber-400 text-neutral-950 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{selectedLang === 'EN' ? 'IN PROGRESS' : 'EN CURSO'}</span>
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-black uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-500 text-white flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{selectedLang === 'EN' ? 'COMPLETED' : 'COMPLETADA'}</span>
-                        </span>
-                      )}
-
-                      <span className="text-[10px] font-mono text-neutral-800 font-bold bg-neutral-100 px-2 py-0.5 rounded-md">
-                        {item.scenario}
-                      </span>
-                      <span className="text-[10px] font-mono text-neutral-500">
-                        {item.level} • {item.estimatedMinutes} min
-                      </span>
-                    </div>
-
-                    <h5 className="text-xs sm:text-sm font-black text-neutral-900 leading-snug">
-                      {item.title}
-                    </h5>
-                    <p className="text-[11px] text-neutral-600 line-clamp-1 font-sans">
-                      {item.objective}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyNotebookLM({
-                      id: item.lessonId || item.id,
-                      title: item.title,
-                      subtitle: item.subtitle,
-                      category: item.category,
-                      imageUrl: item.imageUrl,
-                      skillImproved: 'Lesson Plan',
-                      objective: item.objective,
-                      whatItIs: item.subtitle,
-                      perfectMatchReason: 'Personalized lesson plan active in your journey.',
-                      keyOutcomes: [],
-                      level: item.level,
-                      estimatedMinutes: item.estimatedMinutes
-                    }, item.scenario)}
-                    className="p-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono font-bold"
-                    title={selectedLang === 'EN' ? 'Copy for Google NotebookLM' : 'Copiar para Google NotebookLM'}
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                    <span className="hidden sm:inline">NotebookLM</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleExportGoogleDoc({
-                      id: item.lessonId || item.id,
-                      title: item.title,
-                      subtitle: item.subtitle,
-                      category: item.category,
-                      imageUrl: item.imageUrl,
-                      skillImproved: 'Lesson Plan',
-                      objective: item.objective,
-                      whatItIs: item.subtitle,
-                      perfectMatchReason: 'Personalized lesson plan active in your journey.',
-                      keyOutcomes: [],
-                      level: item.level,
-                      estimatedMinutes: item.estimatedMinutes
-                    }, item.scenario)}
-                    className="p-1.5 rounded-lg bg-blue-100 border border-blue-300 text-blue-900 hover:bg-blue-200 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono font-bold"
-                    title={selectedLang === 'EN' ? 'Save as Google Doc' : 'Guardar como Google Doc'}
-                  >
-                    <FileText className="w-3.5 h-3.5 text-blue-700" />
-                    <span className="hidden sm:inline">Doc</span>
-                  </button>
-
-                  {item.status === 'in_progress' ? (
-                    <button
-                      type="button"
-                      onClick={() => handleCompleteLesson(item.id)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{selectedLang === 'EN' ? 'Mark Completed' : 'Completar'}</span>
-                    </button>
-                  ) : (
-                    <span className="text-xs font-mono font-bold text-emerald-700 flex items-center gap-1 px-2 py-1 bg-emerald-100 rounded-md">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{selectedLang === 'EN' ? 'Completed' : 'Completada'}</span>
-                    </span>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveLesson(item.id)}
-                    className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
-                    title={selectedLang === 'EN' ? 'Remove' : 'Quitar'}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Header Section */}
-      <div className="flex items-center justify-between mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-400 text-neutral-950 font-bold shadow-xs">
-            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-          </div>
-          <div>
-            <h4 className="text-sm sm:text-[15.5px] font-black tracking-wider text-neutral-900 font-mono">
-              {selectedLang === 'EN' ? 'Recommended Lessons' : 'Lecciones Recomendadas'}
-            </h4>
-            <p className="text-[11px] text-neutral-500 font-mono mt-0.5">
-              {selectedLang === 'EN' ? '2 visible per view • Voyager voice guided' : '2 por vista • Guiadas por voz de Voyager'}
-            </p>
-          </div>
-        </div>
-
-        {/* Carousel Navigation Arrows */}
-        <div className="hidden sm:flex items-center gap-1.5">
+        {/* Carousel Navigation Arrows directly below title */}
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={scrollLeft}
-            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-neutral-50 text-neutral-800 transition-colors shadow-xs cursor-pointer"
+            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-amber-400 text-black transition-colors shadow-xs cursor-pointer"
             title={selectedLang === 'EN' ? 'Scroll left' : 'Desplazar a la izquierda'}
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 text-black" strokeWidth={3} />
           </button>
           <button
             type="button"
             onClick={scrollRight}
-            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-neutral-50 text-neutral-800 transition-colors shadow-xs cursor-pointer"
+            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-amber-400 text-black transition-colors shadow-xs cursor-pointer"
             title={selectedLang === 'EN' ? 'Scroll right' : 'Desplazar a la derecha'}
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-4 h-4 text-black" strokeWidth={3} />
           </button>
         </div>
       </div>
@@ -815,20 +902,53 @@ ${lesson.perfectMatchReason}
           <div
             key={lesson.id}
             onClick={() => handleSelectLesson(lesson)}
-            className="snap-start shrink-0 w-[calc(50%-8px)] min-w-[260px] bg-white border-2 border-neutral-200 hover:border-amber-400 rounded-2xl p-3.5 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+            className="snap-start shrink-0 w-[calc(50%-8px)] min-w-[260px] bg-transparent p-0 transition-all duration-200 cursor-pointer group flex flex-col justify-start relative overflow-hidden"
           >
-            {/* Top Category Badge */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-400 text-neutral-950 font-mono">
+            {/* Top Header Row: Audio Icon + Category Badge + Level & Duration (Flush Left) */}
+            <div className="flex items-center gap-2 mb-2">
+              {/* Clickable Audio Icon (Black circle default, yellow on hover with black icon) */}
+              <button
+                type="button"
+                onClick={(e) => handlePlayLessonAudio(e, lesson)}
+                title={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
+                aria-label={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
+                className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+              >
+                <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === lesson.id ? 'animate-pulse' : ''}`} />
+              </button>
+
+              {/* Category (Clean text, no pill background) */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelectLesson(lesson);
+                }}
+                className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-neutral-950 hover:text-amber-600 font-mono transition-colors cursor-pointer"
+              >
                 {lesson.category}
-              </span>
-              <span className="text-[10px] font-mono font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-md">
-                {lesson.level} • {lesson.estimatedMinutes} min
+              </button>
+
+              <span className="text-[10px] text-neutral-400 font-mono">·</span>
+
+              {/* Simple Black Text Level & Duration (Flush left, no pill/container) */}
+              <span className="text-[11px] font-mono font-bold text-black">
+                {lesson.level} · {lesson.estimatedMinutes} min
               </span>
             </div>
 
-            {/* Square Thumbnail Image (Strictly Square Aspect Ratio, Flat Border, NO Gradients) */}
-            <div className="w-full aspect-square rounded-xl overflow-hidden border border-neutral-200 mb-3 relative bg-neutral-100 group-hover:border-amber-400 transition-colors">
+            {/* Title & Subtitle (Grouped at top directly under top row) */}
+            <div className="mb-2">
+              <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2">
+                {lesson.title}
+              </h5>
+              <p className="text-[12.1px] text-neutral-600 line-clamp-2 leading-relaxed mt-0.5 font-sans">
+                {lesson.subtitle}
+              </p>
+            </div>
+
+            {/* Square Thumbnail Image (Strictly Square Aspect Ratio, No Border) */}
+            <div className="w-full aspect-square rounded-xl overflow-hidden relative bg-neutral-100">
               <img
                 src={lesson.imageUrl}
                 alt={lesson.title}
@@ -837,36 +957,364 @@ ${lesson.perfectMatchReason}
                 referrerPolicy="no-referrer"
               />
             </div>
-
-            {/* Title & Subtitle */}
-            <div className="space-y-1.5 flex-1 flex flex-col justify-between">
-              <div>
-                <h5 className="text-xs sm:text-sm font-black text-neutral-900 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2">
-                  {lesson.title}
-                </h5>
-                <p className="text-[11px] text-neutral-600 line-clamp-2 leading-relaxed mt-1 font-sans">
-                  {lesson.subtitle}
-                </p>
-              </div>
-
-              {/* Target Skill Badge (Flat Amber Accent, NO Gradients) */}
-              <div className="pt-2">
-                <span className="inline-block text-[11px] font-bold font-mono text-neutral-950 bg-amber-400 border border-amber-500/30 px-2 py-1 rounded-lg w-full text-center">
-                  🎯 {lesson.skillImproved}
-                </span>
-              </div>
-            </div>
-
-            {/* Bottom Action Footer */}
-            <div className="mt-3 pt-2.5 border-t border-neutral-100 flex items-center justify-between text-[11px] font-bold font-mono text-neutral-800 group-hover:text-amber-600 transition-colors">
-              <span className="flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                <span>{selectedLang === 'EN' ? 'Listen to Voyager' : 'Escuchar a Voyager'}</span>
-              </span>
-              <ArrowRight className="w-3.5 h-3.5 transform group-hover:translate-x-1 transition-transform" />
-            </div>
           </div>
         ))}
+      </div>
+
+      {/* ────── SECTION 2: Lesson Catalog (Catálogo de Lecciones) ────── */}
+      <div className="pt-8 pb-4 border-t border-neutral-200/80 mt-6">
+        {/* Header */}
+        <div className="mb-4 px-1 text-left">
+          <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase">
+            {selectedLang === 'EN' ? 'Lesson Catalog' : 'Catálogo de Lecciones'}
+          </h4>
+          <p className="text-xs text-neutral-600 font-sans mt-0.5 leading-relaxed">
+            {selectedLang === 'EN'
+              ? 'Browse all available scenarios, active lessons, and your saved practice library.'
+              : 'Explora todos los escenarios disponibles, lecciones activas y tu biblioteca de práctica guardada.'}
+          </p>
+
+          {/* Minimalist Tab Filters - No Pills, No Heavy Containers */}
+          <div className="flex items-center gap-6 mt-3 border-b border-neutral-200 text-xs font-mono overflow-x-auto scrollbar-none pb-0">
+            <button
+              type="button"
+              onClick={() => setCatalogFilter('all')}
+              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
+                catalogFilter === 'all'
+                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
+                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
+              }`}
+            >
+              {selectedLang === 'EN' ? 'All' : 'Todos'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCatalogFilter('saved')}
+              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
+                catalogFilter === 'saved'
+                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
+                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
+              }`}
+            >
+              {selectedLang === 'EN' ? 'Saved' : 'Guardadas'} ({myLessons.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCatalogFilter('in_progress')}
+              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
+                catalogFilter === 'in_progress'
+                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
+                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
+              }`}
+            >
+              {selectedLang === 'EN' ? 'In Progress' : 'En Curso'} ({myLessons.filter(l => l.status === 'in_progress').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCatalogFilter('completed')}
+              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
+                catalogFilter === 'completed'
+                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
+                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
+              }`}
+            >
+              {selectedLang === 'EN' ? 'Completed' : 'Completadas'} ({myLessons.filter(l => l.status === 'completed').length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCatalogFilter('create_custom')}
+              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
+                catalogFilter === 'create_custom'
+                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
+                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
+              }`}
+            >
+              + {selectedLang === 'EN' ? 'Create Custom' : 'Crear Escenario'}
+            </button>
+          </div>
+        </div>
+
+        {/* View 1: All Scenarios (Full Catalog) */}
+        {catalogFilter === 'all' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1 animate-fade-in">
+            {catalogScenarios.map((scen) => {
+              const activeLessonItem = myLessons.find(l => l.lessonId === scen.id || l.id === scen.id);
+              const isSaved = Boolean(activeLessonItem);
+              const isInProgress = activeLessonItem?.status === 'in_progress';
+              const scenProgress = activeLessonItem ? getLessonProgress(activeLessonItem) : 0;
+
+              return (
+                <div
+                  key={scen.id}
+                  className="group p-3 rounded-xl hover:bg-neutral-50/80 transition-all cursor-pointer flex flex-col justify-between"
+                  onClick={() => handleSelectLesson(scen)}
+                >
+                  <div>
+                    {/* Top Header Row */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => handlePlayLessonAudio(e, scen)}
+                        title={selectedLang === 'EN' ? 'Listen preview' : 'Escuchar vista previa'}
+                        className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+                      >
+                        <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === scen.id ? 'animate-pulse' : ''}`} />
+                      </button>
+
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-900 font-mono">
+                        {scen.category}
+                      </span>
+
+                      {/* Subtle font weight & text color progress indicator if in progress */}
+                      {isInProgress && (
+                        <span className={`text-[10px] font-mono tracking-tight transition-colors ${getProgressWeight(scenProgress)} ${getProgressColor(scenProgress)}`}>
+                          ● {scenProgress}%
+                        </span>
+                      )}
+
+                      <span className="text-[11px] font-mono text-neutral-500 font-medium ml-auto">
+                        {scen.level} · {scen.estimatedMinutes} min
+                      </span>
+                    </div>
+
+                    {/* Title & Subtitle */}
+                    <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug group-hover:text-amber-600 transition-colors">
+                      {scen.title}
+                    </h5>
+                    <p className="text-[11.5px] text-neutral-600 leading-relaxed font-sans mt-0.5 line-clamp-2">
+                      {scen.subtitle}
+                    </p>
+                  </div>
+
+                  {/* Minimal Action Link */}
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-neutral-100">
+                    <span className="text-[11px] font-mono font-bold text-neutral-900 group-hover:text-amber-600 flex items-center gap-1 transition-colors">
+                      <span>{selectedLang === 'EN' ? 'Practice Scenario' : 'Practicar Escenario'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddToCollection(scen);
+                      }}
+                      className={`text-[11px] font-mono font-bold transition-colors cursor-pointer ${
+                        isSaved ? 'text-amber-600' : 'text-neutral-500 hover:text-black'
+                      }`}
+                    >
+                      {isInProgress
+                        ? (selectedLang === 'EN' ? `In Progress (${scenProgress}%)` : `En Curso (${scenProgress}%)`)
+                        : isSaved
+                        ? (selectedLang === 'EN' ? 'Saved ✓' : 'Guardada ✓')
+                        : `+ ${selectedLang === 'EN' ? 'Save' : 'Guardar'}`}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* View 2: Saved / In Progress / Completed */}
+        {(catalogFilter === 'saved' || catalogFilter === 'in_progress' || catalogFilter === 'completed') && (() => {
+          const filteredList =
+            catalogFilter === 'in_progress'
+              ? myLessons.filter(l => l.status === 'in_progress')
+              : catalogFilter === 'completed'
+              ? myLessons.filter(l => l.status === 'completed')
+              : myLessons;
+
+          return (
+            <div className="px-1 animate-fade-in space-y-3">
+              {filteredList.length === 0 ? (
+                <div className="py-8 text-center space-y-2 font-mono">
+                  <p className="text-xs text-neutral-500">
+                    {catalogFilter === 'in_progress'
+                      ? (selectedLang === 'EN' ? 'No lessons currently in progress.' : 'No tienes lecciones en curso actualmente.')
+                      : catalogFilter === 'completed'
+                      ? (selectedLang === 'EN' ? 'No completed lessons yet.' : 'Aún no has completado ninguna lección.')
+                      : (selectedLang === 'EN' ? 'No saved lessons in your catalog yet.' : 'Aún no tienes lecciones guardadas en tu catálogo.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogFilter('all')}
+                    className="text-xs font-bold text-amber-600 hover:underline cursor-pointer"
+                  >
+                    {selectedLang === 'EN' ? 'Explore All Scenarios →' : 'Explorar Todos los Escenarios →'}
+                  </button>
+                </div>
+              ) : (
+                filteredList.map((item) => {
+                  const progress = getLessonProgress(item);
+                  return (
+                    <div
+                      key={item.id}
+                      className="py-3 border-b border-neutral-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {item.status === 'in_progress' ? (
+                            <span className="text-[10px] uppercase font-mono flex items-center gap-1.5">
+                              <span className="text-amber-600 font-bold">● {selectedLang === 'EN' ? 'IN PROGRESS' : 'EN CURSO'}</span>
+                              <span className="text-neutral-300">·</span>
+                              {/* Visual progress indicator using subtle font weight and text color changes without progress bars or boxes */}
+                              <span className={`tracking-tight transition-colors ${getProgressWeight(progress)} ${getProgressColor(progress)}`}>
+                                {progress}% {selectedLang === 'EN' ? 'completed' : 'completado'}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold uppercase font-mono text-emerald-600 flex items-center gap-1">
+                              <span>✓</span>
+                              <span>{selectedLang === 'EN' ? 'COMPLETED' : 'COMPLETADA'}</span>
+                            </span>
+                          )}
+
+                          <span className="text-[10px] font-mono font-bold text-neutral-800">
+                            {item.scenario}
+                          </span>
+                          <span className="text-[10px] font-mono text-neutral-500">
+                            {item.level} · {item.estimatedMinutes} min
+                          </span>
+                        </div>
+
+                        <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug">
+                          {item.title}
+                        </h5>
+                        <p className="text-[11px] text-neutral-600 line-clamp-1 font-sans">
+                          {item.objective}
+                        </p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyNotebookLM({
+                            id: item.lessonId || item.id,
+                            title: item.title,
+                            subtitle: item.subtitle,
+                            category: item.category,
+                            imageUrl: item.imageUrl,
+                            skillImproved: 'Lesson Plan',
+                            objective: item.objective,
+                            whatItIs: item.subtitle,
+                            perfectMatchReason: 'Personalized lesson plan active in your journey.',
+                            keyOutcomes: [],
+                            level: item.level,
+                            estimatedMinutes: item.estimatedMinutes
+                          }, item.scenario)}
+                          className="p-1.5 text-neutral-600 hover:text-black transition-colors cursor-pointer text-xs font-mono font-medium"
+                          title="Google NotebookLM"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleExportGoogleDoc({
+                            id: item.lessonId || item.id,
+                            title: item.title,
+                            subtitle: item.subtitle,
+                            category: item.category,
+                            imageUrl: item.imageUrl,
+                            skillImproved: 'Lesson Plan',
+                            objective: item.objective,
+                            whatItIs: item.subtitle,
+                            perfectMatchReason: 'Personalized lesson plan active in your journey.',
+                            keyOutcomes: [],
+                            level: item.level,
+                            estimatedMinutes: item.estimatedMinutes
+                          }, item.scenario)}
+                          className="p-1.5 text-neutral-600 hover:text-black transition-colors cursor-pointer text-xs font-mono font-medium"
+                          title="Google Doc"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+
+                        {item.status === 'in_progress' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCompleteLesson(item.id)}
+                            className="px-2.5 py-1 text-xs font-mono font-bold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
+                          >
+                            {selectedLang === 'EN' ? 'Mark Done' : 'Completar'}
+                          </button>
+                        ) : (
+                          <span className="text-xs font-mono font-bold text-emerald-700">
+                            {selectedLang === 'EN' ? 'Done' : 'Completada'}
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLesson(item.id)}
+                          className="p-1.5 text-neutral-400 hover:text-neutral-800 transition-colors cursor-pointer"
+                          title={selectedLang === 'EN' ? 'Remove' : 'Quitar'}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          );
+        })()}
+
+        {/* View 3: Create Custom Scenario */}
+        {catalogFilter === 'create_custom' && (
+          <form onSubmit={handleCreateCustomScenario} className="px-1 animate-fade-in space-y-3 font-mono">
+            <div>
+              <label className="block text-xs font-bold text-neutral-800 mb-1">
+                {selectedLang === 'EN' ? 'Scenario Title *' : 'Título del Escenario *'}
+              </label>
+              <input
+                type="text"
+                required
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                placeholder={selectedLang === 'EN' ? 'e.g. Salary negotiation at tech company' : 'ej. Negociación de salario en empresa de tecnología'}
+                className="w-full bg-neutral-50 border border-neutral-300 focus:border-amber-500 rounded-lg px-3 py-2 text-xs font-sans text-neutral-900 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-neutral-800 mb-1">
+                {selectedLang === 'EN' ? 'Situation Details / Goal' : 'Detalles de la Situación o Meta'}
+              </label>
+              <textarea
+                rows={3}
+                value={customDesc}
+                onChange={(e) => setCustomDesc(e.target.value)}
+                placeholder={selectedLang === 'EN' ? 'Describe what you want to practice speaking with Voyager...' : 'Describe qué quieres practicar hablar con Voyager...'}
+                className="w-full bg-neutral-50 border border-neutral-300 focus:border-amber-500 rounded-lg px-3 py-2 text-xs font-sans text-neutral-900 outline-none resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <input
+                type="text"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder={selectedLang === 'EN' ? 'Category tag' : 'Etiqueta de categoría'}
+                className="bg-transparent border-b border-neutral-300 px-1 py-1 text-xs text-neutral-800 font-mono outline-none w-48"
+              />
+
+              <button
+                type="submit"
+                className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-neutral-950 font-mono font-bold text-xs uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+              >
+                {selectedLang === 'EN' ? 'Save & Add to Catalog' : 'Guardar en el Catálogo'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Voice-First Minimal Lesson Modal */}
@@ -889,38 +1337,37 @@ ${lesson.perfectMatchReason}
               <X className="w-5 h-5" />
             </button>
 
-            {/* 1. Essential Header: Square Thumbnail + Title + Level + Duration */}
-            <div className="flex items-start gap-3.5 mb-3 pr-6">
-              <div className="w-16 h-16 aspect-square shrink-0 rounded-xl overflow-hidden border border-amber-400 bg-neutral-100 shadow-xs">
-                <img
-                  src={selectedLesson.imageUrl}
-                  alt={selectedLesson.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-400 text-neutral-950 font-mono">
-                    {selectedLesson.category}
-                  </span>
-                  <span className="text-[11px] font-mono text-neutral-500 font-bold">
-                    {selectedLesson.level} • {selectedLesson.estimatedMinutes} min
-                  </span>
-                </div>
-                <h3 className="text-base font-black text-neutral-900 leading-tight">
-                  {selectedLesson.title}
-                </h3>
-              </div>
-            </div>
+            {/* Header: Audio Icon + Category Badge + Level/Duration + Title */}
+            <div className="mb-3 pr-6">
+              <div className="flex items-center gap-2 mb-1.5">
+                {/* Clickable Audio Icon (Black circle default, yellow on hover with black icon) */}
+                <button
+                  type="button"
+                  onClick={(e) => handlePlayLessonAudio(e, selectedLesson)}
+                  title={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
+                  aria-label={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
+                  className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+                >
+                  <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === selectedLesson.id ? 'animate-pulse' : ''}`} />
+                </button>
 
-            {/* Voice Status Indicator (Subtle, no dark box) */}
-            <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-amber-50 border border-amber-200 mb-3 text-xs font-mono font-bold text-amber-900">
-              <Volume2 className="w-4 h-4 text-amber-600 animate-pulse shrink-0" />
-              <span>
-                {isSpeaking && !isPaused
-                  ? (selectedLang === 'EN' ? 'Voyager is explaining by voice...' : 'Voyager explicando por voz...')
-                  : (selectedLang === 'EN' ? 'Voyager Voice Guide' : 'Guía de Voz Voyager')}
-              </span>
+                {/* Category (Clean text, no pill background) */}
+                <span className="text-[10.5px] font-bold uppercase tracking-wider text-neutral-900 font-mono">
+                  {selectedLesson.category}
+                </span>
+
+                <span className="text-[10px] text-neutral-400 font-mono">·</span>
+
+                {/* Level • Duration */}
+                <span className="text-[11px] font-mono text-neutral-600 font-bold">
+                  {selectedLesson.level} • {selectedLesson.estimatedMinutes} min
+                </span>
+              </div>
+
+              {/* Title (Bold 700) */}
+              <h3 className="text-base font-bold text-neutral-900 leading-tight">
+                {selectedLesson.title}
+              </h3>
             </div>
 
             {/* 2. One short sentence with the pedagogical objective */}

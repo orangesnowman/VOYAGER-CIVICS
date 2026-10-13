@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings, Pencil, Plus, Tag, Check, History, FileText, Bookmark, Info } from 'lucide-react';
+import { User, LogOut, Compass, Calendar, Award, CheckCircle2, Circle, Target, ChevronRight, ChevronDown, Mail, Key, Users, Sparkles, Activity, BookOpen, Volume2, Apple, Lock, Bot, MessageSquare, Pause, TrendingUp, Play, Flame, Camera, Upload, X, Globe, Heart, Clock, Settings, Pencil, Plus, Tag, Check, History, FileText, Bookmark, Info, Bell, Send } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { googleSignIn, logout, auth } from '../services/firebaseAuth';
 import { saveUserProfile, syncOrMigrateUserOnAuth, getLocalProfileCache, setLocalProfileCache } from '../services/userProfileService';
@@ -48,6 +48,9 @@ interface UserProfile {
   firstName?: string;
   lastName?: string;
   email: string;
+  phone?: string;
+  city?: string;
+  studentId?: string;
   provider: 'Google' | 'Apple' | 'Email' | 'Guest' | 'Admin';
   goal: string;
   levelEstimate: string;
@@ -192,7 +195,10 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     name: selectedLang === 'EN' ? 'Guest Learner' : 'Estudiante Invitado',
     firstName: selectedLang === 'EN' ? 'Guest' : 'Invitado',
     lastName: '',
-    email: selectedLang === 'EN' ? 'Not signed in' : 'Sin iniciar sesión',
+    email: 'federico.sandoval@example.com',
+    phone: '(555) 123-4567',
+    city: selectedLang === 'EN' ? 'Guatemala City' : 'Ciudad de Guatemala',
+    studentId: 'STU-001',
     provider: 'Guest',
     category: selectedLang === 'EN' ? 'Student' : 'Estudiante',
     goal: selectedLang === 'EN' ? 'Travel & Conversation' : 'Viaje y Conversación',
@@ -212,14 +218,17 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     firstName: 'Federico',
     lastName: 'Sandoval',
     email: 'theorangesnowman@gmail.com',
+    phone: '(555) 123-4567',
+    city: 'Ciudad de Guatemala',
+    studentId: 'STU-001',
     provider: 'Admin',
-    category: selectedLang === 'EN' ? 'Administrator' : 'Administrador',
+    category: selectedLang === 'EN' ? 'Student' : 'Estudiante',
     goal: selectedLang === 'EN' ? 'Academic success' : 'Éxito académico',
     levelEstimate: 'Intermediate',
     country: 'Guatemala',
     age: 63,
     education: selectedLang === 'EN' ? 'University' : 'Universidad',
-    interests: selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música',
+    interests: selectedLang === 'EN' ? 'Technology, Culture, Travel, Business, Music' : 'Tecnología, Cultura, Viajes, Negocios, Música',
     timePerWeek: '5 hr/wk',
     avatarType: 'user',
     completedDays: [1],
@@ -403,10 +412,14 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   const [editCategory, setEditCategory] = useState(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
   const [editCountry, setEditCountry] = useState(user.country || 'Guatemala');
   const [editAge, setEditAge] = useState<number | string>(user.age ?? 63);
+  const [editPhone, setEditPhone] = useState(user.phone || '(555) 123-4567');
+  const [editEmail, setEditEmail] = useState(user.email || 'federico.sandoval@example.com');
+  const [editCity, setEditCity] = useState(user.city || (selectedLang === 'EN' ? 'Guatemala City' : 'Ciudad de Guatemala'));
   const [editEducation, setEditEducation] = useState(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
-  const [editInterests, setEditInterests] = useState(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
+  const [editInterests, setEditInterests] = useState(user.interests || (selectedLang === 'EN' ? 'Technology, Culture, Travel, Business, Music' : 'Tecnología, Cultura, Viajes, Negocios, Música'));
   const [editPlan, setEditPlan] = useState<string>(user.plan === 'NORMAL' || user.plan === 'FREE' ? 'NORMAL' : 'PRO');
   const [newInterestInput, setNewInterestInput] = useState('');
+  const [isAddingInterest, setIsAddingInterest] = useState(false);
 
   const handleAddInterest = (itemToAdd?: string) => {
     const item = (itemToAdd || newInterestInput).trim();
@@ -433,7 +446,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     ? ['Travel', 'Technology', 'Music', 'US Civics', 'Movies', 'Sports', 'Cooking', 'History', 'Business']
     : ['Viajes', 'Tecnología', 'Música', 'Cívica EE.UU.', 'Cine & Series', 'Deportes', 'Gastronomía', 'Historia', 'Negocios'];
   const [editTimePerWeek, setEditTimePerWeek] = useState(formatStudyTimeCompact(user.timePerWeek));
-  const [internalIsEditingProfile, setInternalIsEditingProfile] = useState(false);
+  const [internalIsEditingProfile, setInternalIsEditingProfile] = useState(true);
   const isEditingProfile = externalIsEditingProfile !== undefined ? externalIsEditingProfile : internalIsEditingProfile;
   const setIsEditingProfile = (val: boolean | ((prev: boolean) => boolean)) => {
     const nextVal = typeof val === 'function' ? val(isEditingProfile) : val;
@@ -456,8 +469,17 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
     }
   };
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [pendingAvatarUrl, setPendingAvatarUrl] = useState<string | undefined>(undefined);
+  const [pendingAvatarType, setPendingAvatarType] = useState<'user' | 'man' | 'woman' | 'student' | 'astronaut' | 'female_robot' | 'male_robot' | 'custom'>('user');
   const [isGearMenuOpen, setIsGearMenuOpen] = useState(false);
   const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isAvatarModalOpen) {
+      setPendingAvatarUrl(user.avatarUrl);
+      setPendingAvatarType(user.avatarType || 'user');
+    }
+  }, [isAvatarModalOpen, user.avatarUrl, user.avatarType]);
 
   // Internal Mail Modal & Dynamic Letter Grade State
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
@@ -467,85 +489,136 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   const [mailRecipient, setMailRecipient] = useState<'Voyager AI' | 'Equipo Académico' | 'Docentes'>('Voyager AI');
   const [mailSentToast, setMailSentToast] = useState<string | null>(null);
 
-  const [mailMessages, setMailMessages] = useState<any[]>(() => {
+  // Real messaging channels state
+  const [mailChannel, setMailChannel] = useState<'teacher' | 'group' | 'announcements'>('teacher');
+  const [teacherChatInput, setTeacherChatInput] = useState('');
+  const [groupChatInput, setGroupChatInput] = useState('');
+
+  const [teacherChatMessages, setTeacherChatMessages] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem('voyager_internal_mail_messages');
+      const saved = localStorage.getItem('voyager_teacher_chat_messages');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [
       {
-        id: 'msg-1',
-        sender: 'USA Voyager Academic Team',
-        recipient: 'Federico Sandoval',
-        subject: 'Bienvenido a la Plataforma USA Voyager',
-        date: 'Ayer, 14:30',
-        body: 'Hola Federico, bienvenido a la plataforma de aprendizaje interactivo. Tu perfil de nivel Intermedio ha sido activado con seguimiento de fluidez y análisis de pronunciación.',
-        read: true,
-        tag: 'Sistema'
-      },
-      {
-        id: 'msg-2',
-        sender: 'Tutor IA Voyager',
-        recipient: 'Federico Sandoval',
-        subject: 'Informe de Rendimiento de Conversación',
-        date: 'Hoy, 09:15',
-        body: 'Hemos analizado tus últimas intervenciones orales. Tu vocabulario muestra una gran retención (88%) y tu pronunciación alcanza 82%. ¡Continúa con la práctica regular!',
-        read: false,
-        tag: 'Reporte'
-      },
-      {
-        id: 'msg-3',
-        sender: 'Departamento de Cívica y Docencia',
-        recipient: 'Federico Sandoval',
-        subject: 'Retroalimentación de Módulo de Cívica 128',
-        date: 'Hace 2 horas',
-        body: 'Tus respuestas sobre el sistema de gobierno de EE.UU. y la Constitución fueron evaluadas con precisión. Recuerda repasar los artículos de los Padres Fundadores para reforzar tu fluidez.',
-        read: false,
-        tag: 'Docentes'
+        id: 'tc-1',
+        sender: 'Profesora Voyager',
+        role: 'teacher',
+        text: '¡Hola Federico! Soy tu profesora y tutora académica. En este espacio directo podemos resolver cualquier duda sobre tus lecciones, gramática o pronunciación. ¿En qué te puedo ayudar hoy?',
+        date: 'Hoy, 09:00'
       }
     ];
   });
 
-  const handleSendInternalMail = () => {
-    if (!mailBody.trim()) return;
-    const newMsg = {
-      id: `msg-${Date.now()}`,
-      sender: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Federico Sandoval',
-      recipient: mailRecipient,
-      subject: mailSubject.trim() || 'Consulta de aprendizaje',
-      date: 'Ahora mismo',
-      body: mailBody.trim(),
-      read: true,
-      tag: 'Estudiante'
-    };
-    const updated = [newMsg, ...mailMessages];
-    setMailMessages(updated);
+  const [groupChatMessages, setGroupChatMessages] = useState<any[]>(() => {
     try {
-      localStorage.setItem('voyager_internal_mail_messages', JSON.stringify(updated));
+      const saved = localStorage.getItem('voyager_group_chat_messages');
+      if (saved) return JSON.parse(saved);
     } catch (e) {}
+    return [
+      {
+        id: 'gc-1',
+        sender: 'Profesora Voyager',
+        role: 'teacher',
+        text: '¡Bienvenidos al grupo de práctica conversacional! Aquí compartimos consultas, ejercicios y temas de interés de la semana.',
+        date: 'Hoy, 08:30'
+      },
+      {
+        id: 'gc-2',
+        sender: 'María G.',
+        role: 'student',
+        text: '¡Hola a todos! Saludos desde la clase de práctica oral.',
+        date: 'Hoy, 08:45'
+      },
+      {
+        id: 'gc-3',
+        sender: 'Carlos R.',
+        role: 'student',
+        text: '¿Alguien más repasando las preguntas de Cívica 128 hoy?',
+        date: 'Hoy, 09:10'
+      }
+    ];
+  });
 
-    setMailSentToast(selectedLang === 'EN' ? 'Internal message sent successfully.' : 'Mensaje interno enviado con éxito.');
-    setTimeout(() => setMailSentToast(null), 3500);
-
-    const bodyText = mailBody.trim();
-    const subjectText = mailSubject.trim() || 'Consulta interna';
-    setMailSubject('');
-    setMailBody('');
-    setMailTab('inbox');
-
-    if (mailRecipient === 'Voyager AI') {
-      const mailAckPrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: CONFIRMACIÓN DE COMUNICACIÓN INTERNA DE ESTUDIANTE]
-El estudiante te acaba de enviar un mensaje de comunicación interna desde la bandeja de mensajes de su perfil:
-"Asunto: ${subjectText}"
-"Mensaje: ${bodyText}"
-
-INSTRUCCIONES DE RESPUESTA PARA VOYAGER:
-1. Confirma amablemente en voz alta (en español) que has recibido su mensaje de comunicación interna en su bandeja.
-2. Responde directamente a su consulta o inquietud de forma servicial, profesional y motivadora.
-3. REGLA CRÍTICA MANDATORIA: NO des una clase de inglés, NO hagas preguntas de práctica, NO propongas ejercicios en esta respuesta. Esta intervención es exclusivamente para atender su mensaje de comunicación interna.
-4. Habla 100% en español con tu voz natural de Voyager (de 20 a 25 segundos).`;
-      onAskVoyager(mailAckPrompt);
+  const [announcementMessages] = useState<any[]>([
+    {
+      id: 'anc-1',
+      sender: 'USA Voyager Academic Team',
+      tag: 'Aviso Oficial',
+      title: 'Bienvenido a la Plataforma USA Voyager',
+      date: 'Ayer, 14:30',
+      body: 'Hola Federico, bienvenido a la plataforma de aprendizaje interactivo. Tu perfil de nivel Intermedio ha sido activado con seguimiento de fluidez y análisis de pronunciación.'
+    },
+    {
+      id: 'anc-2',
+      sender: 'Coordinación de Cívica y Docencia',
+      tag: 'Aviso Oficial',
+      title: 'Actualización de Módulo de Cívica 128',
+      date: 'Hace 2 horas',
+      body: 'Recordatorio oficial: Los artículos sobre la Constitución y el sistema de gobierno de EE.UU. ya están disponibles para tu práctica conversacional intensiva.'
     }
+  ]);
+
+  const handleSendTeacherMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const txt = teacherChatInput.trim();
+    if (!txt) return;
+
+    const studentName = user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Federico Sandoval';
+    const userMsg = {
+      id: `tc-${Date.now()}`,
+      sender: studentName,
+      role: 'student',
+      text: txt,
+      date: 'Ahora mismo'
+    };
+
+    const updated = [...teacherChatMessages, userMsg];
+    setTeacherChatMessages(updated);
+    setTeacherChatInput('');
+    try {
+      localStorage.setItem('voyager_teacher_chat_messages', JSON.stringify(updated));
+    } catch (err) {}
+
+    // Simulate direct pedagogical teacher response
+    setTimeout(() => {
+      const replyMsg = {
+        id: `tc-reply-${Date.now()}`,
+        sender: 'Profesora Voyager',
+        role: 'teacher',
+        text: `¡Hola ${user.firstName || 'Federico'}! He recibido tu consulta: "${txt}". Muy buen punto. Recuerda que puedes practicar la pronunciación de esa frase activando el micrófono en cualquier momento. ¡Sigue así!`,
+        date: 'Ahora mismo'
+      };
+      setTeacherChatMessages(prev => {
+        const next = [...prev, replyMsg];
+        try {
+          localStorage.setItem('voyager_teacher_chat_messages', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+    }, 1200);
+  };
+
+  const handleSendGroupMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const txt = groupChatInput.trim();
+    if (!txt) return;
+
+    const studentName = user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Federico Sandoval';
+    const userMsg = {
+      id: `gc-${Date.now()}`,
+      sender: studentName,
+      role: 'student',
+      text: txt,
+      date: 'Ahora mismo'
+    };
+
+    const updated = [...groupChatMessages, userMsg];
+    setGroupChatMessages(updated);
+    setGroupChatInput('');
+    try {
+      localStorage.setItem('voyager_group_chat_messages', JSON.stringify(updated));
+    } catch (err) {}
   };
 
   const computeLetterGrade = React.useCallback(() => {
@@ -618,8 +691,8 @@ MANDATORIO: NO des clase de inglés ni propongas práctica ahora. Mantén la res
     const lowest1 = subScores[0];
     const lowest2 = subScores[1];
 
-    const gradeExplanationPrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: ANÁLISIS DE CALIFICACIÓN DE PROGRESO DE ESTUDIANTE]
-El estudiante seleccionó su calificación general de inglés estadounidense: ${gradeData.grade} (Promedio de métricas: ${gradeData.average}%).
+    const gradeExplanationPrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: ANÁLISIS GLOBAL DE GRÁFICA CIRCULAR DE CALIFICACIÓN DE PROGRESO DE ESTUDIANTE]
+El estudiante hizo clic en su gráfica circular de calificación general de inglés estadounidense: ${gradeData.grade} (Promedio real actual: ${gradeData.average}%).
 
 DESGLOSE REAL DE MÉTRICAS DEL ESTUDIANTE:
 - Pronunciación: ${gradeData.pron}%
@@ -627,11 +700,12 @@ DESGLOSE REAL DE MÉTRICAS DEL ESTUDIANTE:
 - Vocabulario: ${gradeData.vocab}%
 - Confianza: ${gradeData.conf}%
 
-MANDATOS OBLIGATORIOS PARA TU RESPUESTA DE VOZ EN ESPAÑOL:
-1. Explica amablemente por qué el estudiante recibió la letra ${gradeData.grade} según la escala estándar de evaluación (su promedio ponderado es ${gradeData.average}%).
-2. Explica brevemente en 2 o 3 puntos las áreas de mejora específicas basadas en sus métricas más bajas: ${lowest1.name} (${lowest1.score}%) y ${lowest2.name} (${lowest2.score}%).
-3. REGLA ESTRICTA Y SOBERANA: NO des clases de inglés, NO hagas preguntas en inglés para responder, NO propongas practicar ni iniciar ejercicios en esta respuesta. Esta interacción es exclusivamente para analizar y explicar su progreso actual.
-4. Habla 100% en español con tu voz natural de Voyager, con un tono motivador, amable y profesional (20 a 25 segundos).`;
+MANDATOS OBLIGATORIOS PARA TU RESPUESTA DE VOZ (EN ESPAÑOL O INGLÉS SEGÚN IDIOMA ACTIVO):
+1. Explica qué representa esta gráfica circular (su nivel y calificación global actual ${gradeData.grade}).
+2. Explica qué significan los datos reales actuales de sus métricas, destacando las áreas de menor desempeño: ${lowest1.name} (${lowest1.score}%) y ${lowest2.name} (${lowest2.score}%).
+3. Explica por qué importa para su aprendizaje y comunicación fluida en EE. UU.
+4. Concluye con una recomendación práctica y motivadora sobre en qué enfocarse para subir de nivel.
+REGLA ESTRICTA: NO des clases de inglés, NO hagas preguntas de práctica. Mantén la respuesta ágil, motivadora y 100% enfocada en explicar la gráfica y su progreso.`;
 
     onAskVoyager(gradeExplanationPrompt);
   }, [computeLetterGrade, onAskVoyager]);
@@ -715,8 +789,11 @@ MANDATOS OBLIGATORIOS PARA TU RESPUESTA DE VOZ EN ESPAÑOL:
       setEditCategory(user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'));
       setEditCountry(user.country || 'Guatemala');
       setEditAge(user.age ?? 63);
+      setEditPhone(user.phone || '(555) 123-4567');
+      setEditEmail(user.email || 'federico.sandoval@example.com');
+      setEditCity(user.city || (selectedLang === 'EN' ? 'Guatemala City' : 'Ciudad de Guatemala'));
       setSelectedGoal(user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'));
-      setEditInterests(user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música'));
+      setEditInterests(user.interests || (selectedLang === 'EN' ? 'Technology, Culture, Travel, Business, Music' : 'Tecnología, Cultura, Viajes, Negocios, Música'));
       setSelectedLevel(user.levelEstimate || 'Intermediate');
       setEditEducation(user.education || (selectedLang === 'EN' ? 'University' : 'Universidad'));
       setEditTimePerWeek(formatStudyTimeCompact(user.timePerWeek));
@@ -745,23 +822,19 @@ MANDATOS OBLIGATORIOS PARA TU RESPUESTA DE VOZ EN ESPAÑOL:
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
-        const updated: UserProfile = {
-          ...user,
-          avatarUrl: reader.result,
-          avatarType: 'custom'
-        };
-        saveUser(updated);
-        setIsAvatarModalOpen(false);
+        setPendingAvatarUrl(reader.result);
+        setPendingAvatarType('custom');
       }
     };
     reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
-  const handleSelectAvatarType = (type: 'user' | 'man' | 'woman' | 'student' | 'astronaut' | 'female_robot' | 'male_robot') => {
+  const handleSaveAvatar = () => {
     const updated: UserProfile = {
       ...user,
-      avatarUrl: undefined,
-      avatarType: type
+      avatarUrl: pendingAvatarUrl,
+      avatarType: pendingAvatarType
     };
     saveUser(updated);
     setIsAvatarModalOpen(false);
@@ -769,9 +842,9 @@ MANDATOS OBLIGATORIOS PARA TU RESPUESTA DE VOZ EN ESPAÑOL:
 
   const renderAvatarContent = (u: UserProfile) => {
     const isLoggedIn = Boolean(auth.currentUser);
-    const photoUrl = isLoggedIn
-      ? (u.avatarUrl || u.photoURL || (typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL) : null))
-      : null;
+    const photoUrl = u.avatarUrl || (isLoggedIn
+      ? (u.photoURL || (typeof window !== 'undefined' ? (localStorage.getItem('voyager_admin_photo_url') || auth.currentUser?.photoURL) : null))
+      : null);
 
     if (photoUrl) {
       return (
@@ -1032,6 +1105,9 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
       name: names.fullName,
       firstName: names.firstName,
       lastName: names.lastName,
+      email: editEmail.trim() || user.email || 'federico.sandoval@example.com',
+      phone: editPhone.trim(),
+      city: editCity.trim(),
       category: editCategory.trim() || user.category || (selectedLang === 'EN' ? 'Student' : 'Estudiante'),
       country: editCountry.trim() || user.country || 'Guatemala',
       age: !isNaN(numAge) ? numAge : (user.age ?? 63),
@@ -1082,24 +1158,78 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
     <div className="flex-1 flex flex-col bg-white h-full overflow-hidden animate-fade-in font-sans text-[#231d17]">
       
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto px-3 pt-2 pb-4 flex flex-col gap-3.5 min-h-0">
+      <div className="flex-1 overflow-y-auto px-3 pt-0.5 pb-4 flex flex-col gap-2 min-h-0">
+
+        {/* TOP GRADE HEADER CARD - IN-FLOW & SCROLLABLE WITH PAGE */}
+        {(() => {
+          const gradeData = computeLetterGrade();
+          const pct = gradeData.hasData ? gradeData.average : 0;
+          const strokeWidth = 11;
+          const radius = 38;
+          const circumference = 2 * Math.PI * radius;
+          const strokeDashoffset = circumference - (pct / 100) * circumference;
+          const dynamicStudentFullName = user.name || (user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'FEDERICO SANDOVAL');
+
+          return (
+            <div className="w-full shrink-0 bg-white py-2 px-1">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 items-center">
+                <div className="hidden sm:block" />
+                <div className="col-span-3 flex items-center justify-start gap-3 sm:gap-4 pl-2 sm:pl-4">
+                  <button
+                    type="button"
+                    onClick={triggerGradeVoiceExplanation}
+                    className="flex items-center justify-center text-center group cursor-pointer focus:outline-none p-2 rounded-2xl border border-transparent hover:scale-105 active:scale-95 transition-all duration-200 shrink-0"
+                    title={selectedLang === "EN" ? "Click for Voyager grade voice analysis" : "Haz clic para escuchar la explicación de tu calificación por voz"}
+                  >
+                    <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center shrink-0">
+                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
+                        <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#333333" strokeWidth={strokeWidth} />
+                        <circle
+                          cx="50"
+                          cy="50"
+                          r={radius}
+                          fill="transparent"
+                          stroke="#FACC15"
+                          strokeWidth={strokeWidth}
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          strokeLinecap="butt"
+                          className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-neutral-900 group-hover:scale-110 group-hover:text-amber-600 transition-all">
+                          {gradeData.displayLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <span className="text-sm sm:text-base md:text-lg font-black uppercase tracking-widest text-neutral-900 font-mono whitespace-nowrap">
+                    {dynamicStudentFullName}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* SCROLLABLE STUDENT JOURNEY & ROADMAP */}
         
         {/* THE MAIN WELCOME STATEMENT CARD FOR PROFILE */}
-        <div className="space-y-3.5 text-left flex flex-col flex-shrink-0 p-0">
+        <div className="space-y-1 text-left flex flex-col flex-shrink-0 p-0">
 
         {/* MAIN PROFILE DETAILS CONTAINER */}
-        <div className="space-y-4 text-left flex flex-col flex-shrink-0">
+        <div className="space-y-1 text-left flex flex-col flex-shrink-0">
 
           {/* Tab Body Content */}
-          <div className="pt-1">
+          <div className="pt-0">
             {activeSubTab === 'welcome' && (
-              <div className="animate-fade-in py-1 space-y-4" style={{ containerType: 'inline-size' }}>
+              <div className="animate-fade-in py-0 space-y-2" style={{ containerType: 'inline-size' }}>
 
                 {/* Compact Three-Column Profile */}
                 <style>{`
-.profile-identity-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(0,2fr); gap:20px; align-items:start; padding-top:4px; }
+.profile-identity-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(0,2fr); gap:20px; align-items:start; padding-top:0px; }
 .profile-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:20px; row-gap:12px; align-items:start; }
 @container (max-width: 440px) { .profile-identity-grid { grid-template-columns:minmax(0,1fr); gap:16px; } }
 `}</style>
@@ -1107,20 +1237,17 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                   
                   {/* Left Column (approx 30-35% width): Avatar */}
                   <div className="min-w-0 flex flex-col items-start text-left">
-                    {/* Circular Avatar Container */}
+                    {/* Square Avatar Container */}
                     <div className="relative group flex-shrink-0 w-full max-w-[160px] aspect-square">
-                      {/* Avatar Circle */}
+                      {/* Avatar Square */}
                       <div 
                         onClick={() => {
                           triggerStudentOralReport();
                         }}
-                        className="w-full h-full rounded-full bg-neutral-100 border-2 border-amber-400/60 hover:border-amber-500 shadow-sm cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 hover:scale-[1.03] active:scale-95 group/avatar relative"
+                        className="w-full h-full rounded-2xl bg-neutral-100 border border-neutral-200/80 cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 active:scale-95 group/avatar relative"
                         title={selectedLang === 'EN' ? 'Click photo to hear Voyager oral progress report' : 'Haz clic en la foto para escuchar el informe oral de progreso de Voyager'}
                       >
                         {renderAvatarContent(user)}
-                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                          <Volume2 className="w-8 h-8 text-amber-300 drop-shadow-md animate-pulse" />
-                        </div>
                       </div>
 
                       {/* Gear Account & Logout Popover Menu */}
@@ -1179,7 +1306,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       )}
                     </div>
 
-                    {/* Icon Action Buttons Below Picture (Flush Left, No Overlap) */}
+                    {/* Icon Action Buttons Below Picture (Flush Left, No Overlap, No Pill Shapes) */}
                     <div className="flex items-center justify-start gap-2 mt-2 flex-wrap">
                       {/* Pencil Edit Profile Button (Swapped from header) */}
                       <button
@@ -1188,11 +1315,11 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsEditingProfile(prev => !prev);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-neutral-800 border-2 border-white shadow-md flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                         aria-label={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                       >
-                        <Pencil className="w-4 h-4 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
+                        <Pencil className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
 
                       {/* Camera Photo Badge Button */}
@@ -1229,10 +1356,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                             setIsAvatarModalOpen(true);
                           }
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-neutral-800 transition-all cursor-pointer flex items-center justify-center shadow-md active:scale-95 border-2 border-white shrink-0 group"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={!auth.currentUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto')}
                       >
-                        <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
+                        <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
 
                       {/* Internal Communication Mail Button */}
@@ -1242,389 +1369,353 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsMailModalOpen(true);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-neutral-800 border-2 border-white shadow-md flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
                         title={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                         aria-label={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                       >
-                        <Mail className="w-4 h-4 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 border border-white animate-pulse" />
+                        <Mail className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
+                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                       </button>
                     </div>
                   </div>
 
                   {/* Right Column: Clean Label-Value Identity Details or Onboarding Editor Card */}
                   {isEditingProfile ? (
-                    <div className="profile-details min-w-0 flex flex-col bg-white p-4 rounded-[24px] border-2 border-amber-400 shadow-xl animate-fade-in text-neutral-900">
-                      {/* Header with Save/Cancel Controls */}
-                      <div className="mb-4 pb-3 border-b border-neutral-200">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-normal text-neutral-900 text-base sm:text-lg">
-                              {selectedLang === 'EN' ? 'Update Onboarding Answers' : 'Actualizar Respuestas de Registro'}
-                            </h3>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingProfile(false)}
-                            className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-normal text-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 border border-neutral-300 shadow-2xs"
-                          >
-                            <span>{selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado'}</span>
-                          </button>
-                        </div>
-                        <p className="text-xs font-normal text-neutral-600 mt-1">
-                          {selectedLang === 'EN'
-                            ? 'Modify your responses to personalize your learning path and AI tutor instructions.'
-                            : 'Modifica tus respuestas para personalizar tu ruta de aprendizaje e instrucciones del tutor IA.'}
+                    <div className="profile-details min-w-0 flex flex-col bg-white p-5 sm:p-7 rounded-2xl border border-black shadow-none animate-fade-in text-neutral-900">
+                      {/* Header matching exact reference guide (Single continuous line, no break) */}
+                      <div className="mb-5 overflow-hidden">
+                        <h3 className="font-bold text-[#081545] text-xl sm:text-2xl md:text-[25px] tracking-normal leading-tight font-sans">
+                          {selectedLang === 'EN' ? 'Registration Information' : 'Información de registro'}
+                        </h3>
+                        <p className="text-xs sm:text-[13px] md:text-sm text-neutral-700 mt-2 font-normal flex items-center whitespace-nowrap select-none overflow-x-auto no-scrollbar font-sans">
+                          <span>
+                            {selectedLang === 'EN'
+                              ? 'Update your data to personalize your learning.'
+                              : 'Actualiza tus datos para personalizar tu aprendizaje.'}
+                          </span>
+                          <span className="text-neutral-400 font-light mx-3 select-none">|</span>
+                          <span>
+                            {selectedLang === 'EN' ? 'Student ID:' : 'ID Estudiante:'}{' '}
+                            <strong className="font-bold text-neutral-950">{user.studentId || 'STU-001'}.</strong>
+                          </span>
                         </p>
                       </div>
 
                       {/* Toast Notification */}
                       {saveNotification && (
-                        <div className="mb-4 p-3 bg-emerald-100 border border-emerald-400 text-emerald-950 font-normal rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in shadow-2xs">
+                        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 font-normal rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in">
+                          <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
                           <span>{saveNotification}</span>
                         </div>
                       )}
 
-                      <div className="space-y-4">
-                        {/* Section 1: Personal Info */}
-                        <div className="bg-amber-50/70 p-3.5 sm:p-4 rounded-2xl border border-amber-200/80">
-                          <h4 className="text-xs font-normal uppercase tracking-wider text-amber-900 mb-2.5 flex items-center gap-1.5">
-                            {selectedLang === 'EN' ? 'Personal Information' : 'Información Personal'}
-                          </h4>
-                          
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
-                              </label>
-                              <input
-                                type="text"
-                                value={editFirstName}
-                                onChange={(e) => setEditFirstName(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                                placeholder="Federico"
-                              />
-                            </div>
+                      {/* 2-Column Form Fields Grid matching exact reference guide */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                        {/* Row 1: Nombre & Apellido */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editFirstName}
+                            onChange={(e) => setEditFirstName(e.target.value)}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            placeholder="Federico"
+                          />
+                        </div>
 
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
-                              </label>
-                              <input
-                                type="text"
-                                value={editLastName}
-                                onChange={(e) => setEditLastName(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                                placeholder="Sandoval"
-                              />
-                            </div>
-                          </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editLastName}
+                            onChange={(e) => setEditLastName(e.target.value)}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            placeholder="Sandoval"
+                          />
+                        </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Category' : 'Categoría'}
-                              </label>
-                              <select
-                                value={editCategory}
-                                onChange={(e) => setEditCategory(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
-                                <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
-                                <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
-                                <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Country' : 'País'}
-                              </label>
-                              <select
-                                value={editCountry}
-                                onChange={(e) => setEditCountry(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="Costa Rica">🇨🇷 Costa Rica</option>
-                                <option value="Mexico">🇲🇽 México</option>
-                                <option value="Colombia">🇨🇴 Colombia</option>
-                                <option value="Spain">🇪🇸 España</option>
-                                <option value="United States">🇺🇸 United States</option>
-                                <option value="Argentina">🇦🇷 Argentina</option>
-                                <option value="Peru">🇵🇪 Perú</option>
-                                <option value="Chile">🇨🇱 Chile</option>
-                                <option value="Guatemala">🇬🇹 Guatemala</option>
-                                <option value="Dominican Republic">🇩🇴 República Dominicana</option>
-                                <option value="Venezuela">🇻🇪 Venezuela</option>
-                                <option value="Ecuador">🇪🇨 Ecuador</option>
-                                <option value="Honduras">🇭🇳 Honduras</option>
-                                <option value="El Salvador">🇸🇻 El Salvador</option>
-                                <option value="Nicaragua">🇳🇮 Nicaragua</option>
-                                <option value="Panama">🇵🇦 Panamá</option>
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Age' : 'Edad'}
-                              </label>
-                              <input
-                                type="number"
-                                value={editAge}
-                                onChange={(e) => setEditAge(e.target.value)}
-                                min={10}
-                                max={100}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              />
-                            </div>
+                        {/* Row 2: Categoría & País */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Category' : 'Categoría'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={editCategory}
+                              onChange={(e) => setEditCategory(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
+                              <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
+                              <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
+                              <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
-                        {/* Section ESTATUS */}
-                        <div className="bg-emerald-50/70 p-3.5 sm:p-4 rounded-2xl border border-emerald-200/80">
-                          <h4 className="text-xs font-normal uppercase tracking-wider text-emerald-900 mb-2.5 flex items-center justify-between">
-                            <span>{selectedLang === 'EN' ? 'STATUS' : 'ESTATUS'}</span>
-                          </h4>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1 flex items-center justify-between">
-                                <span>{selectedLang === 'EN' ? 'Student ID' : 'ID Estudiante'}</span>
-                                <span className="text-[10px] text-neutral-500 font-normal">
-                                  {selectedLang === 'EN' ? 'Auto-assigned' : 'Asignado automáticamente'}
-                                </span>
-                              </label>
-                              <input
-                                type="text"
-                                value={user.studentId || 'STU-001'}
-                                disabled
-                                readOnly
-                                className="w-full px-3.5 py-2 bg-neutral-100 border border-neutral-300 rounded-xl font-mono text-neutral-600 cursor-not-allowed text-xs sm:text-sm"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Account Type' : 'Tipo de Cuenta'}
-                              </label>
-                              <select
-                                value={editPlan}
-                                onChange={(e) => setEditPlan(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="PRO">PRO</option>
-                                <option value="NORMAL">NORMAL</option>
-                              </select>
-                            </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Country' : 'País'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={editCountry}
+                              onChange={(e) => setEditCountry(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="Guatemala">Guatemala</option>
+                              <option value="Costa Rica">Costa Rica</option>
+                              <option value="Mexico">México</option>
+                              <option value="Colombia">Colombia</option>
+                              <option value="Spain">España</option>
+                              <option value="United States">United States</option>
+                              <option value="Argentina">Argentina</option>
+                              <option value="Peru">Perú</option>
+                              <option value="Chile">Chile</option>
+                              <option value="Dominican Republic">República Dominicana</option>
+                              <option value="Venezuela">Venezuela</option>
+                              <option value="Ecuador">Ecuador</option>
+                              <option value="Honduras">Honduras</option>
+                              <option value="El Salvador">El Salvador</option>
+                              <option value="Nicaragua">Nicaragua</option>
+                              <option value="Panama">Panamá</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
-                        {/* Section 2: Learning Profile */}
-                        <div className="bg-blue-50/70 p-3.5 sm:p-4 rounded-2xl border border-blue-200/80">
-                          <h4 className="text-xs font-normal uppercase tracking-wider text-blue-900 mb-2.5 flex items-center gap-1.5">
-                            {selectedLang === 'EN' ? 'Learning Profile' : 'Perfil de Aprendizaje'}
-                          </h4>
+                        {/* Row 3: Edad & Teléfono (Opcional) */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Age' : 'Edad'}
+                          </label>
+                          <input
+                            type="number"
+                            value={editAge}
+                            onChange={(e) => setEditAge(e.target.value)}
+                            min={10}
+                            max={100}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] transition-colors"
+                            placeholder="63"
+                          />
+                        </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
-                              </label>
-                              <select
-                                value={selectedLevel}
-                                onChange={(e) => setSelectedLevel(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="Intermediate">{selectedLang === 'EN' ? 'Intermediate (B1-B2)' : 'Intermedio (B1-B2)'}</option>
-                                <option value="Beginner">{selectedLang === 'EN' ? 'Beginner (A1-A2)' : 'Principiante (A1-A2)'}</option>
-                                <option value="Advanced">{selectedLang === 'EN' ? 'Advanced (C1-C2)' : 'Avanzado (C1-C2)'}</option>
-                                <option value="Not Sure">{selectedLang === 'EN' ? 'Not Sure' : 'No estoy seguro'}</option>
-                              </select>
-                            </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Phone (Optional)' : 'Teléfono (Opcional)'}
+                          </label>
+                          <input
+                            type="tel"
+                            value={editPhone}
+                            onChange={(e) => setEditPhone(e.target.value)}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            placeholder="(555) 123-4567"
+                          />
+                        </div>
 
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Education Level' : 'Nivel de Educación'}
-                              </label>
-                              <select
-                                value={editEducation}
-                                onChange={(e) => setEditEducation(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="Universidad">{selectedLang === 'EN' ? 'University / College' : 'Universidad'}</option>
-                                <option value="Secundaria">{selectedLang === 'EN' ? 'High School / Secondary' : 'Secundaria'}</option>
-                                <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate / Master' : 'Posgrado'}</option>
-                                <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
-                              </select>
-                            </div>
-                          </div>
+                        {/* Row 4: Correo Electrónico & Ciudad (Opcional) */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Email Address' : 'Correo Electrónico'}
+                          </label>
+                          <input
+                            type="email"
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            placeholder="federico.sandoval@example.com"
+                          />
+                        </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
-                              </label>
-                              <select
-                                value={selectedGoal}
-                                onChange={(e) => setSelectedGoal(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
-                                <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
-                                <option value="Viajes y cultura">{selectedLang === 'EN' ? 'Travel & Culture' : 'Viajes y cultura'}</option>
-                                <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
-                                <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
-                              </select>
-                            </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'City (Optional)' : 'Ciudad (Opcional)'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editCity}
+                            onChange={(e) => setEditCity(e.target.value)}
+                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            placeholder={selectedLang === 'EN' ? 'Guatemala City' : 'Ciudad de Guatemala'}
+                          />
+                        </div>
 
-                            <div>
-                              <label className="block font-normal text-neutral-800 text-xs mb-1">
-                                {selectedLang === 'EN' ? 'Weekly Study Time' : 'Tiempo de Estudio Semanal'}
-                              </label>
-                              <select
-                                value={formatStudyTimeCompact(editTimePerWeek)}
-                                onChange={(e) => setEditTimePerWeek(e.target.value)}
-                                className="w-full px-3.5 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-xs sm:text-sm"
-                              >
-                                <option value="5 hr/wk">5 hr/wk</option>
-                                <option value="2 hr/wk">2 hr/wk</option>
-                                <option value="10 hr/wk">10 hr/wk</option>
-                                <option value="7 hr/wk">7 hr/wk</option>
-                              </select>
-                            </div>
+                        {/* Row 5: Nivel de Inglés & Nivel de Educación */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={selectedLevel}
+                              onChange={(e) => setSelectedLevel(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="Intermediate">{selectedLang === 'EN' ? 'Intermedio (B1-B2)' : 'Intermedio (B1-B2)'}</option>
+                              <option value="Beginner">{selectedLang === 'EN' ? 'Principiante (A1-A2)' : 'Principiante (A1-A2)'}</option>
+                              <option value="Advanced">{selectedLang === 'EN' ? 'Avanzado (C1-C2)' : 'Avanzado (C1-C2)'}</option>
+                              <option value="Not Sure">{selectedLang === 'EN' ? 'No estoy seguro' : 'No estoy seguro'}</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
-                        {/* Section 3: Interests */}
-                        <div className="bg-purple-50/70 p-3.5 sm:p-4 rounded-2xl border border-purple-200/80 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <label className="block font-normal text-xs uppercase tracking-wider text-purple-900">
-                              💡 {selectedLang === 'EN' ? 'Interests & Favorite Topics' : 'Intereses y Temas Favoritos'}
-                            </label>
-                            <span className="text-[10px] font-normal text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-200">
-                              {editInterests ? editInterests.split(',').map(s => s.trim()).filter(Boolean).length : 0} {selectedLang === 'EN' ? 'active' : 'activos'}
-                            </span>
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Education Level' : 'Nivel de Educación'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={editEducation}
+                              onChange={(e) => setEditEducation(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="Universidad">{selectedLang === 'EN' ? 'University' : 'Universidad'}</option>
+                              <option value="Secundaria">{selectedLang === 'EN' ? 'Secondary / High School' : 'Secundaria'}</option>
+                              <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate' : 'Posgrado'}</option>
+                              <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
+                        </div>
 
-                          {/* Active Interest Badges */}
-                          <div className="flex flex-wrap gap-1.5 min-h-[38px] bg-white p-2.5 rounded-xl border border-neutral-200/90 shadow-2xs">
-                            {editInterests && editInterests.split(',').map(s => s.trim()).filter(Boolean).length > 0 ? (
-                              editInterests.split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-100 text-purple-950 border border-purple-300 rounded-full text-xs font-normal shadow-2xs transition-all hover:bg-purple-200"
-                                >
-                                  <span>{interest}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveInterest(interest)}
-                                    className="p-0.5 hover:bg-purple-300 rounded-full text-purple-700 hover:text-purple-950 transition-colors cursor-pointer"
-                                    title={selectedLang === 'EN' ? 'Remove interest' : 'Eliminar interés'}
-                                  >
-                                    <X className="w-3 h-3 stroke-[2.5]" />
-                                  </button>
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-xs font-normal italic text-neutral-400 py-0.5 px-1">
-                                {selectedLang === 'EN' ? 'No interests added yet. Add one below!' : 'Sin temas añadidos. ¡Agrega uno abajo!'}
-                              </span>
-                            )}
+                        {/* Row 6: Meta de Aprendizaje & Tiempo de Estudio Semanal */}
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={selectedGoal}
+                              onChange={(e) => setSelectedGoal(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
+                              <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
+                              <option value="Viajes y cultura">{selectedLang === 'EN' ? 'Travel & Culture' : 'Viajes y cultura'}</option>
+                              <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
+                              <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
+                        </div>
 
-                          {/* Input and Plus (+) Button to Add Interest */}
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                              <input
-                                type="text"
-                                value={newInterestInput}
-                                onChange={(e) => setNewInterestInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleAddInterest();
-                                  }
-                                }}
-                                className="w-full pl-3.5 pr-9 py-2 bg-white border border-neutral-300 rounded-xl font-normal text-neutral-900 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-xs sm:text-sm placeholder:font-normal placeholder:text-neutral-400"
-                                placeholder={selectedLang === 'EN' ? 'Type new interest (e.g. History, Cooking)...' : 'Escribe un nuevo interés (ej. Historia, Cocina)...'}
-                              />
-                              {newInterestInput.trim() && (
+                        <div>
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                            {selectedLang === 'EN' ? 'Weekly Study Time' : 'Tiempo de Estudio Semanal'}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={formatStudyTimeCompact(editTimePerWeek)}
+                              onChange={(e) => setEditTimePerWeek(e.target.value)}
+                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                            >
+                              <option value="5 hr/wk">5 hr/wk</option>
+                              <option value="2 hr/wk">2 hr/wk</option>
+                              <option value="10 hr/wk">10 hr/wk</option>
+                              <option value="7 hr/wk">7 hr/wk</option>
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
+                        </div>
+
+                        {/* Row 7: Intereses y Temas Favoritos matching Image 1 */}
+                        <div className="col-span-full pt-1">
+                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-2.5">
+                            {selectedLang === 'EN' ? 'Interests & Favorite Topics' : 'Intereses y Temas Favoritos'}
+                          </label>
+
+                          {/* Interest Badges with crisp black border and pill shape */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            {editInterests && editInterests.split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-2.5 px-4.5 py-1.5 bg-transparent text-neutral-950 border border-neutral-900 rounded-full text-sm font-normal transition-all"
+                              >
+                                <span>{interest}</span>
                                 <button
                                   type="button"
-                                  onClick={() => setNewInterestInput('')}
-                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-0.5"
+                                  onClick={() => handleRemoveInterest(interest)}
+                                  className="p-0.5 rounded-full text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer"
+                                  title={selectedLang === 'EN' ? 'Remove interest' : 'Eliminar interés'}
+                                >
+                                  <X className="w-3.5 h-3.5 stroke-[2.2]" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* + Agregar Interés on its own row below badges, borderless and clean */}
+                          <div className="mt-3.5 flex items-center">
+                            {isAddingInterest ? (
+                              <div className="inline-flex items-center gap-2 bg-transparent px-3 py-1.5 rounded-full border border-neutral-900">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={newInterestInput}
+                                  onChange={(e) => setNewInterestInput(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleAddInterest();
+                                      setIsAddingInterest(false);
+                                    } else if (e.key === 'Escape') {
+                                      setIsAddingInterest(false);
+                                      setNewInterestInput('');
+                                    }
+                                  }}
+                                  placeholder={selectedLang === 'EN' ? 'New interest...' : 'Nuevo interés...'}
+                                  className="w-32 text-sm bg-transparent focus:outline-none text-neutral-900 placeholder:text-neutral-400"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleAddInterest();
+                                    setIsAddingInterest(false);
+                                  }}
+                                  disabled={!newInterestInput.trim()}
+                                  className="text-sm font-semibold text-neutral-900 hover:text-black disabled:opacity-40 cursor-pointer"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsAddingInterest(false);
+                                    setNewInterestInput('');
+                                  }}
+                                  className="text-neutral-400 hover:text-neutral-600 cursor-pointer"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
-                              )}
-                            </div>
-
-                            {/* Prominent Plus (+) Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleAddInterest()}
-                              disabled={!newInterestInput.trim()}
-                              className={`px-3.5 py-2 rounded-xl font-normal text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95 ${
-                                newInterestInput.trim()
-                                  ? 'bg-purple-600 hover:bg-purple-700 text-white border border-purple-700 shadow-purple-600/20'
-                                  : 'bg-purple-200 text-purple-400 border border-purple-300 cursor-not-allowed opacity-75'
-                              }`}
-                              title={selectedLang === 'EN' ? 'Add interest' : 'Agregar interés'}
-                            >
-                              <Plus className="w-4 h-4 stroke-[3]" />
-                              <span>{selectedLang === 'EN' ? 'Add' : 'Agregar'}</span>
-                            </button>
-                          </div>
-
-                          {/* Quick Add Suggestions */}
-                          <div className="pt-1">
-                            <span className="text-[11px] font-normal text-purple-900/80 block mb-1.5">
-                              {selectedLang === 'EN' ? 'Quick suggestions (click + to add):' : 'Sugerencias rápidas (haz clic en + para agregar):'}
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {suggestedInterests.map((suggested, idx) => {
-                                const currentList = editInterests ? editInterests.split(',').map(s => s.trim().toLowerCase()) : [];
-                                const isAdded = currentList.includes(suggested.toLowerCase());
-                                return (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    disabled={isAdded}
-                                    onClick={() => handleAddInterest(suggested)}
-                                    className={`text-[11px] font-normal px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
-                                      isAdded
-                                        ? 'bg-purple-100/70 text-purple-400 border-purple-200 cursor-default opacity-60'
-                                        : 'bg-white hover:bg-purple-100 text-purple-900 border-purple-200 hover:border-purple-300 shadow-2xs'
-                                    }`}
-                                  >
-                                    <Plus className="w-3 h-3 text-purple-600 stroke-[2.5]" />
-                                    <span>{suggested}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingInterest(true)}
+                                className="inline-flex items-center gap-2 text-sm font-normal text-neutral-950 hover:text-neutral-700 bg-transparent border-0 p-0 transition-colors cursor-pointer"
+                              >
+                                <Plus className="w-4 h-4 text-black stroke-[3]" />
+                                <span className="font-normal text-[14.5px] leading-none">{selectedLang === 'EN' ? 'Add interest' : 'Agregar interés'}</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-3 pt-4 mt-2 border-t border-neutral-200">
+                      {/* Action Button: Left-aligned Solid Black Pill Guardar Button matching Image 1 */}
+                      <div className="flex justify-start pt-6 mt-1">
                         <button
                           type="button"
                           onClick={handleUpdateProfile}
-                          className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-black font-normal rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 border border-amber-500"
+                          className="px-9 py-2.5 bg-black hover:bg-neutral-800 text-white font-medium rounded-full text-[14.5px] transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2"
                         >
-                          <span>💾</span>
-                          <span>{selectedLang === 'EN' ? 'Save Changes' : 'Guardar Cambios'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingProfile(false)}
-                          className="px-5 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-normal rounded-xl text-xs sm:text-sm cursor-pointer transition-all active:scale-95 border border-neutral-300"
-                        >
-                          {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+                          <span>{selectedLang === 'EN' ? 'Save' : 'Guardar'}</span>
                         </button>
                       </div>
                     </div>
@@ -1635,9 +1726,9 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       {/* Clean Light Metric Grid */}
                       <div className="profile-fields">
                         
-                        {/* Nombre */}
+                        {/* Row 1: Nombre & Apellido */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1645,9 +1736,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Apellido */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1655,29 +1745,9 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* ID Estudiante */}
+                        {/* Row 2: Categoría & País */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
-                            {selectedLang === 'EN' ? 'Student ID' : 'ID Estudiante'}
-                          </span>
-                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
-                            {user.studentId || 'STU-001'}
-                          </span>
-                        </div>
-
-                        {/* Tipo de Cuenta */}
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
-                            {selectedLang === 'EN' ? 'Account Type' : 'Tipo de Cuenta'}
-                          </span>
-                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
-                            {user.plan === 'NORMAL' || user.plan === 'FREE' ? 'NORMAL' : 'PRO'}
-                          </span>
-                        </div>
-
-                        {/* Categoría */}
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Category' : 'Categoría'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1685,9 +1755,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* País */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Country' : 'País'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1702,9 +1771,9 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Edad */}
+                        {/* Row 3: Edad & Teléfono */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Age' : 'Edad'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1712,9 +1781,37 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Nivel de Inglés */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
+                            {selectedLang === 'EN' ? 'Phone (Optional)' : 'Teléfono (Opcional)'}
+                          </span>
+                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
+                            {user.phone || (selectedLang === 'EN' ? 'Not specified' : 'No especificado')}
+                          </span>
+                        </div>
+
+                        {/* Row 4: Correo Electrónico & Ciudad */}
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
+                            {selectedLang === 'EN' ? 'Email Address' : 'Correo Electrónico'}
+                          </span>
+                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
+                            {user.email || 'federico.sandoval@example.com'}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
+                            {selectedLang === 'EN' ? 'City (Optional)' : 'Ciudad (Opcional)'}
+                          </span>
+                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
+                            {user.city || (selectedLang === 'EN' ? 'Not specified' : 'No especificado')}
+                          </span>
+                        </div>
+
+                        {/* Row 5: Nivel de Inglés & Educación */}
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1722,9 +1819,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Educación */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Education' : 'Educación'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1732,9 +1828,18 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Tiempo de Estudio */}
+                        {/* Row 6: Meta de Aprendizaje & Tiempo de Estudio */}
                         <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
+                            {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
+                          </span>
+                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
+                            {user.goal || (selectedLang === 'EN' ? 'Academic success' : 'Éxito académico')}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Study Time' : 'Tiempo de Estudio'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
@@ -1742,24 +1847,21 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Meta de Aprendizaje */}
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
-                            {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
+                        {/* Row 7: Intereses */}
+                        <div className="col-span-full">
+                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
+                            {selectedLang === 'EN' ? 'Interests & Favorite Topics' : 'Intereses y Temas Favoritos'}
                           </span>
-                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
-                            {user.goal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Travel & Daily Conversation')}
-                          </span>
-                        </div>
-
-                        {/* Intereses */}
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">
-                            {selectedLang === 'EN' ? 'Interests' : 'Intereses'}
-                          </span>
-                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
-                            {user.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música')}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {(user.interests || 'Tecnología, Cultura, Viajes, Negocios, Música').split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center px-3 py-1 bg-transparent text-neutral-800 border border-neutral-300 rounded-lg text-xs font-normal"
+                              >
+                                {interest}
+                              </span>
+                            ))}
+                          </div>
                         </div>
 
                       </div>
@@ -1768,11 +1870,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
 
                 </div>
 
-                {/* ────── Horizontal Divider Rule ────── */}
-                <div className="w-full my-5 border-t border-slate-200/90" />
+
 
                 {/* 📊 Student Performance Metrics Section - Instance 1: Conversation Analysis */}
-                <div className="pt-0.5 pb-1">
+                <div className="pt-6 sm:pt-8 pb-2">
 
                   <div className="flex items-center justify-start gap-2 pb-3 text-left w-full">
                     <Activity className="w-5 h-5 text-amber-500 flex-shrink-0" />
@@ -1789,8 +1890,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       return Math.min(100, Math.round(val));
                     };
 
-                    const metricSupportRuleEn = 'RULE: Your role here is strictly to explain this metric/stat to the user and answer questions about how or what to do to improve this score. Do NOT teach an English lesson or engage in conversational English practice.';
-                    const metricSupportRuleEs = 'REGLA: Tu rol aquí es estrictamente explicar esta métrica/estadística al usuario y responder preguntas sobre cómo o qué hacer para mejorar este puntaje. NO des una clase de inglés ni inicies práctica conversacional.';
+                    const metricSupportRuleEn = 'IMPORTANT VOYAGER MANDATE FOR INTERACTIVE GRAPH ANALYSIS: As Voyager, when the user clicks this graph or metric, you MUST analyze and explain in natural dynamic language: 1) What this graph/chart represents, 2) What the user\'s current real data/percentage means, 3) Why this metric matters for their real-world English communication and citizenship/immersion goals, and 4) What key conclusion or actionable recommendation can be drawn. Do NOT use fixed static scripts or simply repeat numbers. Do NOT teach an English lesson or ask practice questions in this response.';
+                    const metricSupportRuleEs = 'REGLA Y MANDATO OBLIGATORIO DE VOYAGER PARA ANÁLISIS DE GRÁFICAS: Como Voyager, cuando el usuario hace clic en esta gráfica o métrica, DEBES explicar y analizar en lenguaje natural y dinámico: 1) Qué representa la gráfica, 2) Qué significan sus datos reales actuales y porcentaje, 3) Por qué importa esta métrica para su comunicación real en inglés y sus metas (como ciudadanía o inserción laboral), y 4) Qué conclusión o recomendación clave se puede sacar. NO uses textos fijos ni te limites a repetir números. NO des una clase de inglés ni hagas preguntas de práctica en esta respuesta.';
 
                     const gradeInfo = computeLetterGrade();
 
@@ -1861,12 +1962,12 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                   if ((item as any).onClick) (item as any).onClick();
                                   else if ((item as any).prompt) onAskVoyager((item as any).prompt);
                                 }}
-                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-[1.04] active:scale-95 transition-all duration-200 focus:outline-none p-1.5 rounded-xl hover:bg-neutral-50/80 border border-transparent hover:border-amber-200/60"
+                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none p-2 rounded-xl border border-transparent"
                                 title={selectedLang === 'EN' ? `Click to ask Voyager about ${item.title}` : `Haz clic para que Voyager te explique ${item.title}`}
                               >
                                 {/* SVG Donut Circle */}
                                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-0.5">
-                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:drop-shadow-sm transition-all">
+                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
                                     {/* Background Dark Arc */}
                                     <circle
                                       cx="50"
@@ -1887,7 +1988,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                       strokeDasharray={circumference}
                                       strokeDashoffset={strokeDashoffset}
                                       strokeLinecap="butt"
-                                      className="transition-all duration-700 ease-out"
+                                      className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
                                     />
                                   </svg>
 
@@ -1917,11 +2018,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                   })()}
                 </div>
 
-                {/* ────── Divider Rule ────── */}
-                <div className="w-full my-5 border-t border-slate-200/90" />
-
                 {/* 📊 Student Performance Metrics Section - Instance 2: Lesson Progress */}
-                <div className="pt-0.5 pb-1">
+                <div className="pt-6 sm:pt-8 pb-2">
 
                   <div className="flex items-center justify-start gap-2 pb-3 text-left w-full">
                     <BookOpen className="w-5 h-5 text-amber-500 flex-shrink-0" />
@@ -2024,12 +2122,12 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                 key={idx}
                                 type="button"
                                 onClick={() => item.prompt && onAskVoyager(item.prompt)}
-                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-[1.04] active:scale-95 transition-all duration-200 focus:outline-none p-1.5 rounded-xl hover:bg-neutral-50/80 border border-transparent hover:border-amber-200/60"
+                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none p-2 rounded-xl border border-transparent"
                                 title={selectedLang === 'EN' ? `Click to ask Voyager about ${item.title}` : `Haz clic para que Voyager te explique ${item.title}`}
                               >
                                 {/* SVG Donut Circle */}
                                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-0.5">
-                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:drop-shadow-sm transition-all">
+                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
                                     {/* Background Dark Arc */}
                                     <circle
                                       cx="50"
@@ -2050,7 +2148,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                       strokeDasharray={circumference}
                                       strokeDashoffset={strokeDashoffset}
                                       strokeLinecap="butt"
-                                      className="transition-all duration-700 ease-out"
+                                      className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
                                     />
                                   </svg>
 
@@ -2080,24 +2178,20 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                   })()}
                 </div>
 
-                {/* ────── Divider Rule ────── */}
-                <div className="w-full my-5 border-t border-slate-200/90" />
-
                 {/* 🌟 Recommended Pro Lessons Carousel Section */}
-                <RecommendedProLessonsCarousel
-                  user={user}
-                  scores={scores}
-                  pronunciationScore={pronunciationScore}
-                  civicsScore={CivicsProgressTracker.calculateMasteryMetrics().masteryPercentage}
-                  selectedLang={selectedLang}
-                  onAskVoyager={onAskVoyager}
-                />
-
-                {/* ────── Divider Rule ────── */}
-                <div className="w-full my-5 border-t border-slate-200/90" />
+                <div className="pt-6 sm:pt-8 pb-2">
+                  <RecommendedProLessonsCarousel
+                    user={user}
+                    scores={scores}
+                    pronunciationScore={pronunciationScore}
+                    civicsScore={CivicsProgressTracker.calculateMasteryMetrics().masteryPercentage}
+                    selectedLang={selectedLang}
+                    onAskVoyager={onAskVoyager}
+                  />
+                </div>
 
                 {/* 📊 Voyager Real Activity Calendar Section */}
-                <div className="mt-6 animate-fade-in">
+                <div className="pt-6 sm:pt-8 pb-2 animate-fade-in">
                   <ActivityCalendar 
                     selectedLang={selectedLang}
                     savedChats={savedChatsList}
@@ -2129,7 +2223,8 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       return Math.min(100, Math.round(val));
                     };
 
-                    const gradeInfo = computeLetterGrade();
+                    const metricSupportRuleEn = 'IMPORTANT VOYAGER MANDATE FOR INTERACTIVE GRAPH ANALYSIS: As Voyager, when the user clicks this graph or metric, you MUST analyze and explain in natural dynamic language: 1) What this graph/chart represents, 2) What the user\'s current real data/percentage means, 3) Why this metric matters for their real-world English communication and citizenship/immersion goals, and 4) What key conclusion or actionable recommendation can be drawn. Do NOT use fixed static scripts or simply repeat numbers. Do NOT teach an English lesson or ask practice questions in this response.';
+                    const metricSupportRuleEs = 'REGLA Y MANDATO OBLIGATORIO DE VOYAGER PARA ANÁLISIS DE GRÁFICAS: Como Voyager, cuando el usuario hace clic en esta gráfica o métrica, DEBES explicar y analizar en lenguaje natural y dinámico: 1) Qué representa la gráfica, 2) Qué significan sus datos reales actuales y porcentaje, 3) Por qué importa esta métrica para su comunicación real en inglés y sus metas (como ciudadanía o inserción laboral), y 4) Qué conclusión o recomendación clave se puede sacar. NO uses textos fijos ni te limites a repetir números. NO des una clase de inglés ni hagas preguntas de práctica en esta respuesta.';
 
                     const statItems = [
 
@@ -2139,7 +2234,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                         displayText: `${getPct(scores?.pronunciation || pronunciationScore, 82)}%`,
                         sub: selectedLang === 'EN' 
                           ? 'Accuracy score after 30 days practice' 
-                          : 'Puntuación de precisión después de 30 días'
+                          : 'Puntuación de precisión después de 30 días',
+                        prompt: selectedLang === 'EN'
+                          ? `[AUTO_SYSTEM: The user clicked on their Pronunciation metric (${getPct(scores?.pronunciation || pronunciationScore, 82)}%). Explain what this metric means, how speech accuracy is evaluated, and what steps to take to improve it. ${metricSupportRuleEn}]`
+                          : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Pronunciación (${getPct(scores?.pronunciation || pronunciationScore, 82)}%). Explícale qué significa esta métrica, cómo se mide la precisión al hablar y qué pasos tomar para mejorarla. ${metricSupportRuleEs}]`
                       },
                       {
                         title: selectedLang === 'EN' ? 'Fluency' : 'Fluidez',
@@ -2147,7 +2245,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                         displayText: `${getPct(scores?.naturalness, 74)}%`,
                         sub: selectedLang === 'EN' 
                           ? 'Improvement in natural conversation flow' 
-                          : 'Mejora en el flujo natural de conversación'
+                          : 'Mejora en el flujo natural de conversación',
+                        prompt: selectedLang === 'EN'
+                          ? `[AUTO_SYSTEM: The user clicked on their Fluency metric (${getPct(scores?.naturalness, 74)}%). Explain what this metric means, how conversation flow is evaluated, and actions to improve it. ${metricSupportRuleEn}]`
+                          : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Fluidez (${getPct(scores?.naturalness, 74)}%). Explícale qué significa esta métrica, cómo se evalúa el ritmo conversacional y acciones para mejorarla. ${metricSupportRuleEs}]`
                       },
                       {
                         title: selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario',
@@ -2155,7 +2256,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                         displayText: `${getPct(scores?.grammar || grammarScore, 88)}%`,
                         sub: selectedLang === 'EN' 
                           ? 'New words retained after real use' 
-                          : 'Palabras nuevas retenidas tras su uso real'
+                          : 'Palabras nuevas retenidas tras su uso real',
+                        prompt: selectedLang === 'EN'
+                          ? `[AUTO_SYSTEM: The user clicked on their Vocabulary metric (${getPct(scores?.grammar || grammarScore, 88)}%). Explain what this metric means, how word retention is tracked, and strategies to improve active vocabulary. ${metricSupportRuleEn}]`
+                          : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Vocabulario (${getPct(scores?.grammar || grammarScore, 88)}%). Explícale qué significa esta métrica, cómo se registra la retención y estrategias para mejorar el vocabulario activo. ${metricSupportRuleEs}]`
                       },
                       {
                         title: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
@@ -2163,7 +2267,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                         displayText: `${getPct(scores?.confidence, 68)}%`,
                         sub: selectedLang === 'EN' 
                           ? 'Users reporting speaking with more security' 
-                          : 'Usuarios que reportan hablar con más seguridad'
+                          : 'Usuarios que reportan hablar con más seguridad',
+                        prompt: selectedLang === 'EN'
+                          ? `[AUTO_SYSTEM: The user clicked on their Confidence metric (${getPct(scores?.confidence, 68)}%). Explain what this metric means and practical recommendations on how to build speaking confidence. ${metricSupportRuleEn}]`
+                          : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Confianza (${getPct(scores?.confidence, 68)}%). Explícale qué significa esta métrica y recomendaciones prácticas sobre cómo desarrollar mayor confianza al hablar. ${metricSupportRuleEs}]`
                       }
                     ];
 
@@ -2182,13 +2289,16 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                               <button
                                 key={idx}
                                 type="button"
-                                onClick={() => (item as any).onClick && (item as any).onClick()}
-                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-[1.04] active:scale-95 transition-all duration-200 focus:outline-none p-1.5 rounded-xl hover:bg-neutral-50/80 border border-transparent hover:border-amber-200/60"
+                                onClick={() => {
+                                  if ((item as any).onClick) (item as any).onClick();
+                                  else if ((item as any).prompt) onAskVoyager((item as any).prompt);
+                                }}
+                                className="flex flex-col items-center text-center group cursor-pointer hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none p-2 rounded-xl border border-transparent"
                                 title={selectedLang === 'EN' ? `Click to ask Voyager about ${item.title}` : `Haz clic para que Voyager te explique ${item.title}`}
                               >
                                 {/* SVG Donut Circle */}
                                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center my-0.5">
-                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform">
+                                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
                                     {/* Background Dark Arc */}
                                     <circle
                                       cx="50"
@@ -2209,7 +2319,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                       strokeDasharray={circumference}
                                       strokeDashoffset={strokeDashoffset}
                                       strokeLinecap="butt"
-                                      className="transition-all duration-700 ease-out"
+                                      className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
                                     />
                                   </svg>
 
@@ -2247,7 +2357,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                     <div className="relative group flex-shrink-0 w-32 h-32 sm:w-40 sm:h-40">
                       <div 
                         onClick={() => triggerStudentOralReport()}
-                        className="w-full h-full rounded-full bg-neutral-100 border-2 border-amber-400/60 hover:border-amber-500 shadow-xs cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 hover:scale-[1.03] active:scale-95 group/avatar relative"
+                        className="w-full h-full rounded-2xl bg-neutral-100 border border-neutral-200/90 shadow-2xs cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-95 group/avatar relative"
                         title={selectedLang === 'EN' ? 'Click photo to hear Voyager oral progress report' : 'Haz clic en la foto para escuchar el informe oral de progreso de Voyager'}
                       >
                         {renderAvatarContent(user)}
@@ -2257,7 +2367,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       </div>
                     </div>
 
-                    {/* Icon Action Buttons Below Picture (Flush Left, No Overlap) */}
+                    {/* Icon Action Buttons Below Picture (Flush Left, No Overlap, No Pill Shapes) */}
                     <div className="flex items-center justify-start gap-2 mt-2 flex-wrap">
                       {/* Pencil Edit Profile Button (Swapped from header) */}
                       <button
@@ -2266,11 +2376,11 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsEditingProfile(prev => !prev);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-neutral-800 border-2 border-white shadow-md flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                         aria-label={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                       >
-                        <Pencil className="w-4 h-4 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
+                        <Pencil className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
 
                       {/* Camera Photo Badge Button */}
@@ -2280,10 +2390,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsAvatarModalOpen(true);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black hover:bg-neutral-800 text-white border-2 border-white flex items-center justify-center shadow-md transition-all duration-200 cursor-pointer hover:scale-105 shrink-0 group"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto'}
                       >
-                        <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
+                        <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
 
                       {/* Internal Communication Mail Button */}
@@ -2293,12 +2403,12 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsMailModalOpen(true);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-neutral-800 border-2 border-white shadow-md flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
                         title={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                         aria-label={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                       >
-                        <Mail className="w-4 h-4 text-white stroke-[2.2] group-hover:scale-110 transition-transform" />
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 border border-white animate-pulse" />
+                        <Mail className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
+                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                       </button>
                     </div>
                   </div>
@@ -2436,7 +2546,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       <span>{selectedLang === 'EN' ? 'English Immersion' : 'Inglés de Inmersión'}</span>
                     </button>
                   </div>
-                  <span className="text-[11px] sm:text-xs font-mono font-black bg-neutral-900 text-white px-2.5 py-0.5 rounded-full uppercase tracking-tight shadow-xs">
+                  <span className="text-[11px] sm:text-xs font-mono font-bold text-neutral-900 uppercase tracking-tight">
                     {user.completedDays.length} / {activeCurriculum.length} {selectedLang === 'EN' ? 'Completed' : 'Completados'}
                   </span>
                 </div>
@@ -2562,217 +2672,64 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
         className="hidden" 
       />
 
-      {/* Avatar Customization Modal */}
+      {/* Avatar Customization Modal - Clean Blue Card Design */}
       {isAvatarModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-neutral-200 text-left space-y-4 relative">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <h3 className="text-sm font-bold text-neutral-900 font-serif">
-                {selectedLang === 'EN' ? 'Customize Profile Avatar' : 'Personalizar Avatar de Perfil'}
-              </h3>
-              <button 
-                type="button"
-                onClick={() => setIsAvatarModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-neutral-700 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <div 
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setIsAvatarModalOpen(false)}
+        >
+          <div 
+            className="relative w-full max-w-[320px] sm:max-w-[330px] aspect-square bg-gradient-to-b from-[#162D55] via-[#0E2042] to-[#08152B] rounded-3xl border border-blue-400/40 p-6 sm:p-7 shadow-[0_20px_60px_rgba(0,0,0,0.85)] text-center text-white flex flex-col items-center justify-between"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* White 'X' Close Icon at Top Right */}
+            <button 
+              type="button"
+              onClick={() => setIsAvatarModalOpen(false)}
+              className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors cursor-pointer p-1"
+              aria-label={selectedLang === 'EN' ? 'Close' : 'Cerrar'}
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-            {/* Current Avatar Preview */}
-            <div className="flex flex-col items-center justify-center py-1">
-              <div className="w-24 h-24 rounded-full relative overflow-hidden bg-white shadow-md">
-                {renderAvatarContent(user)}
+            {/* Large Circular Avatar Preview */}
+            <div 
+              className="relative group/avatar cursor-pointer my-auto flex items-center justify-center"
+              onClick={() => avatarFileInputRef.current?.click()}
+              title={selectedLang === 'EN' ? 'Click to choose image file' : 'Haz clic para seleccionar imagen'}
+            >
+              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden bg-[#0A1730] shadow-2xl flex items-center justify-center transition-transform duration-300 group-hover/avatar:scale-[1.02]">
+                {renderAvatarContent({
+                  ...user,
+                  avatarUrl: pendingAvatarUrl,
+                  avatarType: pendingAvatarType
+                })}
               </div>
-              <p className="text-[11px] text-neutral-500 mt-2 font-medium">
-                {selectedLang === 'EN' ? 'Selected Avatar' : 'Avatar Seleccionado'}
-              </p>
+              <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 pointer-events-none">
+                <Camera className="w-6 h-6 text-blue-200" />
+                <span className="text-[10px] font-semibold text-blue-100 tracking-wide">
+                  {selectedLang === 'EN' ? 'Upload Photo' : 'Subir Foto'}
+                </span>
+              </div>
             </div>
 
-            {/* Action 1: Upload Photo */}
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                {selectedLang === 'EN' ? '1. Upload Photo' : '1. Cargar Foto desde tu dispositivo'}
-              </label>
+            {/* Change | Save Actions Below Large Avatar (No pill shapes, no background, no outline) */}
+            <div className="flex items-center justify-center gap-8 w-full pb-1">
               <button
                 type="button"
                 onClick={() => avatarFileInputRef.current?.click()}
-                className="w-full py-2 px-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
+                className="text-white/85 hover:text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer group"
               >
-                <Upload className="w-4 h-4 text-white" />
-                <span>{selectedLang === 'EN' ? 'Select Image File...' : 'Seleccionar imagen...'}</span>
+                <Camera className="w-4.5 h-4.5 text-blue-300 group-hover:text-blue-200 transition-colors" />
+                <span>{selectedLang === 'EN' ? 'Change' : 'Cambiar'}</span>
               </button>
-            </div>
-
-            {/* Action 2: Choose Preset Icon */}
-            <div className="space-y-1.5 pt-2 border-t border-neutral-100">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                {selectedLang === 'EN' ? '2. Choose Preset Avatar' : '2. Elegir ícono prediseñado'}
-              </label>
-              
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {/* Female Robot Preset */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('female_robot')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'female_robot' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                  title={selectedLang === 'EN' ? 'Female Robot' : 'Robot Femenino'}
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden">
-                    {renderAvatarContent({ name: '', email: '', provider: 'Guest', goal: '', levelEstimate: '', completedDays: [], avatarType: 'female_robot' })}
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'Robot ♀' : 'Robot ♀'}
-                  </span>
-                </button>
-
-                {/* Male Robot Preset */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('male_robot')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'male_robot' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                  title={selectedLang === 'EN' ? 'Male Robot' : 'Robot Masculino'}
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden">
-                    {renderAvatarContent({ name: '', email: '', provider: 'Guest', goal: '', levelEstimate: '', completedDays: [], avatarType: 'male_robot' })}
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'Robot ♂' : 'Robot ♂'}
-                  </span>
-                </button>
-
-                {/* Voyager Robot */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('astronaut')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'astronaut' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center p-0.5 overflow-hidden">
-                    <img src={voyagerRobot} alt="Voyager" className="w-full h-full object-contain" />
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    Voyager
-                  </span>
-                </button>
-
-                {/* Student Preset */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('student')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'student' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-sm">
-                    🎓
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'Student' : 'Alumn@'}
-                  </span>
-                </button>
-
-                {/* Woman Preset */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('woman')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'woman' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                  title={selectedLang === 'EN' ? 'Woman Avatar' : 'Avatar Femenino'}
-                >
-                  <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
-                    <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M5 21v-2a4 4 0 0 1 3-3.87" />
-                      <circle cx="12" cy="8" r="4" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'Woman' : 'Mujer'}
-                  </span>
-                </button>
-
-                {/* Man Preset */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('man')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && user.avatarType === 'man' 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                  title={selectedLang === 'EN' ? 'Man Avatar' : 'Avatar Masculino'}
-                >
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                    <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'Man' : 'Hombre'}
-                  </span>
-                </button>
-
-                {/* Neutral User */}
-                <button
-                  type="button"
-                  onClick={() => handleSelectAvatarType('user')}
-                  className={`p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
-                    !user.avatarUrl && (user.avatarType === 'user' || !user.avatarType) 
-                      ? 'border-red-600 bg-red-50 text-red-700 font-bold shadow-xs' 
-                      : 'border-neutral-200 hover:border-neutral-300 bg-neutral-50 text-neutral-700'
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-white border border-neutral-300 text-neutral-600 flex items-center justify-center">
-                    <User className="w-4.5 h-4.5" />
-                  </div>
-                  <span className="text-[9px] font-bold">
-                    {selectedLang === 'EN' ? 'User' : 'Usuario'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Remove Custom Photo if present */}
-            {user.avatarUrl && (
-              <div className="pt-1.5 border-t border-neutral-100 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updated = { ...user, avatarUrl: undefined, avatarType: 'user' as const };
-                    saveUser(updated);
-                  }}
-                  className="text-xs text-red-600 hover:text-red-700 font-bold underline cursor-pointer"
-                >
-                  {selectedLang === 'EN' ? 'Remove custom photo' : 'Quitar foto personal'}
-                </button>
-              </div>
-            )}
-
-            <div className="pt-2 flex justify-end border-t border-neutral-100">
               <button
                 type="button"
-                onClick={() => setIsAvatarModalOpen(false)}
-                className="px-4 py-1.5 bg-neutral-800 hover:bg-black text-white font-bold text-xs rounded-xl cursor-pointer transition-colors"
+                onClick={handleSaveAvatar}
+                className="text-white/85 hover:text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer group"
               >
-                {selectedLang === 'EN' ? 'Close' : 'Cerrar'}
+                <Check className="w-4.5 h-4.5 text-emerald-400 group-hover:text-emerald-300 transition-colors stroke-[2.5]" />
+                <span>{selectedLang === 'EN' ? 'Save' : 'Guardar'}</span>
               </button>
             </div>
           </div>
@@ -2791,18 +2748,13 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full bg-black text-white flex items-center justify-center shadow-sm shrink-0">
-                  <Mail className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-neutral-900 text-base sm:text-lg leading-tight">
-                    {selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
-                  </h3>
-                  <p className="text-xs text-neutral-500 font-normal">
-                    {selectedLang === 'EN' ? 'Direct messages with Voyager AI & Academic Team' : 'Bandeja directa con Voyager IA y el Equipo Académico'}
-                  </p>
-                </div>
+              <div>
+                <h3 className="font-extrabold text-neutral-900 text-base sm:text-lg leading-tight">
+                  {selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
+                </h3>
+                <p className="text-xs text-neutral-500 font-normal">
+                  {selectedLang === 'EN' ? 'Direct messages with Voyager AI & Academic Team' : 'Bandeja directa con Voyager IA y el Equipo Académico'}
+                </p>
               </div>
 
               <button
@@ -2822,42 +2774,147 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
               </div>
             )}
 
-            {/* Tab Nav: Inbox vs Compose */}
-            <div className="flex items-center gap-2 p-1 bg-neutral-100 rounded-xl border border-neutral-200">
+            {/* 3 Real Communication Channel Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-neutral-100 rounded-xl border border-neutral-200">
               <button
                 type="button"
-                onClick={() => setMailTab('inbox')}
+                onClick={() => setMailChannel('teacher')}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  mailTab === 'inbox' 
+                  mailChannel === 'teacher' 
                     ? 'bg-black text-white shadow-xs' 
                     : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
                 }`}
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>{selectedLang === 'EN' ? `Inbox (${mailMessages.length})` : `Bandeja de Entrada (${mailMessages.length})`}</span>
+                <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                <span>{selectedLang === 'EN' ? 'Teacher Chat' : 'Profesora'}</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setMailTab('compose')}
+                onClick={() => setMailChannel('group')}
                 className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  mailTab === 'compose' 
+                  mailChannel === 'group' 
                     ? 'bg-black text-white shadow-xs' 
                     : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
                 }`}
               >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>{selectedLang === 'EN' ? 'Send Message' : 'Enviar Mensaje Interno'}</span>
+                <Users className="w-3.5 h-3.5 text-sky-400" />
+                <span>{selectedLang === 'EN' ? 'Group Chat' : 'Chat de Grupo'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMailChannel('announcements')}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  mailChannel === 'announcements' 
+                    ? 'bg-black text-white shadow-xs' 
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
+                }`}
+              >
+                <Bell className="w-3.5 h-3.5 text-rose-400" />
+                <span>{selectedLang === 'EN' ? 'Announcements' : 'Avisos'}</span>
               </button>
             </div>
 
-            {/* Content: Inbox Tab */}
-            {mailTab === 'inbox' && (
-              <div className="space-y-3">
-                {mailMessages.map((msg) => (
+            {/* Channel 1: Teacher Direct Interactive Messaging */}
+            {mailChannel === 'teacher' && (
+              <div className="space-y-3 pt-1">
+                <div className="bg-slate-50 border border-neutral-200 rounded-2xl p-3.5 max-h-[320px] overflow-y-auto space-y-2.5">
+                  {teacherChatMessages.map((m) => {
+                    const isTeacher = m.role === 'teacher';
+                    return (
+                      <div key={m.id} className={`flex flex-col ${isTeacher ? 'items-start' : 'items-end'}`}>
+                        <div className="flex items-center gap-1.5 mb-1 text-[10px] text-neutral-500 font-semibold">
+                          <span>{m.sender}</span>
+                          <span>•</span>
+                          <span>{m.date}</span>
+                        </div>
+                        <div className={`p-3 rounded-2xl max-w-[88%] text-xs leading-relaxed ${
+                          isTeacher 
+                            ? 'bg-white border border-neutral-200 text-neutral-900 shadow-xs' 
+                            : 'bg-black text-white shadow-xs'
+                        }`}>
+                          {m.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <form onSubmit={handleSendTeacherMessage} className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={teacherChatInput}
+                    onChange={(e) => setTeacherChatInput(e.target.value)}
+                    placeholder={selectedLang === 'EN' ? 'Type a direct message to your teacher...' : 'Escribe una consulta a tu profesora...'}
+                    className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!teacherChatInput.trim()}
+                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 disabled:opacity-40 text-black font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{selectedLang === 'EN' ? 'Send' : 'Enviar'}</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Channel 2: Group Interactive Community Messaging */}
+            {mailChannel === 'group' && (
+              <div className="space-y-3 pt-1">
+                <div className="bg-slate-50 border border-neutral-200 rounded-2xl p-3.5 max-h-[320px] overflow-y-auto space-y-2.5">
+                  {groupChatMessages.map((m) => {
+                    const isMe = m.sender.includes(user.firstName || 'Federico');
+                    return (
+                      <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-1.5 mb-1 text-[10px] text-neutral-500 font-semibold">
+                          <span className={m.role === 'teacher' ? 'text-amber-800 font-bold' : ''}>{m.sender}</span>
+                          <span>•</span>
+                          <span>{m.date}</span>
+                        </div>
+                        <div className={`p-3 rounded-2xl max-w-[88%] text-xs leading-relaxed ${
+                          isMe 
+                            ? 'bg-black text-white shadow-xs' 
+                            : m.role === 'teacher' 
+                              ? 'bg-amber-50 border border-amber-300 text-amber-950 shadow-xs' 
+                              : 'bg-white border border-neutral-200 text-neutral-900 shadow-xs'
+                        }`}>
+                          {m.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <form onSubmit={handleSendGroupMessage} className="flex items-center gap-2 pt-1">
+                  <input
+                    type="text"
+                    value={groupChatInput}
+                    onChange={(e) => setGroupChatInput(e.target.value)}
+                    placeholder={selectedLang === 'EN' ? 'Share a message with the group...' : 'Escribe un mensaje al grupo de clase...'}
+                    className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!groupChatInput.trim()}
+                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 disabled:opacity-40 text-black font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{selectedLang === 'EN' ? 'Post' : 'Publicar'}</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* Channel 3: Official Announcements & System Notices */}
+            {mailChannel === 'announcements' && (
+              <div className="space-y-3 pt-1">
+                {announcementMessages.map((msg) => (
                   <div 
                     key={msg.id}
-                    className="p-3.5 sm:p-4 rounded-2xl border border-neutral-200 hover:border-amber-400/80 bg-slate-50/70 transition-all space-y-1.5"
+                    className="p-3.5 sm:p-4 rounded-2xl border border-neutral-200 bg-white shadow-xs space-y-1.5"
                   >
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
@@ -2869,80 +2926,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                       <span className="text-[11px] font-normal text-neutral-500">{msg.date}</span>
                     </div>
 
-                    <h4 className="text-xs sm:text-sm font-bold text-neutral-800">{msg.subject}</h4>
+                    <h4 className="text-xs sm:text-sm font-bold text-neutral-900">{msg.title}</h4>
                     <p className="text-xs text-neutral-600 font-normal leading-relaxed">{msg.body}</p>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* Content: Compose Tab */}
-            {mailTab === 'compose' && (
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-1">
-                    {selectedLang === 'EN' ? 'Recipient' : 'Destinatario'}
-                  </label>
-                  <select
-                    value={mailRecipient}
-                    onChange={(e: any) => setMailRecipient(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="Voyager AI">🤖 Tutor IA Voyager (Respuesta con voz)</option>
-                    <option value="Equipo Académico">🎓 Equipo Académico y Docencia USA Voyager</option>
-                    <option value="Docentes">👨‍🏫 Coordinación de Profesores</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-1">
-                    {selectedLang === 'EN' ? 'Subject' : 'Asunto'}
-                  </label>
-                  <input
-                    type="text"
-                    value={mailSubject}
-                    onChange={(e) => setMailSubject(e.target.value)}
-                    placeholder={selectedLang === 'EN' ? 'e.g. Question about my progress grade...' : 'Ej. Consulta sobre mi calificación o progreso...'}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-1">
-                    {selectedLang === 'EN' ? 'Internal Message Body' : 'Cuerpo del Mensaje Interno'}
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={mailBody}
-                    onChange={(e) => setMailBody(e.target.value)}
-                    placeholder={selectedLang === 'EN' ? 'Write your message to the academic team or Voyager...' : 'Escribe tu mensaje o consulta directa para el equipo académico o Voyager...'}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500 resize-none"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMailTab('inbox')}
-                    className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-bold text-xs cursor-pointer transition-colors"
-                  >
-                    {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSendInternalMail}
-                    disabled={!mailBody.trim()}
-                    className={`px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer active:scale-95 ${
-                      mailBody.trim()
-                        ? 'bg-amber-400 hover:bg-amber-500 text-black border border-amber-500'
-                        : 'bg-neutral-200 text-neutral-400 border border-neutral-300 cursor-not-allowed'
-                    }`}
-                  >
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>{selectedLang === 'EN' ? 'Send Message' : 'Enviar Mensaje'}</span>
-                  </button>
-                </div>
               </div>
             )}
           </div>

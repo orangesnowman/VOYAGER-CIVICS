@@ -192,7 +192,6 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
       {/* Calendar Header - Top Row: Title & Top-Right Control Buttons (Dark/Light + Full Screen) */}
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2.5">
-          <CalendarIcon className={`${isExpanded ? 'w-7 h-7 sm:w-8 sm:h-8' : 'w-5 h-5'} text-sky-500 transition-transform group-hover/cal:scale-110`} />
           <h4 className={`font-black font-mono tracking-tight ${
             calendarTheme === 'dark' ? 'text-sky-100' : 'text-slate-900'
           } ${isExpanded ? 'text-base sm:text-xl md:text-2xl' : 'text-sm sm:text-base group-hover/cal:text-sky-500 transition-colors'}`}>

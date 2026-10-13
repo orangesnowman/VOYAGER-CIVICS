@@ -37,12 +37,14 @@ export class AudioCapture {
   private dummyGain: GainNode | null = null;
   private onAudioDataCallback: ((base64Pcm: string) => void) | null = null;
   private frameCounter = 0;
+  private isPaused = false;
 
   constructor() {}
 
   async start(onAudioData: (base64Pcm: string) => void): Promise<MediaStream> {
     this.onAudioDataCallback = onAudioData;
     this.frameCounter = 0;
+    this.isPaused = false;
     try {
       if (!this.stream || !this.stream.active) {
         this.stream = await navigator.mediaDevices.getUserMedia({
@@ -78,7 +80,7 @@ export class AudioCapture {
       if (!this.processorNode) {
         this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
         this.processorNode.onaudioprocess = (e) => {
-          if (!this.onAudioDataCallback) return;
+          if (!this.onAudioDataCallback || this.isPaused) return;
 
           this.frameCounter++;
           const resampled = PCMConverter.resample(e.inputBuffer, 16000);
@@ -106,17 +108,30 @@ export class AudioCapture {
     }
   }
 
+  pause(): void {
+    this.isPaused = true;
+  }
+
   async resume(): Promise<void> {
+    this.isPaused = false;
     if (this.audioContext && this.audioContext.state === 'suspended') {
       try {
         await this.audioContext.resume();
       } catch (e) {
-        console.warn('AudioCapture resume failed:', e);
+        console.warn('[AudioCapture] AudioContext resume notice:', e);
+      }
+    }
+    if ((!this.stream || !this.stream.active) && this.onAudioDataCallback) {
+      try {
+        await this.start(this.onAudioDataCallback);
+      } catch (e) {
+        console.warn('[AudioCapture] Re-starting mic stream on resume notice:', e);
       }
     }
   }
 
   stop(): void {
+    this.isPaused = false;
     if (this.processorNode) {
       this.processorNode.disconnect();
       this.processorNode = null;
@@ -134,7 +149,7 @@ export class AudioCapture {
       this.stream = null;
     }
     if (this.audioContext) {
-      this.audioContext.close();
+      this.audioContext.close().catch(() => {});
       this.audioContext = null;
     }
     this.analyserNode = null;
@@ -142,7 +157,7 @@ export class AudioCapture {
   }
 
   getVolume(): number {
-    if (!this.analyserNode) return 0;
+    if (!this.analyserNode || this.isPaused || (this.audioContext && this.audioContext.state === 'suspended')) return 0;
     const dataArray = new Uint8Array(this.analyserNode.fftSize);
     this.analyserNode.getByteTimeDomainData(dataArray);
     let sumSquares = 0;
@@ -173,6 +188,7 @@ export class AudioPlayback {
   private analyserNode: AnalyserNode | null = null;
   private nextStartTime = 0;
   private playbackChunkCounter = 0;
+  private activeSources: Set<AudioBufferSourceNode> = new Set();
 
   constructor() {}
 
@@ -188,7 +204,7 @@ export class AudioPlayback {
       console.log('[AudioPlayback] Initialized AudioContext for playback. sampleRate:', this.audioContext.sampleRate);
     }
     if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
+      this.audioContext.resume().catch(() => {});
       console.log('[AudioPlayback] Resumed playback AudioContext');
     }
   }
@@ -217,6 +233,11 @@ export class AudioPlayback {
         sourceNode.connect(this.audioContext.destination);
       }
 
+      this.activeSources.add(sourceNode);
+      sourceNode.onended = () => {
+        this.activeSources.delete(sourceNode);
+      };
+
       const now = this.audioContext.currentTime;
       const startTime = Math.max(now, this.nextStartTime);
       sourceNode.start(startTime);
@@ -232,11 +253,13 @@ export class AudioPlayback {
 
   stop(): void {
     this.nextStartTime = 0;
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
+    for (const source of this.activeSources) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
     }
-    this.analyserNode = null;
+    this.activeSources.clear();
   }
 
   getVolume(): number {

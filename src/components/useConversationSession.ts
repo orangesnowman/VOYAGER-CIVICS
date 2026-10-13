@@ -4,6 +4,7 @@ import { ConversationModePolicy } from '../domain/ConversationModePolicy';
 import { ConversationMemory } from '../domain/ConversationMemory';
 import { getLocalProfileCache, flushAllPendingUserData } from '../services/userProfileService';
 import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
+import { playStateSwitchBing } from '../services/audioUtils';
 
 interface UseConversationSessionConfig {
   selectedLang: 'EN' | 'ES';
@@ -540,19 +541,19 @@ export function useConversationSession(config: UseConversationSessionConfig) {
              return;
           }
 
-          if (msg.userTranscription && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+          if (msg.userTranscription && !isPausedRef.current) {
             console.log('[Client Session] User transcription received from server:', msg.userTranscription);
             setLastUserTranscriptionState(msg.userTranscription);
             onUserTranscriptionRef.current(msg.userTranscription);
           }
 
-          if (msg.text && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+          if (msg.text && !isPausedRef.current) {
             console.log('[Client Session] Text response received from server:', msg.text);
             setLastModelResponseState(msg.text);
             onTextResponseRef.current(msg.text, !!msg.showForm);
           }
 
-          if (msg.audio && !isListenOnlyRef.current && (!isPausedRef.current || isAnnouncingPauseRef.current)) {
+          if (msg.audio && !isListenOnlyRef.current && !isPausedRef.current) {
             setChunksReceived(prev => prev + 1);
             if (!playbackRef.current) {
               playbackRef.current = new AudioPlayback();
@@ -606,7 +607,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     return false;
   }, []);
 
-  const pause = useCallback((customAnnouncement?: string) => {
+  const pause = useCallback(() => {
     // Freeze timestamp accumulation cleanly
     if (lastActiveStartTimestampRef.current) {
       activeAccumulatedMsRef.current += (Date.now() - lastActiveStartTimestampRef.current);
@@ -616,34 +617,38 @@ export function useConversationSession(config: UseConversationSessionConfig) {
 
     setIsPaused(true);
     isPausedRef.current = true;
+    isAnnouncingPauseRef.current = false;
+    if (announcementTimerRef.current) {
+      clearTimeout(announcementTimerRef.current);
+      announcementTimerRef.current = null;
+    }
     setVolume(0);
+    if (captureRef.current) {
+      captureRef.current.pause();
+    }
     if (playbackRef.current) {
       playbackRef.current.stop();
     }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
+    playStateSwitchBing('pause');
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       try {
-        const textToAnnounce = customAnnouncement || (selectedLang === 'EN' ? 'Conversation is in pause.' : 'La conversación está en pausa.');
-        isAnnouncingPauseRef.current = true;
-        if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
-        announcementTimerRef.current = setTimeout(() => {
-          isAnnouncingPauseRef.current = false;
-        }, 6000);
-        wsRef.current.send(JSON.stringify({ 
-          text: `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Di ÚNICAMENTE la siguiente frase en voz alta con tu voz natural de Voyager: "${textToAnnounce}". No agregues ninguna otra palabra y entra en silencio absoluto.]`
-        }));
+        wsRef.current.send(JSON.stringify({ pause: true }));
       } catch (e) {}
     }
-  }, [selectedLang]);
+  }, []);
 
   const resume = useCallback(() => {
     setIsPaused(false);
     isPausedRef.current = false;
     isAnnouncingPauseRef.current = false;
     lastActiveStartTimestampRef.current = Date.now();
-    if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
+    if (announcementTimerRef.current) {
+      clearTimeout(announcementTimerRef.current);
+      announcementTimerRef.current = null;
+    }
     if (captureRef.current) {
       captureRef.current.resume();
     }
@@ -653,6 +658,12 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     vadRef.current.recordActivity();
     if (typeof window !== 'undefined' && window.speechSynthesis && window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
+    }
+    playStateSwitchBing('resume');
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ resume: true }));
+      } catch (e) {}
     }
   }, []);
 

@@ -159,14 +159,16 @@ async function startServer() {
     let isTransitioning = false;
     let lastUserTranscription = "";
     let lastModelTranscription = "";
+    let clientIsPaused = false;
+    let ignoreModelTurnUntilUserSpeaks = false;
 
     async function connectSession(modelName: string): Promise<any> {
       logToFile(`Attempting to connect to Gemini Live API with model ${modelName}...`);
       const connectedTime = Date.now();
 
       const languageInstruction = lang === "ES" 
-        ? "\n\nLANGUAGE CONFIGURATION: The user's preferred language is Spanish (ES). You must speak strictly in Spanish as your default, main conversational language. Do NOT translate your own Spanish conversational dialogue, responses, or sentences into English. Keep the dialogue entirely in Spanish. Only use English when correcting the user's grammar, teaching specific English vocabulary words (e.g. day lessons), or when the user explicitly asks for a translation. CRITICAL: Do NOT output [SCORES: ...], [LEARNED_WORDS: ...], [ACCENT: ...], or [MISSION_COMPLETE: ...] tags in your initial greeting or welcome response. Only output these tags on subsequent conversational turns after the user has spoken and you are evaluating their input. IMPORTANT: Whenever the conversation language switches (e.g. from Spanish to English), you MUST output the exact tag '[SWITCH_LANG: EN]' in your text transcription. If you switch from English to Spanish, you MUST output '[SWITCH_LANG: ES]'. Do not say these tags out loud, just output them in your text transcription at the start of your turn."
-        : "\n\nLANGUAGE CONFIGURATION: The user's preferred language is English (EN). You should default to speaking and responding in English. However, if you hear people speaking Spanish, ask them if they prefer to switch to Spanish. If they confirm or prefer it, you are authorized to change your language and continue the conversation in Spanish. IMPORTANT: Whenever the conversation language switches (e.g. from English to Spanish), you MUST output the exact tag '[SWITCH_LANG: ES]' in your text transcription. If you switch from Spanish to English, you MUST output '[SWITCH_LANG: EN]'. Do not say these tags out loud, just output them in your text transcription at the start of your turn.";
+        ? "\n\nLANGUAGE CONFIGURATION & MANDATORY RULE: The user's preferred language is Spanish (ES). You must speak strictly in Spanish as your default, main conversational language. Do NOT translate your own Spanish conversational dialogue into English. Only use English when correcting the user's grammar, teaching specific English vocabulary words, or when explicitly asked for a translation. ABSOLUTE MANDATORY RULE: You MUST NEVER write, speak, or output in any language other than Spanish and English. Strictly NO other languages or scripts (NO Chinese, Japanese, Korean, CJK, French, German, Italian, Russian, Arabic, Portuguese, etc.) under any circumstances. All responses, corrections, explanations, and translations must be strictly in Spanish or English."
+        : "\n\nLANGUAGE CONFIGURATION & MANDATORY RULE: The user's preferred language is English (EN). You should default to speaking and responding in English. However, if you hear Spanish, you are authorized to respond in Spanish. ABSOLUTE MANDATORY RULE: You MUST NEVER write, speak, or output in any language other than Spanish and English. Strictly NO other languages or scripts (NO Chinese, Japanese, Korean, CJK, French, German, Italian, Russian, Arabic, Portuguese, etc.) under any circumstances. All responses, corrections, explanations, and translations must be strictly in Spanish or English.";
 
       const userIdentityInstruction = (userName || userEmail)
         ? `\n\nCRITICAL USER IDENTITY & PROFILE: The user is ALREADY LOGGED IN with Google/USA Voyager account as "${userName || userEmail}"${userEmail ? ` (${userEmail})` : ''}. YOU ALREADY KNOW THEIR NAME (${userName || userEmail}). YOU MUST NEVER ASK "What is your name?", "Who am I speaking with?", or ask for their identity. Greet them warmly by their name "${userName || userEmail}".`
@@ -343,19 +345,22 @@ async function startServer() {
                 lastModelTranscription = text;
 
                 if (delta) {
-                  if (delta.includes("[SWITCH_LANG: ES]")) {
+                  if (/\[?SWITCH[-_ ]?LANG:?\s*ES\]?/i.test(delta)) {
                     logToFile("Auto-detect: model switched to Spanish.");
                     clientWs.send(JSON.stringify({ languageSwitch: "ES" }));
-                    delta = delta.replace("[SWITCH_LANG: ES]", "");
                   }
-                  if (delta.includes("[SWITCH_LANG: EN]")) {
+                  if (/\[?SWITCH[-_ ]?LANG:?\s*EN\]?/i.test(delta)) {
                     logToFile("Auto-detect: model switched to English.");
                     clientWs.send(JSON.stringify({ languageSwitch: "EN" }));
-                    delta = delta.replace("[SWITCH_LANG: EN]", "");
                   }
 
-                  if (delta.trim()) {
-                    logToFile(`Sending model voice transcription delta: "${delta}"`);
+                  // Thoroughly strip any residual switch_lang tags/phrases
+                  delta = delta
+                    .replace(/\[?SWITCH[-_ ]?LANG:?\s*[A-Z]*\]?/gi, "")
+                    .replace(/\(?switch[-_ ]?lang\)?/gi, "");
+
+                  if (delta.trim() && !clientIsPaused && !ignoreModelTurnUntilUserSpeaks) {
+                    logToFile(`Sending model voice transcription delta: "${delta.trim()}"`);
                     clientWs.send(JSON.stringify({ text: delta }));
                   }
                 }
@@ -367,7 +372,7 @@ async function startServer() {
             }
 
             const parts = message.serverContent?.modelTurn?.parts;
-            if (parts) {
+            if (parts && !clientIsPaused && !ignoreModelTurnUntilUserSpeaks) {
               for (const part of parts) {
                 if (part.inlineData?.data) {
                   logToFile(`Sending ${part.inlineData.data.length} bytes of audio back to client.`);
@@ -389,6 +394,10 @@ async function startServer() {
             if (message.serverContent?.interrupted) {
               logToFile("Gemini session was interrupted");
               clientWs.send(JSON.stringify({ interrupted: true }));
+            }
+            if (message.serverContent?.turnComplete) {
+              logToFile("Gemini model turn complete.");
+              ignoreModelTurnUntilUserSpeaks = false;
             }
 
             if (message.toolCall?.functionCalls) {
@@ -767,8 +776,25 @@ async function startServer() {
     clientWs.on("message", async (data) => {
       try {
         const payload = JSON.parse(data.toString());
+        if (payload.pause) {
+          clientIsPaused = true;
+          ignoreModelTurnUntilUserSpeaks = true;
+          logToFile("[Server WS] Client requested silent pause. Suppressed audio/text streaming.");
+          return;
+        }
+        if (payload.resume) {
+          clientIsPaused = false;
+          ignoreModelTurnUntilUserSpeaks = false;
+          logToFile("[Server WS] Client requested silent resume. Ready for fresh user speech.");
+          return;
+        }
         if (session && !isTransitioning) {
           if (payload.audio) {
+            if (clientIsPaused) {
+              return;
+            }
+            // User is speaking, so allow model turn responses now
+            ignoreModelTurnUntilUserSpeaks = false;
             clientAudioFrames++;
             if (clientAudioFrames === 1 || clientAudioFrames % 50 === 0) {
               logToFile(`[Server WS] Received audio frame #${clientAudioFrames} (${payload.audio.length} base64 chars). Relaying to Gemini...`);
@@ -784,6 +810,7 @@ async function startServer() {
               logToFile(`[Server WS ERROR] Failed to relay audio frame #${clientAudioFrames} to Gemini: ${audioErr?.message || audioErr}`);
             }
           } else if (payload.text) {
+            ignoreModelTurnUntilUserSpeaks = false;
             logToFile(`Relaying client text input to Gemini: ${payload.text}`);
             session.sendClientContent({
               turns: [

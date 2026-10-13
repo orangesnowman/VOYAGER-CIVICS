@@ -95,15 +95,27 @@ export function useConversationTranscript(activeTab: string = 'chat') {
     ]);
   }, [activeTab]);
 
+  const filterForeignScripts = useCallback((text: string) => {
+    if (!text) return '';
+    return text.replace(/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff\uac00-\ud7af\uff00-\uffef]+/g, '').trim();
+  }, []);
+
   const updateUserVoiceTranscription = useCallback((transcriptionText: string) => {
+    const cleanTranscription = filterForeignScripts(transcriptionText);
+    if (!cleanTranscription) return;
+
     setChatMessages(prev => {
       const last = prev[prev.length - 1];
       if (last && last.sender === 'user' && (Date.now() - last.timeMs < 8000)) {
          const updated = [...prev];
-         const separator = last.text && !last.text.endsWith(' ') && !transcriptionText.startsWith(' ') ? ' ' : '';
+         const separator = last.text && !last.text.endsWith(' ') && !cleanTranscription.startsWith(' ') ? ' ' : '';
+         const combined = filterForeignScripts(last.text + separator + cleanTranscription);
+         if (!combined) {
+           return prev.slice(0, -1);
+         }
          updated[updated.length - 1] = {
             ...last,
-            text: last.text + separator + transcriptionText,
+            text: combined,
             timeMs: Date.now()
          };
          return updated;
@@ -111,14 +123,14 @@ export function useConversationTranscript(activeTab: string = 'chat') {
          return [...prev, {
             id: `msg_voice_trans_${Date.now()}`,
             sender: 'user',
-            text: transcriptionText,
+            text: cleanTranscription,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             timeMs: Date.now(),
             tab: activeTab
          }];
       }
     });
-  }, [activeTab]);
+  }, [activeTab, filterForeignScripts]);
 
   const updateAssistantResponse = useCallback((
     text: string,

@@ -25,13 +25,33 @@ import {
 interface EconomiaPanelProps {
   selectedLang: 'EN' | 'ES';
   onNavigateTab?: (tab: string) => void;
+  onAskVoyager?: (prompt: string) => void;
 }
 
 export const EconomiaPanel: React.FC<EconomiaPanelProps> = ({
   selectedLang,
-  onNavigateTab
+  onNavigateTab,
+  onAskVoyager
 }) => {
   const isEn = selectedLang === 'EN';
+
+  const triggerGraphAnalysis = (chartTitle: string, contextData: string) => {
+    if (onAskVoyager) {
+      onAskVoyager(
+        `[INSTRUCCIÓN DE SISTEMA - ANÁLISIS DE GRÁFICA CIRCULAR DE ECONOMÍA Y PLANES]:
+El usuario hizo clic en la gráfica circular de "${chartTitle}".
+Datos actuales de la gráfica: ${contextData}.
+
+Como Voyager, proporciona un análisis de modelo financiero y de negocio en exactamente 4 puntos dinámicos:
+1) Qué muestra esta gráfica circular de planes de suscripción.
+2) Qué significan los datos reales actuales de ingresos recurrentes y niveles de suscripción.
+3) Por qué importa para el margen de beneficio, la retención y la sostenibilidad del negocio.
+4) Qué conclusión útil y estrategia de precios o conversión se extrae.
+
+IMPORTANTE: Responde de forma fluida y natural en ${isEn ? 'English' : 'Español'}. No uses plantillas rígidas ni te limites a repetir porcentajes.`
+      );
+    }
+  };
 
   // Interactive hover states for metric sparkline charts
   const [activeMrrIndex, setActiveMrrIndex] = useState<number | null>(null);
@@ -917,11 +937,11 @@ export const EconomiaPanel: React.FC<EconomiaPanelProps> = ({
             
             {/* DONUT SVG */}
             <div 
-              className="flex flex-col items-center justify-center p-2 select-none"
+              className="flex flex-col items-center justify-center p-2 select-none group"
               onMouseLeave={() => setHoveredPlan(null)}
             >
               <div className="relative flex items-center justify-center">
-                <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                   <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
                   {subscriptionPlans.map((plan) => {
@@ -941,9 +961,15 @@ export const EconomiaPanel: React.FC<EconomiaPanelProps> = ({
                         strokeLinecap="round"
                         fill="transparent"
                         opacity={isDimmed ? 0.35 : 1}
-                        className="transition-all duration-300 cursor-pointer"
+                        className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                         onMouseEnter={() => setHoveredPlan(plan.id)}
-                        onClick={() => setSelectedPlan(selectedPlan === plan.id ? null : plan.id)}
+                        onClick={() => {
+                          setSelectedPlan(selectedPlan === plan.id ? null : plan.id);
+                          triggerGraphAnalysis(
+                            isEn ? 'Subscription Revenue Breakdown' : 'Ingresos por Plan de Suscripción',
+                            `${plan.label}: ${plan.revenue} (${plan.percentage}, ${plan.count} ${isEn ? 'subscribers' : 'suscriptores'}) out of $18,450 total monthly revenue`
+                          );
+                        }}
                       />
                     );
                   })}
@@ -951,8 +977,16 @@ export const EconomiaPanel: React.FC<EconomiaPanelProps> = ({
 
                 {/* INNER DONUT TEXT */}
                 <div 
-                  className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                  onClick={() => { setSelectedPlan(null); setHoveredPlan(null); }}
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                  onClick={() => {
+                    setSelectedPlan(null);
+                    setHoveredPlan(null);
+                    triggerGraphAnalysis(
+                      isEn ? 'Subscription Revenue Breakdown Overview' : 'Resumen de Ingresos por Plan de Suscripción',
+                      'Total MRR $18,450.00 USD across Pro Monthly ($29.99/mo), Institutional/B2B Licences, La Profe Diagnostic Funnel, and Certification Modules'
+                    );
+                  }}
+                  title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                 >
                   <span className={`text-xl font-black leading-none ${activePlan ? activePlan.accentColor : 'text-slate-900'}`}>
                     {activePlan ? activePlan.revenue : '$18,450'}
@@ -978,7 +1012,13 @@ export const EconomiaPanel: React.FC<EconomiaPanelProps> = ({
                     key={plan.id}
                     onMouseEnter={() => setHoveredPlan(plan.id)}
                     onMouseLeave={() => setHoveredPlan(null)}
-                    onClick={() => setSelectedPlan(selectedPlan === plan.id ? null : plan.id)}
+                    onClick={() => {
+                      setSelectedPlan(selectedPlan === plan.id ? null : plan.id);
+                      triggerGraphAnalysis(
+                        isEn ? 'Subscription Revenue Breakdown' : 'Ingresos por Plan de Suscripción',
+                        `${plan.label}: ${plan.revenue} (${plan.percentage}, ${plan.count} ${isEn ? 'subscribers' : 'suscriptores'}) out of $18,450 total monthly revenue`
+                      );
+                    }}
                     className={`p-2.5 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center justify-between gap-2 ${
                       isActive 
                         ? 'bg-slate-50 border-slate-300 shadow-2xs scale-[1.02]' 

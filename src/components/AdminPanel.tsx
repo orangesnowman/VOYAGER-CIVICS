@@ -329,6 +329,7 @@ interface AdminPanelProps {
   onOpenAuthModal?: () => void;
   hideTopStats?: boolean;
   isEmptyAdmin?: boolean;
+  onAskVoyager?: (prompt: string) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -336,10 +337,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onNavigateTab,
   onOpenAuthModal,
   hideTopStats = false,
-  isEmptyAdmin = false
+  isEmptyAdmin = false,
+  onAskVoyager
 }) => {
   const isEn = selectedLang === 'EN';
   const [simulatedRole] = useAdminRoleSim();
+
+  const triggerGraphAnalysis = (chartTitle: string, contextData: string) => {
+    if (onAskVoyager) {
+      onAskVoyager(
+        `[INSTRUCCIÓN DE SISTEMA - ANÁLISIS DE GRÁFICA CIRCULAR EN PANEL ADMINISTRATIVO]:
+El usuario hizo clic en la gráfica circular de "${chartTitle}".
+Datos actuales de la gráfica: ${contextData}.
+
+Como Voyager, proporciona de inmediato un análisis ejecutivo de administración y negocio claro en exactamente 4 puntos dinámicos:
+1) Qué muestra exactamente esta gráfica circular.
+2) Qué significan los datos reales actuales en su contexto administrativo y de negocio.
+3) Por qué importa estratégicamente para la toma de decisiones y crecimiento de la plataforma.
+4) Qué conclusión práctica y recomendación ejecutable se extrae.
+
+IMPORTANTE: Responde de forma fluida y natural en ${isEn ? 'English' : 'Español'}. No uses plantillas rígidas ni te limites a repetir porcentajes.`
+      );
+    }
+  };
 
   if (isEmptyAdmin) {
     return (
@@ -1014,35 +1034,35 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* STUDENT HIGHLIGHT METRICS */}
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-4">
-                    <div className="bg-white p-3 rounded-2xl border border-blue-200 shadow-2xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Student ID' : 'ID Estudiante'}</span>
-                      <span className="text-base font-black text-blue-900 font-mono">STU-001</span>
-                      <span className="text-[10px] font-bold text-emerald-600 block">✓ {isEn ? 'Verified Account' : 'Cuenta Verificada'}</span>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Student ID' : 'ID Estudiante'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug font-mono">STU-001</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">✓ {isEn ? 'Verified Account' : 'Cuenta Verificada'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-blue-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Civics 128 Score' : 'Puntaje Cívica 128'}</span>
-                      <span className="text-lg font-black text-blue-900">94 / 128</span>
-                      <span className="text-[10px] font-bold text-emerald-600 block">73.4% {isEn ? 'Mastery' : 'Dominio'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Civics 128 Score' : 'Puntaje Cívica 128'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">94 / 128</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">73.4% {isEn ? 'Mastery' : 'Dominio'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-blue-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Daily Streak' : 'Racha Diaria'}</span>
-                      <span className="text-lg font-black text-amber-600">🔥 14 {isEn ? 'Days' : 'Días'}</span>
-                      <span className="text-[10px] font-bold text-slate-500 block">{isEn ? 'Active Learner' : 'Estudiante Activo'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Daily Streak' : 'Racha Diaria'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">🔥 14 {isEn ? 'Days' : 'Días'}</span>
+                      <span className="block text-[10px] font-medium text-slate-500 mt-0.5">{isEn ? 'Active Learner' : 'Estudiante Activo'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-blue-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Fluency Assessment' : 'Diagnóstico Fluidez'}</span>
-                      <span className="text-lg font-black text-emerald-700">88% (B2)</span>
-                      <span className="text-[10px] font-bold text-emerald-600 block">{isEn ? 'Intermediate' : 'Intermedio'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Fluency Assessment' : 'Diagnóstico Fluidez'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">88% (B2)</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">{isEn ? 'Intermediate' : 'Intermedio'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-blue-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Primary Goal' : 'Meta Principal'}</span>
-                      <span className="text-xs font-black text-slate-900 block truncate">🇺🇸 Naturalization</span>
-                      <span className="text-[10px] font-bold text-blue-700 block">{isEn ? 'Interview Prep' : 'Prep Entrevista'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Primary Goal' : 'Meta Principal'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug truncate">🇺🇸 Naturalization</span>
+                      <span className="block text-[10px] font-medium text-blue-700 mt-0.5">{isEn ? 'Interview Prep' : 'Prep Entrevista'}</span>
                     </div>
                   </div>
 
@@ -1120,29 +1140,29 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   {/* TEACHER METRICS */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-4">
-                    <div className="bg-white p-3 rounded-2xl border border-amber-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Active Bookings' : 'Citas Activas'}</span>
-                      <span className="text-lg font-black text-amber-700">2 {isEn ? 'Pending' : 'Pendientes'}</span>
-                      <span className="text-[10px] font-bold text-emerald-600 block">PAID $29 {isEn ? 'Each' : 'c/u'}</span>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Active Bookings' : 'Citas Activas'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">2 {isEn ? 'Pending' : 'Pendientes'}</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">PAID $29 {isEn ? 'Each' : 'c/u'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-amber-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Diagnostic Price' : 'Tarifa Cita'}</span>
-                      <span className="text-lg font-black text-slate-900">$29 USD</span>
-                      <span className="text-[10px] font-bold text-slate-500 block">1-on-1 Session</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Diagnostic Price' : 'Tarifa Cita'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">$29 USD</span>
+                      <span className="block text-[10px] font-medium text-slate-500 mt-0.5">1-on-1 Session</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-amber-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Monthly Subscriptions' : 'Suscripciones Mensuales'}</span>
-                      <span className="text-lg font-black text-blue-900">$199 / mo</span>
-                      <span className="text-[10px] font-bold text-emerald-600 block">{isEn ? 'Active Package' : 'Paquete Activo'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Monthly Subscriptions' : 'Suscripciones Mensuales'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">$199 / mo</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">{isEn ? 'Active Package' : 'Paquete Activo'}</span>
                     </div>
 
-                    <div className="bg-white p-3 rounded-2xl border border-amber-200">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">{isEn ? 'Primary Voice Persona' : 'Voz Docente'}</span>
-                      <span className="text-xs font-black text-slate-900 block truncate">🎙️ Puck (Gemini Live)</span>
-                      <span className="text-[10px] font-bold text-amber-700 block">{isEn ? 'USA Voyager Accent' : 'Acento Voyager'}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">{isEn ? 'Primary Voice Persona' : 'Voz Docente'}</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug truncate">🎙️ Puck (Gemini Live)</span>
+                      <span className="block text-[10px] font-medium text-slate-500 mt-0.5">{isEn ? 'USA Voyager Accent' : 'Acento Voyager'}</span>
                     </div>
                   </div>
 
@@ -1271,7 +1291,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onMouseLeave={() => setHoveredRegion(null)}
                   >
                     <div className="relative flex items-center justify-center">
-                      <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                      <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                         <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
                         {regionRevenues.map((reg) => {
@@ -1291,9 +1311,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               strokeLinecap="round"
                               fill="transparent"
                               opacity={isDimmed ? 0.35 : 1}
-                              className="transition-all duration-300 cursor-pointer"
+                              className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                               onMouseEnter={() => setHoveredRegion(reg.code)}
-                              onClick={() => setSelectedRegion(selectedRegion === reg.code ? null : reg.code)}
+                              onClick={() => {
+                                setSelectedRegion(selectedRegion === reg.code ? null : reg.code);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Revenue by Country' : 'Ingresos por País',
+                                  `${reg.country}: ${reg.share}% share (${reg.revenue}, ${reg.users} ${isEn ? 'active accounts' : 'cuentas activas'}) out of $18,450 total platform revenue`
+                                );
+                              }}
                             />
                           );
                         })}
@@ -1301,12 +1327,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                       {/* INNER DONUT CENTER DISPLAY */}
                       <div 
-                        className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                        onClick={() => { setSelectedRegion(null); setHoveredRegion(null); }}
-                        title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                        className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                        onClick={() => {
+                          setSelectedRegion(null);
+                          setHoveredRegion(null);
+                          triggerGraphAnalysis(
+                            isEn ? 'Revenue by Country Overview' : 'Resumen de Ingresos por País',
+                            'Total Revenue: $18,450 USD distributed as USA 42% ($7,749), Mexico 24% ($4,428), Colombia 18% ($3,321), Costa Rica 9% ($1,660), Other LATAM 7% ($1,292)'
+                          );
+                        }}
+                        title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                       >
                         <span 
-                          className={`text-3xl font-black leading-none transition-all duration-300 ${
+                          className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                             activeRegion ? activeRegion.accentColor : 'text-blue-700'
                           }`}
                         >
@@ -1338,7 +1371,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           key={reg.code}
                           onMouseEnter={() => setHoveredRegion(reg.code)}
                           onMouseLeave={() => setHoveredRegion(null)}
-                          onClick={() => setSelectedRegion(selectedRegion === reg.code ? null : reg.code)}
+                          onClick={() => {
+                            setSelectedRegion(selectedRegion === reg.code ? null : reg.code);
+                            triggerGraphAnalysis(
+                              isEn ? 'Revenue by Country' : 'Ingresos por País',
+                              `${reg.country}: ${reg.share}% share (${reg.revenue}, ${reg.users} ${isEn ? 'active accounts' : 'cuentas activas'}) out of $18,450 total revenue`
+                            );
+                          }}
                           className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                             isActive 
                               ? 'opacity-100 scale-[1.02]' 
@@ -1382,7 +1421,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onMouseLeave={() => setHoveredStudentCategory(null)}
                       >
                         <div className="relative flex items-center justify-center">
-                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                             {/* Background track circle */}
                             <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
@@ -1404,9 +1443,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   strokeLinecap="round"
                                   fill="transparent"
                                   opacity={isDimmed ? 0.35 : 1}
-                                  className="transition-all duration-300 cursor-pointer"
+                                  className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                                   onMouseEnter={() => setHoveredStudentCategory(cat.id)}
-                                  onClick={() => setSelectedStudentCategory(selectedStudentCategory === cat.id ? null : cat.id)}
+                                  onClick={() => {
+                                    setSelectedStudentCategory(selectedStudentCategory === cat.id ? null : cat.id);
+                                    triggerGraphAnalysis(
+                                      isEn ? 'Enrolled Students Demographics' : 'Demografía de Estudiantes Inscritos',
+                                      `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'students' : 'estudiantes'}) out of 160 total platform students`
+                                    );
+                                  }}
                                 />
                               );
                             })}
@@ -1414,12 +1459,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Inner Dynamic Content of the Circle */}
                           <div 
-                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                            onClick={() => { setSelectedStudentCategory(null); setHoveredStudentCategory(null); }}
-                            title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                            onClick={() => {
+                              setSelectedStudentCategory(null);
+                              setHoveredStudentCategory(null);
+                              triggerGraphAnalysis(
+                                isEn ? 'Enrolled Students Categories Overview' : 'Resumen de Categorías de Estudiantes Inscritos',
+                                'Total: 160 Enrolled Students (Business: 38.8%/62, Tourists/Travelers: 28.1%/45, Professionals: 22.5%/36, Teachers/Others: 10.6%/17)'
+                              );
+                            }}
+                            title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                           >
                             <span 
-                              className={`text-3xl font-black leading-none transition-all duration-300 ${
+                              className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                                 activeStudentCat ? activeStudentCat.accentColor : 'text-emerald-700'
                               }`}
                             >
@@ -1455,7 +1507,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               key={cat.id}
                               onMouseEnter={() => setHoveredStudentCategory(cat.id)}
                               onMouseLeave={() => setHoveredStudentCategory(null)}
-                              onClick={() => setSelectedStudentCategory(selectedStudentCategory === cat.id ? null : cat.id)}
+                              onClick={() => {
+                                setSelectedStudentCategory(selectedStudentCategory === cat.id ? null : cat.id);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Enrolled Students Demographics' : 'Demografía de Estudiantes Inscritos',
+                                  `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'students' : 'estudiantes'}) out of 160 total platform students`
+                                );
+                              }}
                               className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                                 isActive 
                                   ? 'opacity-100 scale-[1.02]' 
@@ -1496,7 +1554,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onMouseLeave={() => setHoveredOrgCategory(null)}
                       >
                         <div className="relative flex items-center justify-center">
-                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                             {/* Background track circle */}
                             <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
@@ -1518,9 +1576,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   strokeLinecap="round"
                                   fill="transparent"
                                   opacity={isDimmed ? 0.35 : 1}
-                                  className="transition-all duration-300 cursor-pointer"
+                                  className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                                   onMouseEnter={() => setHoveredOrgCategory(cat.id)}
-                                  onClick={() => setSelectedOrgCategory(selectedOrgCategory === cat.id ? null : cat.id)}
+                                  onClick={() => {
+                                    setSelectedOrgCategory(selectedOrgCategory === cat.id ? null : cat.id);
+                                    triggerGraphAnalysis(
+                                      isEn ? 'Students per Organization' : 'Estudiantes por Organización',
+                                      `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'students across' : 'estudiantes en'} ${cat.orgCount} ${isEn ? 'institutions' : 'instituciones'})`
+                                    );
+                                  }}
                                 />
                               );
                             })}
@@ -1528,12 +1592,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Inner Dynamic Content of the Circle */}
                           <div 
-                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                            onClick={() => { setSelectedOrgCategory(null); setHoveredOrgCategory(null); }}
-                            title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                            onClick={() => {
+                              setSelectedOrgCategory(null);
+                              setHoveredOrgCategory(null);
+                              triggerGraphAnalysis(
+                                isEn ? 'Students per Organization Overview' : 'Resumen de Estudiantes por Organización',
+                                'Distribution across institutional entities: Schools 60.5% (72 students / 3 orgs), Academies 30.3% (36 students / 3 orgs), Companies 9.2% (11 students / 2 orgs)'
+                              );
+                            }}
+                            title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                           >
                             <span 
-                              className={`text-3xl font-black leading-none transition-all duration-300 ${
+                              className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                                 activeOrg ? activeOrg.accentColor : 'text-teal-700'
                               }`}
                             >
@@ -1569,7 +1640,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               key={cat.id}
                               onMouseEnter={() => setHoveredOrgCategory(cat.id)}
                               onMouseLeave={() => setHoveredOrgCategory(null)}
-                              onClick={() => setSelectedOrgCategory(selectedOrgCategory === cat.id ? null : cat.id)}
+                              onClick={() => {
+                                setSelectedOrgCategory(selectedOrgCategory === cat.id ? null : cat.id);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Students per Organization' : 'Estudiantes por Organización',
+                                  `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'students across' : 'estudiantes en'} ${cat.orgCount} ${isEn ? 'institutions' : 'instituciones'})`
+                                );
+                              }}
                               className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                                 isActive 
                                   ? 'opacity-100 scale-[1.02]' 
@@ -1610,7 +1687,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onMouseLeave={() => setHoveredModalityCategory(null)}
                       >
                         <div className="relative flex items-center justify-center">
-                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                             {/* Background track circle */}
                             <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
@@ -1632,9 +1709,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   strokeLinecap="round"
                                   fill="transparent"
                                   opacity={isDimmed ? 0.35 : 1}
-                                  className="transition-all duration-300 cursor-pointer"
+                                  className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                                   onMouseEnter={() => setHoveredModalityCategory(cat.id)}
-                                  onClick={() => setSelectedModalityCategory(selectedModalityCategory === cat.id ? null : cat.id)}
+                                  onClick={() => {
+                                    setSelectedModalityCategory(selectedModalityCategory === cat.id ? null : cat.id);
+                                    triggerGraphAnalysis(
+                                      isEn ? 'Teaching Modality' : 'Modalidad de Enseñanza de Docentes',
+                                      `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'teachers' : 'docentes'})`
+                                    );
+                                  }}
                                 />
                               );
                             })}
@@ -1642,12 +1725,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Inner Dynamic Content of the Circle */}
                           <div 
-                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                            onClick={() => { setSelectedModalityCategory(null); setHoveredModalityCategory(null); }}
-                            title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                            onClick={() => {
+                              setSelectedModalityCategory(null);
+                              setHoveredModalityCategory(null);
+                              triggerGraphAnalysis(
+                                isEn ? 'Teaching Modality Overview' : 'Resumen de Modalidad de Enseñanza',
+                                'Teacher modality breakdown: Online 58.3% (14 teachers), Hybrid 25.0% (6 teachers), In-Person 16.7% (4 teachers)'
+                              );
+                            }}
+                            title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                           >
                             <span 
-                              className={`text-3xl font-black leading-none transition-all duration-300 ${
+                              className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                                 activeModality ? activeModality.accentColor : 'text-blue-700'
                               }`}
                             >
@@ -1683,7 +1773,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               key={cat.id}
                               onMouseEnter={() => setHoveredModalityCategory(cat.id)}
                               onMouseLeave={() => setHoveredModalityCategory(null)}
-                              onClick={() => setSelectedModalityCategory(selectedModalityCategory === cat.id ? null : cat.id)}
+                              onClick={() => {
+                                setSelectedModalityCategory(selectedModalityCategory === cat.id ? null : cat.id);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Teaching Modality' : 'Modalidad de Enseñanza de Docentes',
+                                  `${cat.label}: ${cat.percentage} (${cat.count} ${isEn ? 'teachers' : 'docentes'})`
+                                );
+                              }}
                               className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                                 isActive 
                                   ? 'opacity-100 scale-[1.02]' 
@@ -1724,7 +1820,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onMouseLeave={() => setHoveredGenderItem(null)}
                       >
                         <div className="relative flex items-center justify-center">
-                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                             {/* Background track circle */}
                             <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
@@ -1746,9 +1842,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   strokeLinecap="round"
                                   fill="transparent"
                                   opacity={isDimmed ? 0.35 : 1}
-                                  className="transition-all duration-300 cursor-pointer"
+                                  className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                                   onMouseEnter={() => setHoveredGenderItem(item.id)}
-                                  onClick={() => setSelectedGenderItem(selectedGenderItem === item.id ? null : item.id)}
+                                  onClick={() => {
+                                    setSelectedGenderItem(selectedGenderItem === item.id ? null : item.id);
+                                    triggerGraphAnalysis(
+                                      isEn ? 'Gender Distribution' : 'Distribución de Género',
+                                      `${item.label}: ${item.percentage} (${item.count} ${isEn ? 'students' : 'estudiantes'})`
+                                    );
+                                  }}
                                 />
                               );
                             })}
@@ -1756,12 +1858,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Inner Dynamic Content of the Gender Circle */}
                           <div 
-                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                            onClick={() => { setSelectedGenderItem(null); setHoveredGenderItem(null); }}
-                            title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                            onClick={() => {
+                              setSelectedGenderItem(null);
+                              setHoveredGenderItem(null);
+                              triggerGraphAnalysis(
+                                isEn ? 'Gender Distribution Overview' : 'Resumen de Distribución de Género',
+                                'Student gender breakdown: Female 60.8% (90 students), Male 32.4% (48 students), Unspecified 6.8% (10 students)'
+                              );
+                            }}
+                            title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                           >
                             <span 
-                              className={`text-3xl font-black leading-none transition-all duration-300 ${
+                              className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                                 activeGenderItem ? activeGenderItem.accentColor : 'text-sky-700'
                               }`}
                             >
@@ -1797,7 +1906,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               key={item.id}
                               onMouseEnter={() => setHoveredGenderItem(item.id)}
                               onMouseLeave={() => setHoveredGenderItem(null)}
-                              onClick={() => setSelectedGenderItem(selectedGenderItem === item.id ? null : item.id)}
+                              onClick={() => {
+                                setSelectedGenderItem(selectedGenderItem === item.id ? null : item.id);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Gender Distribution' : 'Distribución de Género',
+                                  `${item.label}: ${item.percentage} (${item.count} ${isEn ? 'students' : 'estudiantes'})`
+                                );
+                              }}
                               className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                                 isActive 
                                   ? 'opacity-100 scale-[1.02]' 
@@ -1838,7 +1953,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                         onMouseLeave={() => setHoveredAgeItem(null)}
                       >
                         <div className="relative flex items-center justify-center">
-                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                          <svg width="200" height="200" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                             {/* Background track circle */}
                             <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
@@ -1860,9 +1975,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                   strokeLinecap="round"
                                   fill="transparent"
                                   opacity={isDimmed ? 0.35 : 1}
-                                  className="transition-all duration-300 cursor-pointer"
+                                  className="transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115"
                                   onMouseEnter={() => setHoveredAgeItem(item.id)}
-                                  onClick={() => setSelectedAgeItem(selectedAgeItem === item.id ? null : item.id)}
+                                  onClick={() => {
+                                    setSelectedAgeItem(selectedAgeItem === item.id ? null : item.id);
+                                    triggerGraphAnalysis(
+                                      isEn ? 'Age Distribution' : 'Distribución de Edad de Estudiantes',
+                                      `${item.label}: ${item.percentage} (${item.count} ${isEn ? 'students' : 'estudiantes'})`
+                                    );
+                                  }}
                                 />
                               );
                             })}
@@ -1870,12 +1991,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
                           {/* Inner Dynamic Content of the Age Circle */}
                           <div 
-                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 transition-all duration-300"
-                            onClick={() => { setSelectedAgeItem(null); setHoveredAgeItem(null); }}
-                            title={isEn ? 'Click to reset selection' : 'Clic para restablecer selección'}
+                            className="absolute inset-0 flex flex-col items-center justify-center text-center cursor-pointer p-2 rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                            onClick={() => {
+                              setSelectedAgeItem(null);
+                              setHoveredAgeItem(null);
+                              triggerGraphAnalysis(
+                                isEn ? 'Age Distribution Overview' : 'Resumen de Distribución de Edad',
+                                'Student age breakdown: 26-40 Yrs 45.9% (68 students), 18-25 Yrs 27.0% (40 students), 41-60 Yrs 18.9% (28 students), 60+ Yrs 8.1% (12 students)'
+                              );
+                            }}
+                            title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
                           >
                             <span 
-                              className={`text-3xl font-black leading-none transition-all duration-300 ${
+                              className={`text-3xl font-black leading-none transition-all duration-300 group-hover:text-amber-600 ${
                                 activeAgeItem ? activeAgeItem.accentColor : 'text-emerald-700'
                               }`}
                             >
@@ -1911,7 +2039,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               key={item.id}
                               onMouseEnter={() => setHoveredAgeItem(item.id)}
                               onMouseLeave={() => setHoveredAgeItem(null)}
-                              onClick={() => setSelectedAgeItem(selectedAgeItem === item.id ? null : item.id)}
+                              onClick={() => {
+                                setSelectedAgeItem(selectedAgeItem === item.id ? null : item.id);
+                                triggerGraphAnalysis(
+                                  isEn ? 'Age Distribution' : 'Distribución de Edad de Estudiantes',
+                                  `${item.label}: ${item.percentage} (${item.count} ${isEn ? 'students' : 'estudiantes'})`
+                                );
+                              }}
                               className={`p-1 transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                                 isActive 
                                   ? 'opacity-100 scale-[1.02]' 
@@ -2087,17 +2221,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     {isEn ? 'VOYAGER ENGINE & AI PARAMETERS' : 'MOTOR VOYAGER Y PARÁMETROS IA'}
                   </h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-white p-3.5 rounded-2xl border border-slate-200">
-                      <h4 className="font-bold text-black mb-1">🤖 Gemini Live API Model</h4>
-                      <p className="text-[11px] text-black mb-2">antigravity-gemini-live-2.0-flash</p>
-                      <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">OPERATIONAL</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">🤖 Gemini Live API Model</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">antigravity-gemini-live-2.0-flash</span>
+                      <span className="block text-[10px] font-medium text-emerald-600 mt-0.5 uppercase">✓ OPERATIONAL</span>
                     </div>
 
-                    <div className="bg-white p-3.5 rounded-2xl border border-slate-200">
-                      <h4 className="font-bold text-black mb-1">🎙️ Primary Voice Persona</h4>
-                      <p className="text-[11px] text-black mb-2">Puck (Male American Accent)</p>
-                      <span className="bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded text-[10px] uppercase">ENFORCED (VOYAGER ONLY)</span>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500 mb-1 leading-tight break-words">🎙️ Primary Voice Persona</span>
+                      <span className="block font-semibold text-neutral-900 text-sm leading-snug">Puck (Male American Accent)</span>
+                      <span className="block text-[10px] font-medium text-blue-700 mt-0.5 uppercase">ENFORCED (VOYAGER ONLY)</span>
                     </div>
                   </div>
                 </div>

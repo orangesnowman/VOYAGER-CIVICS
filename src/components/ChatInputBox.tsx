@@ -276,9 +276,6 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
           className="flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 group text-white hover:text-[#FFD700]"
           title={selectedLang === 'EN' ? 'Mode of Interaction' : 'Modo de Interactuar'}
         >
-          {isPaused && (
-            <Pause className="w-4 h-4 mb-1 animate-pulse text-white fill-white" />
-          )}
           <span className="text-xs sm:text-sm font-normal tracking-wide text-white group-hover:text-[#FFD700]">
             {getDisplayBadgeText()}
           </span>
@@ -345,29 +342,6 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                     </button>
                   );
                 })}
-
-                {/* Pausa / Resume Option */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    handlePauseToggle();
-                    setIsModeMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-all cursor-pointer font-medium ${
-                    isPaused
-                      ? 'text-[#FFD700] font-bold bg-amber-400/10 border border-amber-400/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60 border border-transparent'
-                  }`}
-                >
-                  <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-300">
-                    {isPaused ? <Play className="w-4 h-4 text-[#FFD700] fill-[#FFD700]" /> : <Pause className="w-4 h-4 text-slate-300" />}
-                  </div>
-                  <span className="truncate">
-                    {isPaused
-                      ? (selectedLang === 'EN' ? 'Resume' : 'Reanudar')
-                      : (selectedLang === 'EN' ? 'Pause' : 'Pausa')}
-                  </span>
-                </button>
               </div>
             </div>
           </>

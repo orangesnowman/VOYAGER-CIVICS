@@ -242,26 +242,41 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
                 return Math.min(100, Math.round(val));
               };
 
+              const metricSupportRuleEn = 'IMPORTANT VOYAGER MANDATE FOR INTERACTIVE GRAPH ANALYSIS: As Voyager, when the user clicks this graph or metric, you MUST analyze and explain in natural dynamic language: 1) What this graph/chart represents, 2) What the user\'s current real data/percentage means, 3) Why this metric matters for their real-world English communication and citizenship/immersion goals, and 4) What key conclusion or actionable recommendation can be drawn. Do NOT use fixed static scripts or simply repeat numbers. Do NOT teach an English lesson or ask practice questions in this response.';
+              const metricSupportRuleEs = 'REGLA Y MANDATO OBLIGATORIO DE VOYAGER PARA ANÁLISIS DE GRÁFICAS: Como Voyager, cuando el usuario hace clic en esta gráfica o métrica, DEBES explicar y analizar en lenguaje natural y dinámico: 1) Qué representa la gráfica, 2) Qué significan sus datos reales actuales y porcentaje, 3) Por qué importa esta métrica para su comunicación real en inglés y sus metas (como ciudadanía o inserción laboral), y 4) Qué conclusión o recomendación clave se puede sacar. NO uses textos fijos ni te limites a repetir números. NO des una clase de inglés ni hagas preguntas de práctica en esta respuesta.';
+
               const items = [
                 {
                   title: selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación',
                   pct: getPct(scores.pronunciation, 94),
-                  sub: selectedLang === 'EN' ? '30-day accuracy' : 'Precisión 30d'
+                  sub: selectedLang === 'EN' ? '30-day accuracy' : 'Precisión 30d',
+                  prompt: selectedLang === 'EN'
+                    ? `[AUTO_SYSTEM: The user clicked on their Pronunciation metric (${getPct(scores.pronunciation, 94)}%). Explain what this metric means, how speech accuracy is evaluated, and what steps to take to improve it. ${metricSupportRuleEn}]`
+                    : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Pronunciación (${getPct(scores.pronunciation, 94)}%). Explícale qué significa esta métrica, cómo se mide la precisión al hablar y qué pasos tomar para mejorarla. ${metricSupportRuleEs}]`
                 },
                 {
                   title: selectedLang === 'EN' ? 'Fluency' : 'Fluidez',
                   pct: getPct(scores.naturalness, 87),
-                  sub: selectedLang === 'EN' ? 'Natural flow' : 'Flujo natural'
+                  sub: selectedLang === 'EN' ? 'Natural flow' : 'Flujo natural',
+                  prompt: selectedLang === 'EN'
+                    ? `[AUTO_SYSTEM: The user clicked on their Fluency metric (${getPct(scores.naturalness, 87)}%). Explain what this metric means, how conversation flow is evaluated, and actions to improve it. ${metricSupportRuleEn}]`
+                    : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Fluidez (${getPct(scores.naturalness, 87)}%). Explícale qué significa esta métrica, cómo se evalúa el ritmo conversacional y acciones para mejorarla. ${metricSupportRuleEs}]`
                 },
                 {
                   title: selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario',
                   pct: getPct(scores.grammar, 76),
-                  sub: selectedLang === 'EN' ? 'Words retained' : 'Palabras retenidas'
+                  sub: selectedLang === 'EN' ? 'Words retained' : 'Palabras retenidas',
+                  prompt: selectedLang === 'EN'
+                    ? `[AUTO_SYSTEM: The user clicked on their Vocabulary metric (${getPct(scores.grammar, 76)}%). Explain what this metric means, how word retention is tracked, and strategies to improve active vocabulary. ${metricSupportRuleEn}]`
+                    : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Vocabulario (${getPct(scores.grammar, 76)}%). Explícale qué significa esta métrica, cómo se registra la retención y estrategias para mejorar el vocabulario activo. ${metricSupportRuleEs}]`
                 },
                 {
                   title: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
                   pct: getPct(scores.confidence, 91),
-                  sub: selectedLang === 'EN' ? 'More security' : 'Más seguridad'
+                  sub: selectedLang === 'EN' ? 'More security' : 'Más seguridad',
+                  prompt: selectedLang === 'EN'
+                    ? `[AUTO_SYSTEM: The user clicked on their Confidence metric (${getPct(scores.confidence, 91)}%). Explain what this metric means and practical recommendations on how to build speaking confidence. ${metricSupportRuleEn}]`
+                    : `[AUTO_SYSTEM: El usuario hizo clic en su métrica de Confianza (${getPct(scores.confidence, 91)}%). Explícale qué significa esta métrica y recomendaciones prácticas sobre cómo desarrollar mayor confianza al hablar. ${metricSupportRuleEs}]`
                 }
               ];
 
@@ -269,9 +284,15 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
                 const strokeDashoffset = circumference - (item.pct / 100) * circumference;
 
                 return (
-                  <div key={idx} className="flex flex-col items-center text-center bg-black/30 p-2 rounded-lg border border-white/5">
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => onAskVoyager(item.prompt)}
+                    className="flex flex-col items-center text-center bg-black/30 p-2.5 rounded-xl border border-white/10 hover:scale-105 transition-all duration-200 cursor-pointer group focus:outline-none"
+                    title={selectedLang === 'EN' ? `Click to ask Voyager about ${item.title}` : `Haz clic para que Voyager te explique ${item.title}`}
+                  >
                     <div className="relative w-16 h-16 flex items-center justify-center my-0.5">
-                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90 transform">
+                      <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
                         <circle
                           cx="40"
                           cy="40"
@@ -290,16 +311,16 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
                           strokeDasharray={circumference}
                           strokeDashoffset={strokeDashoffset}
                           strokeLinecap="butt"
-                          className="transition-all duration-700 ease-out"
+                          className="transition-all duration-700 ease-out group-hover:stroke-amber-300"
                         />
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-mono font-black text-white">
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-mono font-black text-white group-hover:scale-110 group-hover:text-amber-400 transition-all">
                         {item.pct}%
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-neutral-200 mt-1 font-mono">{item.title}</span>
+                    <span className="text-[10px] font-bold text-neutral-200 mt-1 font-mono group-hover:text-amber-300 transition-colors">{item.title}</span>
                     <span className="text-[8px] text-neutral-400 font-mono">{item.sub}</span>
-                  </div>
+                  </button>
                 );
               });
             })()}

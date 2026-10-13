@@ -456,22 +456,22 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
                       <Bot strokeWidth={2.5} className="w-5 h-5 text-red-600" />
                     </div>
                   )}
-                  <div className={`chat-message-text whitespace-pre-line tracking-wider leading-snug ${isUser ? 'text-right font-normal' : 'text-left'}`}>
+                  <div className={`chat-message-text whitespace-pre-line tracking-wider leading-snug text-[10pt] ${isUser ? 'text-right font-normal' : 'text-left'}`}>
                     {(() => {
                       if (!isUser && displayTxt.includes(" / ")) {
                         const parts = displayTxt.split(" / ");
                         if (parts.length >= 2) {
                           return (
                             <>
-                              <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(parts[0])}</div>
-                              <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="chat-message-english text-black font-semibold leading-snug mt-2">
+                              <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 400, fontSize: '10pt' }} className="text-black font-normal text-[10pt] leading-snug">{parseAndRenderEmojis(parts[0])}</div>
+                              <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 400, fontSize: '10pt' }} className="chat-message-english text-black font-normal text-[10pt] leading-snug mt-2">
                                 {parseAndRenderEmojis(parts.slice(1).join(" / "))}
                               </div>
                             </>
                           );
                         }
                       }
-                      return <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 600 }} className="text-black font-semibold leading-snug">{parseAndRenderEmojis(displayTxt)}</div>;
+                      return <div style={{ fontFamily: '"Raleway", sans-serif', fontWeight: 400, fontSize: '10pt' }} className="text-black font-normal text-[10pt] leading-snug">{parseAndRenderEmojis(displayTxt)}</div>;
                     })()}
                   </div>
                 </div>

@@ -51,6 +51,7 @@ interface SettingsPanelProps {
   onRedoOnboarding?: () => void;
   onLogout?: () => void;
   onNavigateTab?: (tab: 'home' | 'chat' | 'progress' | 'roadmap' | 'teachers' | 'settings') => void;
+  onOpenDiagnostic?: () => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -68,7 +69,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   setIsEnglishOnlyMode,
   onRedoOnboarding,
   onLogout,
-  onNavigateTab
+  onNavigateTab,
+  onOpenDiagnostic
 }) => {
   const [voiceSpeed, setVoiceSpeed] = useState<'slow' | 'normal' | 'fast'>('normal');
   const [autoPlayAudio, setAutoPlayAudio] = useState<boolean>(true);
@@ -559,6 +561,31 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 />
                 <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#865918]"></div>
               </label>
+            </div>
+
+            {/* Audio & Pipeline Diagnostic Panel Option */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-neutral-50 rounded-lg border border-[#e8ded0]">
+              <div className="flex items-center gap-2.5">
+                <Activity className="w-4 h-4 text-amber-600 animate-pulse flex-shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-[#231d17]">
+                    {isEn ? 'Audio & Pipeline Diagnostic Panel' : 'Panel de Diagnóstico de Audio y Voz'}
+                  </div>
+                  <div className="text-[10px] text-neutral-500">
+                    {isEn ? 'Real-time WebSocket connection state, audio streaming metrics, and latency logs' : 'Estado de conexión WebSocket en tiempo real, métricas de audio y registros de voz'}
+                  </div>
+                </div>
+              </div>
+              {onOpenDiagnostic && (
+                <button
+                  type="button"
+                  onClick={onOpenDiagnostic}
+                  className="px-3.5 py-1.5 bg-[#231d17] hover:bg-black text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 active:scale-95 shadow-xs"
+                >
+                  <Activity className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span>{isEn ? 'Open Diagnostic' : 'Abrir Diagnóstico'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

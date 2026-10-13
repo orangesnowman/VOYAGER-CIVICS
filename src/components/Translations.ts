@@ -49,7 +49,9 @@ export const translations = {
     reviewChat: "Califica tu Sesión con Voyager",
     submitReview: "Enviar Calificación",
     reviewPlaceholder: "Tell us how your conversation went...",
-    thankYouReview: "Thank you for practicing with Voyager!"
+    thankYouReview: "Thank you for practicing with Voyager!",
+    pauseTooltip: "Pause",
+    resumeTooltip: "Resume"
   },
   ES: {
     standby: "EN ESPERA",
@@ -99,7 +101,9 @@ export const translations = {
     reviewChat: "Califica tu Sesión con Voyager",
     submitReview: "Enviar Calificación",
     reviewPlaceholder: "Cuéntanos sobre tu experiencia de práctica...",
-    thankYouReview: "¡Gracias por practicar con Voyager!"
+    thankYouReview: "¡Gracias por practicar con Voyager!",
+    pauseTooltip: "Pausar",
+    resumeTooltip: "Reanudar"
   }
 };
 

@@ -26,10 +26,29 @@ import {
 export interface UxPanelProps {
   selectedLang: 'EN' | 'ES';
   onNavigateTab?: (tab: string) => void;
+  onAskVoyager?: (prompt: string) => void;
 }
 
-export const UxPanel: React.FC<UxPanelProps> = ({ selectedLang, onNavigateTab }) => {
+export const UxPanel: React.FC<UxPanelProps> = ({ selectedLang, onNavigateTab, onAskVoyager }) => {
   const isEn = selectedLang === 'EN';
+
+  const triggerGraphAnalysis = (chartTitle: string, contextData: string) => {
+    if (onAskVoyager) {
+      onAskVoyager(
+        `[INSTRUCCIÓN DE SISTEMA - ANÁLISIS DE GRÁFICA CIRCULAR DE UX Y ARQUETIPOS DE USUARIO]:
+El usuario hizo clic en la gráfica circular de "${chartTitle}".
+Datos actuales de la gráfica: ${contextData}.
+
+Como Voyager, proporciona un análisis de experiencia de usuario (UX) e investigación de clientes en exactamente 4 puntos dinámicos:
+1) Qué muestra esta gráfica circular de arquetipos de usuario.
+2) Qué significan los datos reales actuales de perfiles demográficos y comportamientos.
+3) Por qué importa para el diseño de interfaz, usabilidad y retención de USA Voyager.
+4) Qué conclusión útil y optimización de UX o flujo de aprendizaje se extrae.
+
+IMPORTANTE: Responde de forma fluida y natural en ${isEn ? 'English' : 'Español'}. No uses plantillas rígidas ni te limites a repetir porcentajes.`
+      );
+    }
+  };
 
   // Interactive Ideal Client Definition Inputs State
   const [targetAge, setTargetAge] = useState<string>('26-40');
@@ -413,7 +432,7 @@ export const UxPanel: React.FC<UxPanelProps> = ({ selectedLang, onNavigateTab })
             {/* CIRCLEGRAPH WHEEL */}
             <div className="flex flex-col items-center justify-center p-2 select-none group" onMouseLeave={() => setHoveredArchetype(null)}>
               <div className="relative flex items-center justify-center">
-                <svg width="180" height="180" viewBox="0 0 140 140" className="transform -rotate-90 drop-shadow-sm transition-all duration-300">
+                <svg width="180" height="180" viewBox="0 0 140 140" className="transform -rotate-90 transition-all duration-300 group-hover:scale-105 cursor-pointer">
                   <circle cx="70" cy="70" r="52" stroke="#f1f5f9" strokeWidth="14" fill="transparent" />
 
                   {archetypes.map((arch) => {
@@ -431,19 +450,36 @@ export const UxPanel: React.FC<UxPanelProps> = ({ selectedLang, onNavigateTab })
                         strokeDasharray={arch.strokeDash}
                         strokeDashoffset={arch.strokeOffset}
                         fill="transparent"
-                        className={`transition-all duration-300 cursor-pointer ${
+                        className={`transition-all duration-300 cursor-pointer hover:stroke-[18] hover:brightness-115 ${
                           isDimmed ? 'opacity-30' : 'opacity-100'
                         }`}
                         onMouseEnter={() => setHoveredArchetype(arch.id)}
                         onMouseLeave={() => setHoveredArchetype(null)}
-                        onClick={() => setSelectedArchetype(selectedArchetype === arch.id ? null : arch.id)}
+                        onClick={() => {
+                          setSelectedArchetype(selectedArchetype === arch.id ? null : arch.id);
+                          triggerGraphAnalysis(
+                            isEn ? 'User Archetype Distribution' : 'Distribución de Arquetipos de Usuario',
+                            `${arch.label}: ${arch.percentage} (${arch.revenue})`
+                          );
+                        }}
                       />
                     );
                   })}
                 </svg>
 
                 {/* Donut Wheel Inner Text */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2 pointer-events-none">
+                <div 
+                  className="absolute inset-0 flex flex-col items-center justify-center text-center p-2 cursor-pointer rounded-full border border-transparent transition-all duration-300 hover:scale-105 group/center"
+                  onClick={() => {
+                    setSelectedArchetype(null);
+                    setHoveredArchetype(null);
+                    triggerGraphAnalysis(
+                      isEn ? 'User Archetype Overview' : 'Resumen de Arquetipos de Usuario',
+                      'Target Archetypes Breakdown: US Professional 48%, LATAM Immigrant 32%, Traveler/Tourist 20%'
+                    );
+                  }}
+                  title={isEn ? 'Click to analyze overall graph' : 'Clic para analizar gráfica general'}
+                >
                   <span className="text-2xl font-black text-slate-900 leading-none transition-all duration-300">
                     {activeArchetype ? activeArchetype.percentage : '48%'}
                   </span>
@@ -468,7 +504,13 @@ export const UxPanel: React.FC<UxPanelProps> = ({ selectedLang, onNavigateTab })
                     key={arch.id}
                     onMouseEnter={() => setHoveredArchetype(arch.id)}
                     onMouseLeave={() => setHoveredArchetype(null)}
-                    onClick={() => setSelectedArchetype(selectedArchetype === arch.id ? null : arch.id)}
+                    onClick={() => {
+                      setSelectedArchetype(selectedArchetype === arch.id ? null : arch.id);
+                      triggerGraphAnalysis(
+                        isEn ? 'User Archetype Distribution' : 'Distribución de Arquetipos de Usuario',
+                        `${arch.label}: ${arch.percentage} (${arch.revenue})`
+                      );
+                    }}
                     className={`p-1.5 rounded-xl transition-all duration-200 cursor-pointer flex items-center justify-start gap-4 ${
                       isActive 
                         ? 'bg-slate-50 opacity-100 scale-[1.02]' 

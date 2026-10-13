@@ -226,12 +226,12 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
   };
 
   return (
-    <div className="w-full bg-gradient-to-br from-[#0D224A] via-[#102A5C] to-[#0A1938] border border-amber-400/40 rounded-2xl p-4 md:p-5 shadow-2xl text-white my-3 relative overflow-hidden animate-fade-in">
+    <div className="w-full bg-gradient-to-br from-[#0D224A] via-[#102A5C] to-[#0A1938] rounded-2xl p-4 md:p-5 shadow-2xl text-white my-3 relative overflow-hidden animate-fade-in">
       {/* Background Ambient Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/10 relative z-10">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 relative z-10">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center shadow-lg text-slate-900 shrink-0">
             <Target className="w-5 h-5 stroke-[2.5]" />
@@ -241,7 +241,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
               <h3 className="text-base md:text-lg font-black tracking-wide text-white uppercase">
                 {selectedLang === 'EN' ? 'English Level Assessment' : 'Evaluación de Nivel de Inglés'}
               </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 uppercase">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 uppercase">
                 A1 - C2 Scale
               </span>
             </div>
@@ -265,13 +265,13 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
       </div>
 
       {/* Current Stage Bar */}
-      <div className="mt-4 bg-white/5 border border-white/10 rounded-xl p-3 relative z-10">
+      <div className="mt-4 bg-white/5 rounded-xl p-3 relative z-10">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />
             {selectedLang === 'EN' ? currentStageInfo.nameEn : currentStageInfo.nameEs}
           </span>
-          <span className="text-[11px] font-mono text-blue-200 bg-blue-900/50 px-2 py-0.5 rounded-md border border-blue-400/30">
+          <span className="text-[11px] font-mono text-blue-200 bg-blue-900/50 px-2 py-0.5 rounded-md">
             {selectedLang === 'EN' ? currentStageInfo.levelEn : currentStageInfo.levelEs}
           </span>
         </div>
@@ -293,7 +293,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
         </div>
 
         {/* Current Prompt Box */}
-        <div className="mt-3 p-3 rounded-lg bg-[#091630] border border-amber-400/30 text-left">
+        <div className="mt-3 p-3 rounded-lg bg-[#091630] text-left">
           <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block mb-1">
             {selectedLang === 'EN' ? 'Voyager Prompt Question:' : 'Pregunta Diagnóstica de Voyager:'}
           </span>
@@ -336,7 +336,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
 
         <button
           onClick={() => setShowReportModal(true)}
-          className="px-3 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/40 text-blue-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+          className="px-3 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
         >
           <Award className="w-4 h-4 text-amber-400" />
           <span>{selectedLang === 'EN' ? 'Diagnostic Summary' : 'Resumen Diagnóstico'}</span>
@@ -354,9 +354,9 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
       {/* Diagnostic Report Modal / Drawer */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 md:p-6 z-50 animate-fade-in overflow-y-auto">
-          <div className="bg-[#0A1938] border-2 border-amber-400/60 rounded-3xl max-w-2xl w-full p-5 md:p-7 text-white shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
+          <div className="bg-[#0A1938] rounded-3xl max-w-2xl w-full p-5 md:p-7 text-white shadow-2xl relative my-auto max-h-[90vh] overflow-y-auto custom-scrollbar">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/15">
+            <div className="flex items-center justify-between pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg">
                   {determinedLevel}
@@ -379,7 +379,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
             </div>
 
             {/* Overall Assigned Level Banner */}
-            <div className="my-5 p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-transparent border border-amber-400/40 flex items-center justify-between gap-4">
+            <div className="my-5 p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/10 to-transparent flex items-center justify-between gap-4">
               <div>
                 <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest block">
                   {selectedLang === 'EN' ? 'Assigned CEFR Level:' : 'Nivel Asignado EE. UU. / Internacional:'}
@@ -393,7 +393,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
                     : 'Capaz de mantener conversaciones naturales y espontáneas en inglés americano con buena precisión.'}
                 </p>
               </div>
-              <div className="text-center px-4 py-2 bg-amber-400/20 rounded-xl border border-amber-400/40 shrink-0">
+              <div className="text-center px-4 py-2 bg-amber-400/20 rounded-xl shrink-0">
                 <span className="text-2xl font-black text-amber-300">{overallScore}%</span>
                 <span className="text-[9px] font-bold text-white uppercase block">
                   {selectedLang === 'EN' ? 'Overall' : 'Promedio'}
@@ -450,7 +450,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
                   { key: 'pronunciation', labelEn: 'Pronunciation & Clarity', labelEs: 'Pronunciación y Claridad', val: scores.pronunciation },
                   { key: 'interaction', labelEn: 'Interaction & Confidence', labelEs: 'Interacción y Confianza', val: scores.interaction },
                 ].map((item) => (
-                  <div key={item.key} className="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                  <div key={item.key} className="bg-white/5 p-2.5 rounded-xl">
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-blue-100 font-medium">
                         {selectedLang === 'EN' ? item.labelEn : item.labelEs}
@@ -470,7 +470,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
 
             {/* Strengths & Growth Areas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-emerald-950/40 border border-emerald-500/30 p-3.5 rounded-2xl">
+              <div className="bg-emerald-950/40 p-3.5 rounded-2xl">
                 <h5 className="text-xs font-bold text-emerald-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4" />
                   {selectedLang === 'EN' ? 'Key Strengths' : 'Fortalezas Clave'}
@@ -482,7 +482,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
                 </ul>
               </div>
 
-              <div className="bg-amber-950/40 border border-amber-500/30 p-3.5 rounded-2xl">
+              <div className="bg-amber-950/40 p-3.5 rounded-2xl">
                 <h5 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Target className="w-4 h-4" />
                   {selectedLang === 'EN' ? 'Growth Focus Areas' : 'Áreas para Trabajar'}
@@ -495,7 +495,7 @@ export const EnglishAssessment: React.FC<EnglishAssessmentProps> = ({
             </div>
 
             {/* Modal Bottom Actions */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-white/15">
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-4">
               <button
                 onClick={() => setShowReportModal(false)}
                 className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition cursor-pointer"
