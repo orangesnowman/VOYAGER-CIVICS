@@ -28,7 +28,7 @@ import { AuthErrorNotification } from './AuthErrorNotification';
 import voyagerRobot from '../assets/images/voyager_robot_1783082204380.png';
 import chatAvatarIcon from '../assets/images/voyager_pixel_avatar_1784465509169.jpg';
 import { PointingHandIcon } from './PointingHandIcon';
-import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, Star, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, ShieldCheck, FileText, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, AlarmClock, Trophy, PartyPopper, Target, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal, Bookmark, BookmarkCheck, Trash2, Maximize, Minimize, Zap, Activity, Keyboard, LogOut, LogIn, TrendingUp, UserPlus, FolderOpen, Pencil, AlertTriangle } from 'lucide-react';
+import { Mic, MicOff, Plus, Compass, MapPin, Languages, Sparkles, Star, ArrowLeft, ArrowRight, Headphones, AudioLines, MessageSquare, User, Settings, Sliders, ShoppingBag, Globe, Apple, Home, Pause, Play, Square, Info, Shield, ShieldCheck, FileText, Copyright, Bot, Eye, EyeOff, ShoppingCart, Briefcase, BookOpen, Luggage, Rocket, Check, UserCheck, Presentation, MessageSquareText, Plane, Sprout, Flower, TreeDeciduous, GraduationCap, Award, Mail, Menu, X, Power, Clock, Timer, AlarmClock, Trophy, PartyPopper, Target, Volume2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CheckCircle2, HelpCircle, Send, RotateCw, ThumbsUp, ThumbsDown, Moon, Sun, Copy, VolumeX, MessageSquarePlus, SendHorizontal, Bookmark, BookmarkCheck, Trash2, Maximize, Minimize, Zap, Activity, Keyboard, LogOut, LogIn, TrendingUp, UserPlus, FolderOpen, Pencil, AlertTriangle } from 'lucide-react';
 
 import { ChatMessage, Lead, TravelDestination, PronunciationFeedbackEvent, ConversationEvent } from './LiveAgentTypes';
 import { TRAVEL_PRESETS } from './TravelPresets';
@@ -4778,15 +4778,15 @@ ${greetingPrompt}`;
   const renderVoiceControlCenterIcon = () => (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
       {isPaused ? (
-        /* PAUSED: Golden microphone in subtle inactive animation state. NO PLAY ICON! */
+        /* PAUSED: White 20% transparent (80% opacity) in subtle inactive animation state */
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          stroke="#FACC15"
+          stroke="rgba(255, 255, 255, 0.8)"
           strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="w-7 h-7 sm:w-8 sm:h-8 opacity-75 group-hover:opacity-100 transition-all duration-200 drop-shadow-[0_0_6px_rgba(250,204,21,0.35)] group-hover:scale-105"
+          className="w-7 h-7 sm:w-8 sm:h-8 opacity-85 group-hover:opacity-100 group-hover:stroke-[#FACC15] transition-all duration-200 drop-shadow-[0_0_6px_rgba(255,255,255,0.3)] group-hover:scale-105"
         >
           <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
           <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -4794,16 +4794,16 @@ ${greetingPrompt}`;
           <line x1="8" x2="16" y1="22" y2="22" />
         </svg>
       ) : (
-        /* ACTIVE: Golden microphone normally, Pause (two vertical lines) on hover */
+        /* ACTIVE: White 20% transparent (80% opacity) normally, Pause on hover */
         <>
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#FACC15"
+            stroke="rgba(255, 255, 255, 0.8)"
             strokeWidth="1.6"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 group-hover:hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
+            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 group-hover:hidden drop-shadow-[0_0_6px_rgba(255,255,255,0.3)]"
           >
             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -4813,11 +4813,11 @@ ${greetingPrompt}`;
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#FACC15"
+            stroke="rgba(255, 255, 255, 0.8)"
             strokeWidth="2.32"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 hidden group-hover:block drop-shadow-[0_0_8px_rgba(250,204,21,0.5)]"
+            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 hidden group-hover:block drop-shadow-[0_0_6px_rgba(255,255,255,0.35)]"
           >
             <line x1="8.2" x2="8.2" y1="4.5" y2="19.5" />
             <line x1="15.8" x2="15.8" y1="4.5" y2="19.5" />
@@ -5015,10 +5015,12 @@ ${greetingPrompt}`;
             <button
               type="button"
               onClick={handleLogout}
-              className="text-[11px] font-bold text-amber-300 hover:text-amber-200 hover:underline cursor-pointer shrink-0 transition-colors flex items-center gap-1.5"
+              className="text-[11px] font-bold text-slate-300 hover:text-[#FFD700] no-underline cursor-pointer shrink-0 transition-colors duration-200 flex items-center gap-1.5 group select-none py-0.5 px-1.5 rounded-md active:scale-95"
+              title={selectedLang === 'EN' ? 'Close session' : 'Cerrar sesión'}
+              aria-label={selectedLang === 'EN' ? 'Close session' : 'Cerrar sesión'}
             >
-              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-              <span>{selectedLang === 'EN' ? 'Close' : 'Cerrar'}</span>
+              <X className="w-3 h-3 text-slate-300 group-hover:text-[#FFD700] shrink-0 stroke-[2.5] transition-colors duration-200" />
+              <span className="no-underline">{selectedLang === 'EN' ? 'Close' : 'Cerrar'}</span>
             </button>
           </div>
         )}
@@ -5088,28 +5090,36 @@ ${greetingPrompt}`;
  {!hasClickedConnect ? (
  /* Disconnected Landing Screen inside the Cover */
  <>
- <div className="flex-1 flex flex-col items-center justify-center pt-2 pb-2 w-full relative z-10">
+ <div className="absolute inset-0 flex flex-col items-center justify-center p-4 z-10 pointer-events-none">
  <img 
- src="https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k" 
+ src={voyagerRobot || '/voyager_robot.png'} 
  alt="Voyager USA Mascot" 
  referrerPolicy="no-referrer"
+ onError={(e) => {
+   const target = e.currentTarget;
+   if (!target.src.includes('voyager_robot.png')) {
+     target.src = '/voyager_robot.png';
+   } else if (!target.src.includes('lh3.googleusercontent.com')) {
+     target.src = 'https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k';
+   }
+ }}
  onClick={handleConnectClick}
  title={selectedLang === 'EN' ? 'Click to Connect' : 'Haz clic para conectar'}
- className="w-[220px] h-[220px] sm:w-[280px] sm:h-[280px] md:w-[340px] md:h-[340px] max-w-[95%] max-h-[40vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply" 
+ className="w-[385px] h-[385px] sm:w-[490px] sm:h-[490px] md:w-[595px] md:h-[595px] max-w-[95%] max-h-[75vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply pointer-events-auto select-none" 
  />
+ </div>
+ <div className="md:hidden absolute bottom-16 left-0 right-0 z-20 flex justify-center pointer-events-auto">
  <button
    onClick={handleConnectClick}
-   className="mt-4 md:hidden px-8 py-2.5 rounded-full bg-[#0D224A] text-white font-mono font-bold text-xs uppercase tracking-widest border border-amber-400/60 shadow-xl active:scale-95 hover:bg-[#15346e] transition-all cursor-pointer"
+   className="px-8 py-2.5 rounded-full bg-[#0D224A] text-white font-mono font-bold text-xs uppercase tracking-widest border border-amber-400/60 shadow-xl active:scale-95 hover:bg-[#15346e] transition-all cursor-pointer"
    title={selectedLang === 'EN' ? 'Enter' : 'Entrada'}
  >
    ENTRADA
  </button>
  </div>
 
-
-
  {/* Footer Text */}
- <div className="pb-4 z-10 px-2 flex flex-col items-center flex-shrink-0 w-full">
+ <div className="absolute bottom-4 left-0 right-0 z-10 px-2 flex flex-col items-center pointer-events-auto">
  {/* Footer Buttons Row */}
  <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono select-none max-w-full">
  {/* Copyright Button */}
@@ -5487,11 +5497,11 @@ ${greetingPrompt}`;
 
  </div>
  ) : (
- <div className={`flex-grow flex flex-col overflow-hidden ${
+ <div className={`flex-grow h-full w-full flex flex-col overflow-hidden ${
    rightPanelTab === 'chat' ? 'pt-1 px-2.5 sm:px-4 md:px-5 pb-1' : 'pt-1 px-3 sm:px-5 pb-1.5 md:pt-1 md:px-6 md:pb-2'
  } min-h-0 ${isDarkMode && rightPanelTab === 'chat' ? 'bg-[#0F172A]' : 'bg-white'} transition-colors duration-300`}>
  {/* Old sub-header bar has been removed */}
-          {(!hasInteracted && hasClickedConnect && rightPanelTab === 'home') ? (
+          {(!hasInteracted && hasClickedConnect && rightPanelTab === 'home' && onboardingStep > 0) ? (
  <div className="flex-grow flex flex-col justify-center items-center overflow-y-auto p-4 md:p-6 tab-content-area h-full select-none">
  <div className="w-full max-w-2xl mx-auto flex flex-col justify-start p-2 sm:p-4 animate-fade-in">
  {authNotification && (
@@ -5517,10 +5527,18 @@ ${greetingPrompt}`;
  {/* Left: Mascot */}
  <div className="flex items-center justify-center w-full">
  <img 
- src="https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k" 
+ src={voyagerRobot || '/voyager_robot.png'} 
  alt="Voyager USA Mascot" 
  referrerPolicy="no-referrer"
- className="w-full max-w-[220px] md:max-w-[260px] object-contain animate-float-zero-g mix-blend-multiply" 
+ onError={(e) => {
+   const target = e.currentTarget;
+   if (!target.src.includes('voyager_robot.png')) {
+     target.src = '/voyager_robot.png';
+   } else if (!target.src.includes('lh3.googleusercontent.com')) {
+     target.src = 'https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k';
+   }
+ }}
+ className="w-full max-w-[385px] md:max-w-[455px] object-contain animate-float-zero-g mix-blend-multiply" 
  />
  </div>
 
@@ -6308,9 +6326,9 @@ ${greetingPrompt}`;
  </div>
  </div>
           ) : rightPanelTab === 'home' ? (
- <div className="flex-grow flex flex-col justify-between items-center text-center p-4 sm:p-6 h-full animate-fade-in tab-content-area">
+ <div className="flex-1 h-full min-h-0 flex flex-col items-center justify-center text-center px-4 py-2 sm:px-6 animate-fade-in relative w-full overflow-hidden">
  {authNotification && (
-              <div className="w-full max-w-xl px-2 sm:px-4 pt-1 sm:pt-2 z-10">
+              <div className="w-full max-w-xl px-2 sm:px-4 pt-1 sm:pt-2 z-20 absolute top-2 left-1/2 -translate-x-1/2">
                 {/auth\/|Error|error|blocked|failed|incorrect|unauthorized|registered/i.test(authNotification) ? (
                   <AuthErrorNotification
                     error={authNotification}
@@ -6327,155 +6345,75 @@ ${greetingPrompt}`;
               </div>
             )}
             
-            {/* MIDDLE: Voyager Mascot & Email Login Card */}
- <div className="flex-1 flex flex-col items-center justify-center py-2 sm:py-4 w-full relative z-10 gap-3 sm:gap-4">
- <img 
- src="https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k" 
- alt="Voyager USA Mascot" 
- referrerPolicy="no-referrer"
- className="w-[180px] h-[180px] sm:w-[220px] sm:h-[220px] md:w-[250px] md:h-[250px] max-w-[90%] max-h-[38vh] object-contain animate-float-zero-g mix-blend-multiply" 
- />
+            {/* CENTER: Voyager Mascot Perfectly Centered Vertically and Horizontally */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+              <img 
+                src={voyagerRobot || '/voyager_robot.png'} 
+                alt="Voyager USA Mascot" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  if (!target.src.includes('voyager_robot.png')) {
+                    target.src = '/voyager_robot.png';
+                  } else if (!target.src.includes('lh3.googleusercontent.com')) {
+                    target.src = 'https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k';
+                  }
+                }}
+                onClick={handleConnectClick}
+                title={selectedLang === 'EN' ? 'Click to Start Conversation' : 'Haz clic para iniciar conversación'}
+                className="w-[420px] h-[420px] sm:w-[490px] sm:h-[490px] md:w-[560px] md:h-[560px] max-w-[95%] max-h-[75vh] object-contain animate-float-zero-g select-none transition-all duration-300 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95" 
+              />
+            </div>
 
- {/* Email Login & Registration Homepage Card */}
- <div className="w-full max-w-sm px-3 sm:px-4 z-20">
-   {!isLoggedIn ? (
-     <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border-2 border-[#1A365D]/20 shadow-xl flex flex-col items-center gap-2 animate-fade-in">
-       <div className="flex items-center gap-2 text-[#1A365D]">
-         <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-[#1A365D] shrink-0" />
-         <span className="font-extrabold text-xs sm:text-sm tracking-tight">
-           {selectedLang === 'EN' ? 'Email / Username Sign In' : 'Acceso con Correo o Usuario'}
-         </span>
-       </div>
+            {/* BOTTOM: Restored Policy Footer Links (Absolute at bottom to preserve vertical and horizontal centering of mascot) */}
+            <div className="absolute bottom-3 sm:bottom-4 z-10 px-2 sm:px-4 flex flex-col items-center w-full left-0 right-0 pointer-events-auto">
+              <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 text-xs sm:text-[13px] font-sans font-medium text-neutral-700 select-none max-w-full">
+                {/* Copyright Button */}
+                <button 
+                  type="button"
+                  onClick={() => setActivePolicyModal('copyright')}
+                  className="flex items-center gap-1.5 sm:gap-2 text-neutral-700 hover:text-black transition-colors duration-200 cursor-pointer whitespace-nowrap group"
+                  title={selectedLang === 'EN' ? 'Copyright' : 'Derechos'}
+                >
+                  <Copyright className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-neutral-700 group-hover:text-black stroke-[2] shrink-0" />
+                  <span>{selectedLang === 'EN' ? 'Copyright' : 'Derechos'}</span>
+                </button>
 
-       {/* Inline Quick Form */}
-       <form 
-         onSubmit={(e) => {
-           e.preventDefault();
-           if (!authEmail) {
-             setAuthIsRegister(false);
-             setAuthModalMode('email');
-             return;
-           }
-           handlePerformEmailAuth(false, authName, authEmail, authPassword);
-         }}
-         className="w-full space-y-2 text-left"
-       >
-         <div>
-           <input 
-             type="text"
-             value={authEmail}
-             onChange={(e) => setAuthEmail(e.target.value)}
-             placeholder={selectedLang === 'EN' ? 'Email or Username' : 'Correo o Nombre de Usuario'}
-             className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A365D] text-slate-800 placeholder-slate-400"
-           />
-         </div>
-         <div>
-           <input 
-             type="password"
-             value={authPassword}
-             onChange={(e) => setAuthPassword(e.target.value)}
-             placeholder={selectedLang === 'EN' ? 'Password' : 'Contraseña'}
-             className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-semibold bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1A365D] text-slate-800 placeholder-slate-400"
-           />
-         </div>
+                {/* Privacy Button */}
+                <button 
+                  type="button"
+                  onClick={() => setActivePolicyModal('privacy')}
+                  className="flex items-center gap-1.5 sm:gap-2 text-neutral-700 hover:text-black transition-colors duration-200 cursor-pointer whitespace-nowrap group"
+                  title={selectedLang === 'EN' ? 'Privacy' : 'Privacidad'}
+                >
+                  <Shield className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-neutral-700 group-hover:text-black stroke-[2] shrink-0" />
+                  <span>{selectedLang === 'EN' ? 'Privacy' : 'Privacidad'}</span>
+                </button>
 
-         <div className="flex items-center justify-between pt-0.5">
-           <button
-             type="button"
-             onClick={() => {
-               setAuthEmail('theorangesnowman@gmail.com');
-               setAuthPassword('Lucas26!');
-             }}
-             className="text-[10px] text-[#1A365D] hover:underline font-extrabold cursor-pointer"
-           >
-             🔑 {selectedLang === 'EN' ? 'Autofill Admin' : 'Autocompletar Admin'}
-           </button>
-         </div>
+                {/* Terms Button */}
+                <button 
+                  type="button"
+                  onClick={() => setActivePolicyModal('terms')}
+                  className="flex items-center gap-1.5 sm:gap-2 text-neutral-700 hover:text-black transition-colors duration-200 cursor-pointer whitespace-nowrap group"
+                  title={selectedLang === 'EN' ? 'Terms' : 'Términos'}
+                >
+                  <FileText className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-neutral-700 group-hover:text-black stroke-[2] shrink-0" />
+                  <span>{selectedLang === 'EN' ? 'Terms' : 'Términos'}</span>
+                </button>
 
-         <div className="flex items-center gap-2 w-full pt-1">
-           <button
-             type="submit"
-             className="flex-1 py-2 px-3 bg-[#1A365D] hover:bg-[#152e50] text-white font-bold text-xs rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-           >
-             <Mail className="w-3.5 h-3.5" />
-             <span>{selectedLang === 'EN' ? 'Sign In' : 'Iniciar Sesión'}</span>
-           </button>
-
-           <button
-             type="button"
-             onClick={() => {
-               setAuthIsRegister(true);
-               setAuthModalMode('email');
-             }}
-             className="flex-1 py-2 px-3 bg-amber-400 hover:bg-amber-500 text-[#1A365D] font-extrabold text-xs rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer border border-amber-500/40"
-           >
-             <UserPlus className="w-3.5 h-3.5" />
-             <span>{selectedLang === 'EN' ? 'Register' : 'Registrarse'}</span>
-           </button>
-         </div>
-       </form>
-     </div>
-   ) : (
-     <div className="bg-white/95 backdrop-blur-md rounded-2xl p-3 border-2 border-[#1A365D]/20 shadow-xl flex items-center justify-between px-4 animate-fade-in">
-       <div className="flex items-center gap-2.5 overflow-hidden">
-         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-         <span className="text-xs font-extrabold text-[#1A365D] truncate">
-           {selectedLang === 'EN' ? 'Logged in:' : 'Sesión Activa:'} <span className="font-bold text-emerald-800">{authUser?.displayName || visitorFullName || userName || (selectedLang === 'EN' ? 'Learner' : 'Estudiante')}</span>
-         </span>
-       </div>
-       <button
-         type="button"
-         onClick={handleLogout}
-         className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 font-bold text-xs rounded-xl border border-rose-500/30 transition-all cursor-pointer shrink-0 ml-2 flex items-center gap-1.5 active:scale-95"
-       >
-         {selectedLang === 'EN' ? 'Log Out' : 'Cerrar Sesión'}
-       </button>
-     </div>
-   )}
- </div>
- </div>
-
- {/* BOTTOM: Footer Buttons Row */}
- <div className="pb-4 sm:pb-6 z-10 px-2 sm:px-4 flex flex-col items-center flex-shrink-0 w-full">
- <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[10px] sm:text-xs font-mono select-none max-w-full">
- {/* Copyright Button */}
- <button 
- onClick={() => setActivePolicyModal('copyright')}
- className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
- >
- <span style={{ fontSize: '1.4em', lineHeight: '1' }} className="font-normal">©</span>
-  <span>{selectedLang === 'EN' ? 'Copyright' : 'Derechos'}</span>
- </button>
-
- {/* Privacy Button */}
- <button 
- onClick={() => setActivePolicyModal('privacy')}
- className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
- >
- <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
-  <span>{selectedLang === 'EN' ? 'Privacy' : 'Privacidad'}</span>
- </button>
-
- {/* Terms Button */}
- <button 
- onClick={() => setActivePolicyModal('terms')}
- className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
- >
- <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-  <span>{selectedLang === 'EN' ? 'Terms' : 'Términos'}</span>
- </button>
-
- {/* Contact Button */}
- <button 
- onClick={() => setActivePolicyModal('contact')}
- className="flex items-center gap-1 sm:gap-1.5 text-neutral-600 hover:text-black transition-colors duration-300 tracking-wider cursor-pointer whitespace-nowrap"
- >
- <Mail className="w-3 h-3 sm:w-4 sm:h-4" />
-  <span>{selectedLang === 'EN' ? 'Contact' : 'Contacto'}</span>
- </button>
- </div>
- </div>
- </div>
+                {/* Contact Button */}
+                <button 
+                  type="button"
+                  onClick={() => setActivePolicyModal('contact')}
+                  className="flex items-center gap-1.5 sm:gap-2 text-neutral-700 hover:text-black transition-colors duration-200 cursor-pointer whitespace-nowrap group"
+                  title={selectedLang === 'EN' ? 'Contact' : 'Contacto'}
+                >
+                  <Mail className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-neutral-700 group-hover:text-black stroke-[2] shrink-0" />
+                  <span>{selectedLang === 'EN' ? 'Contact' : 'Contacto'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
           
    ) : rightPanelTab === 'chat' ? (
  <div className={`flex-grow flex flex-col overflow-hidden h-full ${isDarkMode ? 'bg-[#0F172A]' : 'bg-transparent'} transition-colors duration-300`}>
@@ -6867,6 +6805,16 @@ ${greetingPrompt}`;
                   >
                     <MessageSquarePlus className="w-3.5 h-3.5" />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatMessages(prev => prev.filter(m => m.id !== msg.id));
+                    }}
+                    title={selectedLang === "EN" ? "Delete message" : "Eliminar mensaje"}
+                    className="hover:text-rose-500 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 
@@ -6889,6 +6837,16 @@ ${greetingPrompt}`;
                     className={isDarkMode ? "text-slate-300 hover:text-white transition-colors cursor-pointer" : "text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"}
                   >
                     <MessageSquarePlus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatMessages(prev => prev.filter(m => m.id !== msg.id));
+                    }}
+                    title={selectedLang === "EN" ? "Delete message" : "Eliminar mensaje"}
+                    className="hover:text-rose-500 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}

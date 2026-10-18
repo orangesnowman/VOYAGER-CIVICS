@@ -12,6 +12,7 @@ import { ChatInputBox } from './ChatInputBox';
 import { CivicsProgressTracker } from '../domain/CivicsProgressTracker';
 import { ActivityCalendar } from './ActivityCalendar';
 import { RecommendedProLessonsCarousel } from './RecommendedProLessonsCarousel';
+import { VoyagerMessagingModal } from './VoyagerMessagingModal';
 
 interface RoadmapPanelProps {
   selectedLang: 'EN' | 'ES';
@@ -178,17 +179,27 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
   onToggleEditProfile
 }) => {
   const formatStudyTimeCompact = (rawTime?: string): string => {
-    if (!rawTime) return '5 hr/wk';
+    if (!rawTime) return selectedLang === 'EN' ? '5 hours/week' : '5 horas/semana';
     const val = rawTime.trim().toLowerCase();
-    if (val.includes('5')) return '5 hr/wk';
-    if (val.includes('2')) return '2 hr/wk';
-    if (val.includes('10')) return '10 hr/wk';
-    if (val.includes('7') || val.includes('diaria') || val.includes('daily')) return '7 hr/wk';
-    if (val.includes('1')) return '1 hr/wk';
-    if (val.includes('3')) return '3 hr/wk';
-    if (val.includes('4')) return '4 hr/wk';
-    if (val.includes('hr') || val.includes('wk')) return rawTime;
-    return '5 hr/wk';
+    if (val.includes('horas/semana') || val.includes('hours/week')) return rawTime;
+    if (val.includes('5')) return selectedLang === 'EN' ? '5 hours/week' : '5 horas/semana';
+    if (val.includes('2')) return selectedLang === 'EN' ? '2 hours/week' : '2 horas/semana';
+    if (val.includes('10')) return selectedLang === 'EN' ? '10 hours/week' : '10 horas/semana';
+    if (val.includes('7') || val.includes('diaria') || val.includes('daily')) return selectedLang === 'EN' ? '7 hours/week' : '7 horas/semana';
+    if (val.includes('1')) return selectedLang === 'EN' ? '1 hour/week' : '1 hora/semana';
+    if (val.includes('3')) return selectedLang === 'EN' ? '3 hours/week' : '3 horas/semana';
+    if (val.includes('4')) return selectedLang === 'EN' ? '4 hours/week' : '4 horas/semana';
+    return rawTime;
+  };
+
+  const formatStudyHoursOption = (rawTime?: string): string => {
+    const isEn = selectedLang === 'EN';
+    if (!rawTime) return isEn ? '5 hours/week' : '5 horas/semana';
+    const val = rawTime.trim().toLowerCase();
+    if (val.includes('2')) return isEn ? '2 hours/week' : '2 horas/semana';
+    if (val.includes('10')) return isEn ? '10 hours/week' : '10 horas/semana';
+    if (val.includes('7') || val.includes('diaria') || val.includes('daily')) return isEn ? '7 hours/week' : '7 horas/semana';
+    return isEn ? '5 hours/week' : '5 horas/semana';
   };
 
   const guestUser: UserProfile = {
@@ -483,6 +494,7 @@ export const RoadmapPanel: React.FC<RoadmapPanelProps> = ({
 
   // Internal Mail Modal & Dynamic Letter Grade State
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [messagingUnreadCount, setMessagingUnreadCount] = useState(5);
   const [mailTab, setMailTab] = useState<'inbox' | 'compose'>('inbox');
   const [mailSubject, setMailSubject] = useState('');
   const [mailBody, setMailBody] = useState('');
@@ -940,7 +952,22 @@ REGLA ESTRICTA: NO des clases de inglés, NO hagas preguntas de práctica. Mant�
     if (type === 'astronaut') {
       return (
         <div className="w-full h-full rounded-full bg-white flex items-center justify-center p-1.5 overflow-hidden">
-          <img src={voyagerRobot} alt="Voyager Robot" className="w-full h-full object-contain" />
+          <img 
+            src={voyagerRobot} 
+            alt="Voyager Robot" 
+            loading="eager"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.src.includes('lh3.googleusercontent.com')) {
+                target.src = 'https://lh3.googleusercontent.com/d/1uCm4fqE6Qfxg1lm1FsCbo35fVQcI_E5k';
+              } else if (!target.src.includes('voyager_robot')) {
+                target.src = voyagerRobot;
+              }
+            }}
+            className="w-full h-full object-contain" 
+          />
         </div>
       );
     }
@@ -1171,44 +1198,41 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
           const dynamicStudentFullName = user.name || (user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'FEDERICO SANDOVAL');
 
           return (
-            <div className="w-full shrink-0 bg-white py-2 px-1">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 items-center">
-                <div className="hidden sm:block" />
-                <div className="col-span-3 flex items-center justify-start gap-3 sm:gap-4 pl-2 sm:pl-4">
-                  <button
-                    type="button"
-                    onClick={triggerGradeVoiceExplanation}
-                    className="flex items-center justify-center text-center group cursor-pointer focus:outline-none p-2 rounded-2xl border border-transparent hover:scale-105 active:scale-95 transition-all duration-200 shrink-0"
-                    title={selectedLang === "EN" ? "Click for Voyager grade voice analysis" : "Haz clic para escuchar la explicación de tu calificación por voz"}
-                  >
-                    <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center shrink-0">
-                      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
-                        <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#333333" strokeWidth={strokeWidth} />
-                        <circle
-                          cx="50"
-                          cy="50"
-                          r={radius}
-                          fill="transparent"
-                          stroke="#FACC15"
-                          strokeWidth={strokeWidth}
-                          strokeDasharray={circumference}
-                          strokeDashoffset={strokeDashoffset}
-                          strokeLinecap="butt"
-                          className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-neutral-900 group-hover:scale-110 group-hover:text-amber-600 transition-all">
-                          {gradeData.displayLabel}
-                        </span>
-                      </div>
+            <div className="w-full shrink-0 bg-white py-2 px-3 sm:px-4">
+              <div className="flex items-center justify-start gap-3 sm:gap-4 min-w-0">
+                <button
+                  type="button"
+                  onClick={triggerGradeVoiceExplanation}
+                  className="flex items-center justify-center text-center group cursor-pointer focus:outline-none p-0.5 rounded-2xl border border-transparent hover:scale-105 active:scale-95 transition-all duration-200 shrink-0"
+                  title={selectedLang === "EN" ? "Click for Voyager grade voice analysis" : "Haz clic para escuchar la explicación de tu calificación por voz"}
+                >
+                  <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transform group-hover:scale-110 transition-all duration-300">
+                      <circle cx="50" cy="50" r={radius} fill="transparent" stroke="#333333" strokeWidth={strokeWidth} />
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r={radius}
+                        fill="transparent"
+                        stroke="#FACC15"
+                        strokeWidth={strokeWidth}
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="butt"
+                        className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xl sm:text-2xl font-black font-mono tracking-tight text-neutral-900 group-hover:scale-110 group-hover:text-amber-600 transition-all">
+                        {gradeData.displayLabel}
+                      </span>
                     </div>
-                  </button>
+                  </div>
+                </button>
 
-                  <span className="text-sm sm:text-base md:text-lg font-black uppercase tracking-widest text-neutral-900 font-mono whitespace-nowrap">
-                    {dynamicStudentFullName}
-                  </span>
-                </div>
+                <span className="text-sm sm:text-base md:text-lg font-black uppercase tracking-widest text-neutral-900 font-mono whitespace-nowrap truncate">
+                  {dynamicStudentFullName}
+                </span>
               </div>
             </div>
           );
@@ -1244,7 +1268,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                         onClick={() => {
                           triggerStudentOralReport();
                         }}
-                        className="w-full h-full rounded-2xl bg-neutral-100 border border-neutral-200/80 cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 active:scale-95 group/avatar relative"
+                        className="w-full h-full rounded-full bg-transparent border-0 cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 active:scale-95 group/avatar relative"
                         title={selectedLang === 'EN' ? 'Click photo to hear Voyager oral progress report' : 'Haz clic en la foto para escuchar el informe oral de progreso de Voyager'}
                       >
                         {renderAvatarContent(user)}
@@ -1315,7 +1339,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsEditingProfile(prev => !prev);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                         aria-label={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                       >
@@ -1356,117 +1380,150 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                             setIsAvatarModalOpen(true);
                           }
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={!auth.currentUser ? (selectedLang === 'EN' ? 'Click to login' : 'Haz clic para iniciar sesión') : (selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto')}
                       >
                         <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
 
-                      {/* Internal Communication Mail Button */}
+                      {/* Internal Communication Mail Button - Smooth scroll to integrated section */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setIsMailModalOpen(true);
+                          if (activeSubTab !== 'welcome') {
+                            setActiveSubTab('welcome');
+                          }
+                          setTimeout(() => {
+                            const el = document.getElementById('voyager-messaging-section');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              el.classList.add('ring-2', 'ring-amber-400', 'transition-all');
+                              setTimeout(() => {
+                                el.classList.remove('ring-2', 'ring-amber-400');
+                              }, 1500);
+                            }
+                          }, 60);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
-                        title={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
-                        aria-label={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
+                        title={selectedLang === 'EN' ? 'Voyager Messaging (below calendar)' : 'Mensajería Voyager (debajo del calendario)'}
+                        aria-label={selectedLang === 'EN' ? 'Voyager Messaging' : 'Mensajería Voyager'}
                       >
                         <Mail className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                        {messagingUnreadCount > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF0000]" />
+                        )}
+                      </button>
+
+                      {/* Activity Calendar Navigation Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (activeSubTab !== 'welcome') {
+                            setActiveSubTab('welcome');
+                          }
+                          setTimeout(() => {
+                            const el = document.getElementById('voyager-activity-calendar-section');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              el.classList.add('ring-2', 'ring-amber-400', 'transition-all');
+                              setTimeout(() => {
+                                el.classList.remove('ring-2', 'ring-amber-400');
+                              }, 1500);
+                            }
+                          }, 60);
+                        }}
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        title={selectedLang === 'EN' ? 'Activity Calendar' : 'Calendario de Actividades'}
+                        aria-label={selectedLang === 'EN' ? 'Activity Calendar' : 'Calendario de Actividades'}
+                      >
+                        <Calendar className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
                       </button>
                     </div>
                   </div>
 
                   {/* Right Column: Clean Label-Value Identity Details or Onboarding Editor Card */}
                   {isEditingProfile ? (
-                    <div className="profile-details min-w-0 flex flex-col bg-white p-5 sm:p-7 rounded-2xl border border-black shadow-none animate-fade-in text-neutral-900">
-                      {/* Header matching exact reference guide (Single continuous line, no break) */}
-                      <div className="mb-5 overflow-hidden">
-                        <h3 className="font-bold text-[#081545] text-xl sm:text-2xl md:text-[25px] tracking-normal leading-tight font-sans">
-                          {selectedLang === 'EN' ? 'Registration Information' : 'Información de registro'}
+                    <div className="profile-details min-w-0 flex flex-col bg-white animate-fade-in text-neutral-900">
+                      {/* Header: Title and ID on the same line */}
+                      <div className="mb-2.5 sm:mb-3 flex items-baseline gap-2 sm:gap-2.5 flex-wrap">
+                        <h3 className="font-bold text-[#081545] text-xs sm:text-[13px] md:text-[13.5px] tracking-normal leading-tight font-sans">
+                          {selectedLang === 'EN' ? 'Edit Your Information' : 'Edita tu informacion'}
                         </h3>
-                        <p className="text-xs sm:text-[13px] md:text-sm text-neutral-700 mt-2 font-normal flex items-center whitespace-nowrap select-none overflow-x-auto no-scrollbar font-sans">
-                          <span>
-                            {selectedLang === 'EN'
-                              ? 'Update your data to personalize your learning.'
-                              : 'Actualiza tus datos para personalizar tu aprendizaje.'}
-                          </span>
-                          <span className="text-neutral-400 font-light mx-3 select-none">|</span>
-                          <span>
-                            {selectedLang === 'EN' ? 'Student ID:' : 'ID Estudiante:'}{' '}
-                            <strong className="font-bold text-neutral-950">{user.studentId || 'STU-001'}.</strong>
-                          </span>
-                        </p>
+                        <span className="text-neutral-300 font-light select-none">|</span>
+                        <span className="text-[10px] sm:text-[10.5px] text-neutral-600 font-normal font-sans">
+                          {selectedLang === 'EN' ? 'ID' : 'ID'}{' '}
+                          <strong className="font-bold text-neutral-950">{user.studentId || 'STU-001'}</strong>
+                        </span>
                       </div>
 
                       {/* Toast Notification */}
                       {saveNotification && (
-                        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 font-normal rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in">
+                        <div className="mb-3.5 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 font-normal rounded-xl text-xs sm:text-sm flex items-center gap-2 animate-fade-in">
                           <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
                           <span>{saveNotification}</span>
                         </div>
                       )}
 
                       {/* 2-Column Form Fields Grid matching exact reference guide */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 sm:gap-x-6 gap-y-3 sm:gap-y-3.5">
                         {/* Row 1: Nombre & Apellido */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'First Name' : 'Nombre'}
                           </label>
                           <input
                             type="text"
                             value={editFirstName}
                             onChange={(e) => setEditFirstName(e.target.value)}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            className="w-full h-[27px] px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] placeholder:text-neutral-400 transition-colors"
                             placeholder="Federico"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Last Name' : 'Apellido'}
                           </label>
                           <input
                             type="text"
                             value={editLastName}
                             onChange={(e) => setEditLastName(e.target.value)}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
+                            className="w-full h-[27px] px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] placeholder:text-neutral-400 transition-colors"
                             placeholder="Sandoval"
                           />
                         </div>
 
                         {/* Row 2: Categoría & País */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Category' : 'Categoría'}
                           </label>
                           <div className="relative">
                             <select
                               value={editCategory}
                               onChange={(e) => setEditCategory(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
                               <option value="Estudiante">{selectedLang === 'EN' ? 'Student' : 'Estudiante'}</option>
                               <option value="Profesional">{selectedLang === 'EN' ? 'Professional' : 'Profesional'}</option>
                               <option value="Viajante">{selectedLang === 'EN' ? 'Traveler' : 'Viajante'}</option>
                               <option value="Docente">{selectedLang === 'EN' ? 'Teacher' : 'Docente'}</option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Country' : 'País'}
                           </label>
                           <div className="relative">
                             <select
                               value={editCountry}
                               onChange={(e) => setEditCountry(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
                               <option value="Guatemala">Guatemala</option>
                               <option value="Costa Rica">Costa Rica</option>
@@ -1485,13 +1542,13 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                               <option value="Nicaragua">Nicaragua</option>
                               <option value="Panama">Panamá</option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
                         {/* Row 3: Edad & Teléfono (Opcional) */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Age' : 'Edad'}
                           </label>
                           <input
@@ -1500,100 +1557,87 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                             onChange={(e) => setEditAge(e.target.value)}
                             min={10}
                             max={100}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] transition-colors"
+                            className="w-full h-[27px] px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] transition-colors"
                             placeholder="63"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Phone (Optional)' : 'Teléfono (Opcional)'}
                           </label>
                           <input
                             type="tel"
                             value={editPhone}
                             onChange={(e) => setEditPhone(e.target.value)}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
-                            placeholder="(555) 123-4567"
+                            className="w-full h-[27px] px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] placeholder:text-neutral-400 transition-colors"
+                            placeholder="502 34262524"
                           />
                         </div>
 
-                        {/* Row 4: Correo Electrónico & Ciudad (Opcional) */}
-                        <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                        {/* Row 4: Correo Electrónico */}
+                        <div className="col-span-full">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Email Address' : 'Correo Electrónico'}
                           </label>
                           <input
                             type="email"
                             value={editEmail}
                             onChange={(e) => setEditEmail(e.target.value)}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
-                            placeholder="federico.sandoval@example.com"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
-                            {selectedLang === 'EN' ? 'City (Optional)' : 'Ciudad (Opcional)'}
-                          </label>
-                          <input
-                            type="text"
-                            value={editCity}
-                            onChange={(e) => setEditCity(e.target.value)}
-                            className="w-full h-11 px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] placeholder:text-neutral-400 placeholder:font-normal transition-colors"
-                            placeholder={selectedLang === 'EN' ? 'Guatemala City' : 'Ciudad de Guatemala'}
+                            className="w-full h-[27px] px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] placeholder:text-neutral-400 transition-colors"
+                            placeholder="theorangesnowman@gmail.com"
                           />
                         </div>
 
                         {/* Row 5: Nivel de Inglés & Nivel de Educación */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'English Level' : 'Nivel de Inglés'}
                           </label>
                           <div className="relative">
                             <select
                               value={selectedLevel}
                               onChange={(e) => setSelectedLevel(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
                               <option value="Intermediate">{selectedLang === 'EN' ? 'Intermedio (B1-B2)' : 'Intermedio (B1-B2)'}</option>
                               <option value="Beginner">{selectedLang === 'EN' ? 'Principiante (A1-A2)' : 'Principiante (A1-A2)'}</option>
                               <option value="Advanced">{selectedLang === 'EN' ? 'Avanzado (C1-C2)' : 'Avanzado (C1-C2)'}</option>
                               <option value="Not Sure">{selectedLang === 'EN' ? 'No estoy seguro' : 'No estoy seguro'}</option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Education Level' : 'Nivel de Educación'}
                           </label>
                           <div className="relative">
                             <select
                               value={editEducation}
                               onChange={(e) => setEditEducation(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
                               <option value="Universidad">{selectedLang === 'EN' ? 'University' : 'Universidad'}</option>
                               <option value="Secundaria">{selectedLang === 'EN' ? 'Secondary / High School' : 'Secundaria'}</option>
                               <option value="Posgrado">{selectedLang === 'EN' ? 'Postgraduate' : 'Posgrado'}</option>
                               <option value="Autodidacta">{selectedLang === 'EN' ? 'Self-Taught' : 'Autodidacta'}</option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
-                        {/* Row 6: Meta de Aprendizaje & Tiempo de Estudio Semanal */}
+                        {/* Row 6: Meta de Aprendizaje & Horas de Estudio */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1">
                             {selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}
                           </label>
                           <div className="relative">
                             <select
                               value={selectedGoal}
                               onChange={(e) => setSelectedGoal(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
                               <option value="Éxito académico">{selectedLang === 'EN' ? 'Academic success' : 'Éxito académico'}</option>
                               <option value="Inglés profesional y carrera">{selectedLang === 'EN' ? 'Career & Business English' : 'Inglés profesional y carrera'}</option>
@@ -1601,59 +1645,67 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                               <option value="Cívica 128 y Ciudadanía EE.UU.">{selectedLang === 'EN' ? 'US Civics 128 & Citizenship' : 'Cívica 128 y Ciudadanía EE.UU.'}</option>
                               <option value="Fluidez diaria">{selectedLang === 'EN' ? 'Daily Fluency' : 'Fluidez diaria'}</option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-1.5">
-                            {selectedLang === 'EN' ? 'Weekly Study Time' : 'Tiempo de Estudio Semanal'}
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-1 whitespace-nowrap">
+                            {selectedLang === 'EN' ? 'STUDY HOURS' : 'HORAS DE ESTUDIO'}
                           </label>
                           <div className="relative">
                             <select
-                              value={formatStudyTimeCompact(editTimePerWeek)}
+                              value={formatStudyHoursOption(editTimePerWeek)}
                               onChange={(e) => setEditTimePerWeek(e.target.value)}
-                              className="w-full h-11 appearance-none px-3.5 bg-white border border-black rounded-md font-semibold text-neutral-900 focus:outline-none focus:border-black focus:ring-1 focus:ring-black text-sm sm:text-[14.5px] pr-9 transition-colors cursor-pointer"
+                              className="w-full h-[27px] appearance-none px-3 py-0.5 bg-white border border-neutral-300 rounded-lg font-semibold text-neutral-900 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-400 text-xs sm:text-[12.5px] pr-8 transition-colors cursor-pointer"
                             >
-                              <option value="5 hr/wk">5 hr/wk</option>
-                              <option value="2 hr/wk">2 hr/wk</option>
-                              <option value="10 hr/wk">10 hr/wk</option>
-                              <option value="7 hr/wk">7 hr/wk</option>
+                              <option value={selectedLang === 'EN' ? '5 hours/week' : '5 horas/semana'}>
+                                {selectedLang === 'EN' ? '5 hours/week' : '5 horas/semana'}
+                              </option>
+                              <option value={selectedLang === 'EN' ? '2 hours/week' : '2 horas/semana'}>
+                                {selectedLang === 'EN' ? '2 hours/week' : '2 horas/semana'}
+                              </option>
+                              <option value={selectedLang === 'EN' ? '10 hours/week' : '10 horas/semana'}>
+                                {selectedLang === 'EN' ? '10 hours/week' : '10 horas/semana'}
+                              </option>
+                              <option value={selectedLang === 'EN' ? '7 hours/week' : '7 horas/semana'}>
+                                {selectedLang === 'EN' ? '7 hours/week' : '7 horas/semana'}
+                              </option>
                             </select>
-                            <ChevronDown className="w-4 h-4 text-[#0b1a4a] stroke-[2.5] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[#081545] stroke-[2.2] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
                         </div>
 
                         {/* Row 7: Intereses y Temas Favoritos matching Image 1 */}
-                        <div className="col-span-full pt-1">
-                          <label className="block text-xs font-semibold text-[#637397] tracking-wider uppercase mb-2.5">
+                        <div className="col-span-full pt-0.5">
+                          <label className="block text-[10px] font-semibold text-neutral-500 tracking-wider uppercase mb-2">
                             {selectedLang === 'EN' ? 'Interests & Favorite Topics' : 'Intereses y Temas Favoritos'}
                           </label>
 
                           {/* Interest Badges with crisp black border and pill shape */}
-                          <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-2.5">
                             {editInterests && editInterests.split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center gap-2.5 px-4.5 py-1.5 bg-transparent text-neutral-950 border border-neutral-900 rounded-full text-sm font-normal transition-all"
+                                className="inline-flex items-center gap-2 px-3.5 py-1 bg-transparent text-black border border-black rounded-full text-[11px] sm:text-[11.2px] font-semibold transition-all"
                               >
-                                <span>{interest}</span>
+                                <span className="font-semibold">{interest}</span>
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveInterest(interest)}
-                                  className="p-0.5 rounded-full text-neutral-900 hover:text-neutral-600 transition-colors cursor-pointer"
+                                  className="p-0.5 rounded-full text-black hover:text-neutral-600 transition-colors cursor-pointer"
                                   title={selectedLang === 'EN' ? 'Remove interest' : 'Eliminar interés'}
                                 >
-                                  <X className="w-3.5 h-3.5 stroke-[2.2]" />
+                                  <X className="w-3 h-3 stroke-[2.2]" />
                                 </button>
                               </span>
                             ))}
                           </div>
 
                           {/* + Agregar Interés on its own row below badges, borderless and clean */}
-                          <div className="mt-3.5 flex items-center">
+                          <div className="mt-2.5 flex items-center">
                             {isAddingInterest ? (
-                              <div className="inline-flex items-center gap-2 bg-transparent px-3 py-1.5 rounded-full border border-neutral-900">
+                              <div className="inline-flex items-center gap-2 bg-transparent px-2.5 py-1 rounded-full border border-black">
                                 <input
                                   type="text"
                                   autoFocus
@@ -1670,7 +1722,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                     }
                                   }}
                                   placeholder={selectedLang === 'EN' ? 'New interest...' : 'Nuevo interés...'}
-                                  className="w-32 text-sm bg-transparent focus:outline-none text-neutral-900 placeholder:text-neutral-400"
+                                  className="w-28 text-[11.5px] bg-transparent focus:outline-none text-neutral-900 font-semibold placeholder:text-neutral-400 placeholder:font-normal"
                                 />
                                 <button
                                   type="button"
@@ -1679,7 +1731,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                     setIsAddingInterest(false);
                                   }}
                                   disabled={!newInterestInput.trim()}
-                                  className="text-sm font-semibold text-neutral-900 hover:text-black disabled:opacity-40 cursor-pointer"
+                                  className="text-xs font-semibold text-neutral-900 hover:text-black disabled:opacity-40 cursor-pointer"
                                 >
                                   ✓
                                 </button>
@@ -1691,29 +1743,29 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                                   }}
                                   className="text-neutral-400 hover:text-neutral-600 cursor-pointer"
                                 >
-                                  <X className="w-3.5 h-3.5" />
+                                  <X className="w-3 h-3" />
                                 </button>
                               </div>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => setIsAddingInterest(true)}
-                                className="inline-flex items-center gap-2 text-sm font-normal text-neutral-950 hover:text-neutral-700 bg-transparent border-0 p-0 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1.5 text-xs font-normal text-neutral-950 hover:text-neutral-700 bg-transparent border-0 p-0 transition-colors cursor-pointer"
                               >
-                                <Plus className="w-4 h-4 text-black stroke-[3]" />
-                                <span className="font-normal text-[14.5px] leading-none">{selectedLang === 'EN' ? 'Add interest' : 'Agregar interés'}</span>
+                                <Plus className="w-3.5 h-3.5 text-black stroke-[3]" />
+                                <span className="font-normal text-[11.5px] leading-none">{selectedLang === 'EN' ? 'Add interest' : 'Agregar interés'}</span>
                               </button>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Button: Left-aligned Solid Black Pill Guardar Button matching Image 1 */}
-                      <div className="flex justify-start pt-6 mt-1">
+                      {/* Action Button: Left-aligned Pill Guardar Button */}
+                      <div className="flex justify-start pt-4.5 mt-0.5">
                         <button
                           type="button"
                           onClick={handleUpdateProfile}
-                          className="px-9 py-2.5 bg-black hover:bg-neutral-800 text-white font-medium rounded-full text-[14.5px] transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                          className="px-7 py-2 bg-amber-400 hover:bg-[#081545] text-black hover:text-white font-bold rounded-full text-xs sm:text-[11.5px] transition-colors duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-1.5 shadow-xs"
                         >
                           <span>{selectedLang === 'EN' ? 'Save' : 'Guardar'}</span>
                         </button>
@@ -1790,22 +1842,13 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           </span>
                         </div>
 
-                        {/* Row 4: Correo Electrónico & Ciudad */}
-                        <div className="min-w-0">
+                        {/* Row 4: Correo Electrónico */}
+                        <div className="col-span-full min-w-0">
                           <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
                             {selectedLang === 'EN' ? 'Email Address' : 'Correo Electrónico'}
                           </span>
                           <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
                             {user.email || 'federico.sandoval@example.com'}
-                          </span>
-                        </div>
-
-                        <div className="min-w-0">
-                          <span className="block text-[10px] font-medium uppercase tracking-wider text-neutral-500 mb-1 leading-tight break-words">
-                            {selectedLang === 'EN' ? 'City (Optional)' : 'Ciudad (Opcional)'}
-                          </span>
-                          <span className="block font-semibold text-neutral-900 text-sm leading-snug [overflow-wrap:anywhere]">
-                            {user.city || (selectedLang === 'EN' ? 'Not specified' : 'No especificado')}
                           </span>
                         </div>
 
@@ -1856,7 +1899,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                             {(user.interests || 'Tecnología, Cultura, Viajes, Negocios, Música').split(',').map(s => s.trim()).filter(Boolean).map((interest, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center px-3 py-1 bg-transparent text-neutral-800 border border-neutral-300 rounded-lg text-xs font-normal"
+                                className="inline-flex items-center px-3 py-1 bg-transparent text-black border border-black rounded-full text-[11px] sm:text-[11.2px] font-semibold"
                               >
                                 {interest}
                               </span>
@@ -1875,11 +1918,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                 {/* 📊 Student Performance Metrics Section - Instance 1: Conversation Analysis */}
                 <div className="pt-6 sm:pt-8 pb-2">
 
-                  <div className="flex items-center justify-start gap-2 pb-3 text-left w-full">
-                    <Activity className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                    <span className="text-sm sm:text-[15.5px] font-black tracking-wider text-neutral-800 font-mono text-left">
+                  <div className="flex items-center justify-start pb-3 text-left w-full">
+                    <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase text-left">
                       {selectedLang === 'EN' ? 'Conversation Analysis' : 'Análisis de Conversación'}
-                    </span>
+                    </h4>
                   </div>
 
                   {/* Score Circular Rings Section */}
@@ -2021,11 +2063,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                 {/* 📊 Student Performance Metrics Section - Instance 2: Lesson Progress */}
                 <div className="pt-6 sm:pt-8 pb-2">
 
-                  <div className="flex items-center justify-start gap-2 pb-3 text-left w-full">
-                    <BookOpen className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                    <span className="text-sm sm:text-[15.5px] font-black tracking-wider text-neutral-800 font-mono text-left">
+                  <div className="flex items-center justify-start pb-3 text-left w-full">
+                    <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase text-left">
                       {selectedLang === 'EN' ? 'Lesson Progress' : 'Progreso de Lecciones'}
-                    </span>
+                    </h4>
                   </div>
 
                   {/* Score Circular Rings Section */}
@@ -2191,12 +2232,21 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                 </div>
 
                 {/* 📊 Voyager Real Activity Calendar Section */}
-                <div className="pt-6 sm:pt-8 pb-2 animate-fade-in">
+                <div id="voyager-activity-calendar-section" className="pt-6 sm:pt-8 pb-2 animate-fade-in scroll-mt-6 rounded-[24px]">
                   <ActivityCalendar 
                     selectedLang={selectedLang}
                     savedChats={savedChatsList}
                     targetGoalMinutes={15}
                     onLoadChat={onLoadChat}
+                  />
+                </div>
+
+                {/* ✉️ Mensajería Voyager — Sección Integrada en Pasaporte */}
+                <div id="voyager-messaging-section" className="pt-5 sm:pt-6 pb-2 animate-fade-in scroll-mt-6 rounded-[24px]">
+                  <VoyagerMessagingModal
+                    selectedLang={selectedLang}
+                    user={user}
+                    onUnreadCountChange={setMessagingUnreadCount}
                   />
                 </div>
               </div>
@@ -2206,8 +2256,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
               <div className="animate-fade-in py-1 space-y-3">
                 {/* Student Stats Divider & Section Header */}
                 <div className="pt-0.5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity className="w-5 h-5 text-amber-500" />
+                  <div className="flex items-center mb-2">
                     <span className="text-sm sm:text-[15.5px] font-black uppercase tracking-wider text-neutral-800 font-mono">
                       {selectedLang === 'EN' 
                         ? `Performance Metrics for ${(sanitizeUserProfileNames(user).firstName || 'Federico').toUpperCase()}` 
@@ -2357,7 +2406,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                     <div className="relative group flex-shrink-0 w-32 h-32 sm:w-40 sm:h-40">
                       <div 
                         onClick={() => triggerStudentOralReport()}
-                        className="w-full h-full rounded-2xl bg-neutral-100 border border-neutral-200/90 shadow-2xs cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-95 group/avatar relative"
+                        className="w-full h-full rounded-full bg-transparent border-0 cursor-pointer overflow-hidden flex items-center justify-center transition-all duration-200 hover:scale-[1.02] active:scale-95 group/avatar relative"
                         title={selectedLang === 'EN' ? 'Click photo to hear Voyager oral progress report' : 'Haz clic en la foto para escuchar el informe oral de progreso de Voyager'}
                       >
                         {renderAvatarContent(user)}
@@ -2376,7 +2425,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsEditingProfile(prev => !prev);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                         aria-label={isEditingProfile ? (selectedLang === 'EN' ? 'View Saved Profile' : 'Ver Guardado') : (selectedLang === 'EN' ? 'Edit Profile' : 'Editar Perfil')}
                       >
@@ -2390,7 +2439,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsAvatarModalOpen(true);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0"
                         title={selectedLang === 'EN' ? 'Change photo' : 'Cambiar foto'}
                       >
                         <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
@@ -2403,12 +2452,14 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                           e.stopPropagation();
                           setIsMailModalOpen(true);
                         }}
-                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
+                        className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black shadow-xs flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer select-none group shrink-0 relative"
                         title={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                         aria-label={selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
                       >
                         <Mail className="w-4 h-4 text-white group-hover:text-black stroke-[2.2] group-hover:scale-110 transition-all" />
-                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+                        {messagingUnreadCount > 0 && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FF0000]" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -2698,7 +2749,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
               onClick={() => avatarFileInputRef.current?.click()}
               title={selectedLang === 'EN' ? 'Click to choose image file' : 'Haz clic para seleccionar imagen'}
             >
-              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden bg-[#0A1730] shadow-2xl flex items-center justify-center transition-transform duration-300 group-hover/avatar:scale-[1.02]">
+              <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full overflow-hidden bg-transparent shadow-2xl flex items-center justify-center transition-transform duration-300 group-hover/avatar:scale-[1.02]">
                 {renderAvatarContent({
                   ...user,
                   avatarUrl: pendingAvatarUrl,
@@ -2720,7 +2771,7 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                 onClick={() => avatarFileInputRef.current?.click()}
                 className="text-white/85 hover:text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer group"
               >
-                <Camera className="w-4.5 h-4.5 text-blue-300 group-hover:text-blue-200 transition-colors" />
+                <Camera className="w-4.5 h-4.5 text-neutral-300 group-hover:text-yellow-400 transition-colors duration-200" />
                 <span>{selectedLang === 'EN' ? 'Change' : 'Cambiar'}</span>
               </button>
               <button
@@ -2728,210 +2779,10 @@ REGLAS STRICTAS E INQUEBRANTABLES PARA ESTA SECCIÓN:
                 onClick={handleSaveAvatar}
                 className="text-white/85 hover:text-white text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer group"
               >
-                <Check className="w-4.5 h-4.5 text-emerald-400 group-hover:text-emerald-300 transition-colors stroke-[2.5]" />
+                <Check className="w-4.5 h-4.5 text-neutral-300 group-hover:text-yellow-400 transition-colors duration-200 stroke-[2.5]" />
                 <span>{selectedLang === 'EN' ? 'Save' : 'Guardar'}</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Internal Communication Mail Modal */}
-      {isMailModalOpen && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
-          onClick={() => setIsMailModalOpen(false)}
-        >
-          <div 
-            className="bg-white text-neutral-900 rounded-[28px] max-w-xl w-full p-5 sm:p-6 shadow-2xl border-2 border-amber-400 space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
-              <div>
-                <h3 className="font-extrabold text-neutral-900 text-base sm:text-lg leading-tight">
-                  {selectedLang === 'EN' ? 'Internal Communication & Messages' : 'Comunicación Interna y Mensajes'}
-                </h3>
-                <p className="text-xs text-neutral-500 font-normal">
-                  {selectedLang === 'EN' ? 'Direct messages with Voyager AI & Academic Team' : 'Bandeja directa con Voyager IA y el Equipo Académico'}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsMailModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-4.5 h-4.5" />
-              </button>
-            </div>
-
-            {/* Notification Toast */}
-            {mailSentToast && (
-              <div className="p-3 bg-emerald-100 border border-emerald-400 text-emerald-900 text-xs sm:text-sm font-semibold rounded-xl flex items-center gap-2 animate-fade-in shadow-2xs">
-                <span>✅</span>
-                <span>{mailSentToast}</span>
-              </div>
-            )}
-
-            {/* 3 Real Communication Channel Tabs */}
-            <div className="flex items-center gap-1.5 p-1 bg-neutral-100 rounded-xl border border-neutral-200">
-              <button
-                type="button"
-                onClick={() => setMailChannel('teacher')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  mailChannel === 'teacher' 
-                    ? 'bg-black text-white shadow-xs' 
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
-                <span>{selectedLang === 'EN' ? 'Teacher Chat' : 'Profesora'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMailChannel('group')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  mailChannel === 'group' 
-                    ? 'bg-black text-white shadow-xs' 
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-sky-400" />
-                <span>{selectedLang === 'EN' ? 'Group Chat' : 'Chat de Grupo'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMailChannel('announcements')}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                  mailChannel === 'announcements' 
-                    ? 'bg-black text-white shadow-xs' 
-                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/60'
-                }`}
-              >
-                <Bell className="w-3.5 h-3.5 text-rose-400" />
-                <span>{selectedLang === 'EN' ? 'Announcements' : 'Avisos'}</span>
-              </button>
-            </div>
-
-            {/* Channel 1: Teacher Direct Interactive Messaging */}
-            {mailChannel === 'teacher' && (
-              <div className="space-y-3 pt-1">
-                <div className="bg-slate-50 border border-neutral-200 rounded-2xl p-3.5 max-h-[320px] overflow-y-auto space-y-2.5">
-                  {teacherChatMessages.map((m) => {
-                    const isTeacher = m.role === 'teacher';
-                    return (
-                      <div key={m.id} className={`flex flex-col ${isTeacher ? 'items-start' : 'items-end'}`}>
-                        <div className="flex items-center gap-1.5 mb-1 text-[10px] text-neutral-500 font-semibold">
-                          <span>{m.sender}</span>
-                          <span>•</span>
-                          <span>{m.date}</span>
-                        </div>
-                        <div className={`p-3 rounded-2xl max-w-[88%] text-xs leading-relaxed ${
-                          isTeacher 
-                            ? 'bg-white border border-neutral-200 text-neutral-900 shadow-xs' 
-                            : 'bg-black text-white shadow-xs'
-                        }`}>
-                          {m.text}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <form onSubmit={handleSendTeacherMessage} className="flex items-center gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={teacherChatInput}
-                    onChange={(e) => setTeacherChatInput(e.target.value)}
-                    placeholder={selectedLang === 'EN' ? 'Type a direct message to your teacher...' : 'Escribe una consulta a tu profesora...'}
-                    className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!teacherChatInput.trim()}
-                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 disabled:opacity-40 text-black font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{selectedLang === 'EN' ? 'Send' : 'Enviar'}</span>
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* Channel 2: Group Interactive Community Messaging */}
-            {mailChannel === 'group' && (
-              <div className="space-y-3 pt-1">
-                <div className="bg-slate-50 border border-neutral-200 rounded-2xl p-3.5 max-h-[320px] overflow-y-auto space-y-2.5">
-                  {groupChatMessages.map((m) => {
-                    const isMe = m.sender.includes(user.firstName || 'Federico');
-                    return (
-                      <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                        <div className="flex items-center gap-1.5 mb-1 text-[10px] text-neutral-500 font-semibold">
-                          <span className={m.role === 'teacher' ? 'text-amber-800 font-bold' : ''}>{m.sender}</span>
-                          <span>•</span>
-                          <span>{m.date}</span>
-                        </div>
-                        <div className={`p-3 rounded-2xl max-w-[88%] text-xs leading-relaxed ${
-                          isMe 
-                            ? 'bg-black text-white shadow-xs' 
-                            : m.role === 'teacher' 
-                              ? 'bg-amber-50 border border-amber-300 text-amber-950 shadow-xs' 
-                              : 'bg-white border border-neutral-200 text-neutral-900 shadow-xs'
-                        }`}>
-                          {m.text}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <form onSubmit={handleSendGroupMessage} className="flex items-center gap-2 pt-1">
-                  <input
-                    type="text"
-                    value={groupChatInput}
-                    onChange={(e) => setGroupChatInput(e.target.value)}
-                    placeholder={selectedLang === 'EN' ? 'Share a message with the group...' : 'Escribe un mensaje al grupo de clase...'}
-                    className="flex-1 px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 rounded-xl text-xs font-medium text-neutral-900 focus:outline-none focus:border-amber-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!groupChatInput.trim()}
-                    className="px-4 py-2.5 bg-amber-400 hover:bg-amber-500 disabled:opacity-40 text-black font-extrabold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{selectedLang === 'EN' ? 'Post' : 'Publicar'}</span>
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {/* Channel 3: Official Announcements & System Notices */}
-            {mailChannel === 'announcements' && (
-              <div className="space-y-3 pt-1">
-                {announcementMessages.map((msg) => (
-                  <div 
-                    key={msg.id}
-                    className="p-3.5 sm:p-4 rounded-2xl border border-neutral-200 bg-white shadow-xs space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-neutral-900">{msg.sender}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          {msg.tag}
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-normal text-neutral-500">{msg.date}</span>
-                    </div>
-
-                    <h4 className="text-xs sm:text-sm font-bold text-neutral-900">{msg.title}</h4>
-                    <p className="text-xs text-neutral-600 font-normal leading-relaxed">{msg.body}</p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}

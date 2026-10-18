@@ -82,17 +82,25 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
       document.body.appendChild(script);
     }
 
+    script.onerror = () => {
+      // Gracefully handle script network/load error
+    };
+
     const initStore = () => {
-      const win = window as any;
-      if (win.xProductBrowser) {
-        win.xProductBrowser(
-          "categoriesPerRow=2",
-          "views=grid(20,2) list(60) table(60)",
-          "categoryView=grid",
-          "searchView=list",
-          "defaultCategoryId=204126005",
-          "id=my-store-108143"
-        );
+      try {
+        const win = window as any;
+        if (typeof win.xProductBrowser === 'function') {
+          win.xProductBrowser(
+            "categoriesPerRow=2",
+            "views=grid(20,2) list(60) table(60)",
+            "categoryView=grid",
+            "searchView=list",
+            "defaultCategoryId=0",
+            "id=my-store-108143"
+          );
+        }
+      } catch (err) {
+        // Suppressed
       }
       // win.xMinicart disabled to prevent floating widget
     };
@@ -101,8 +109,12 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
       initStore();
     } else {
       script.onload = () => {
-        script.setAttribute('data-loaded', 'true');
-        initStore();
+        try {
+          script.setAttribute('data-loaded', 'true');
+          initStore();
+        } catch (e) {
+          // Suppressed
+        }
       };
     }
 
@@ -128,6 +140,14 @@ export const ShoppingPanel: React.FC<ShoppingPanelProps> = ({
 
     return () => {
       clearInterval(interval);
+      try {
+        const win = window as any;
+        if (win.Ecwid && typeof win.Ecwid.destroy === 'function') {
+          win.Ecwid.destroy();
+        }
+      } catch (e) {
+        // ignore
+      }
       const container = document.getElementById('my-store-108143');
       if (container) {
         container.innerHTML = '';

@@ -192,10 +192,10 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
       {/* Calendar Header - Top Row: Title & Top-Right Control Buttons (Dark/Light + Full Screen) */}
       <div className="flex items-center justify-between gap-3 w-full">
         <div className="flex items-center gap-2.5">
-          <h4 className={`font-black font-mono tracking-tight ${
-            calendarTheme === 'dark' ? 'text-sky-100' : 'text-slate-900'
-          } ${isExpanded ? 'text-base sm:text-xl md:text-2xl' : 'text-sm sm:text-base group-hover/cal:text-sky-500 transition-colors'}`}>
-            {selectedLang === 'EN' ? 'Voyager Activity Calendar' : 'Calendario de Actividades Voyager'}
+          <h4 className={`text-sm sm:text-[15.5px] font-bold tracking-wider font-mono uppercase ${
+            calendarTheme === 'dark' ? 'text-sky-100' : 'text-neutral-900'
+          } ${isExpanded ? 'sm:text-xl' : ''}`}>
+            {selectedLang === 'EN' ? 'Activity Calendar' : 'Calendario de Actividades'}
           </h4>
         </div>
 

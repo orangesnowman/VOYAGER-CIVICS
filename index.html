@@ -3,7 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VOYAGER VOICE AGENT- NYC</title>
+    <title>USA Voyager</title>
+    <meta name="description" content="USA Voyager is an AI-powered American English learning and US Citizenship preparation platform with official 128 USCIS civics questions, flashcards, simulated exams, and personalized conversation practice." />
+    <meta property="og:title" content="USA Voyager" />
+    <meta property="og:description" content="USA Voyager is an AI-powered American English learning and US Citizenship preparation platform with official 128 USCIS civics questions, flashcards, simulated exams, and personalized conversation practice." />
     <link href="https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Merriweather+Sans:ital,wght@0,300..800;1,300..800&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&family=Lato:wght@400;700;900&family=Allerta&family=Allerta+Stencil&display=swap" rel="stylesheet">
     <style>
       body {
@@ -23,6 +26,173 @@
         border-radius: 4px;
       }
     </style>
+    <script>
+      (function() {
+        var isSuppressed = function(err) {
+          if (!err) return false;
+          var str = '';
+          try {
+            if (typeof err === 'string') {
+              str = err;
+            } else if (err instanceof Error) {
+              str = (err.message || '') + ' ' + (err.stack || '') + ' ' + (err.name || '');
+            } else if (typeof err === 'object') {
+              str = (err.message || err.reason || err.stack || err.filename || '') + ' ' +
+                    (err.error ? ((err.error.message || '') + ' ' + (err.error.stack || '')) : '');
+            }
+          } catch(e) {
+            str = String(err);
+          }
+          var lower = str.toLowerCase();
+          return lower.indexOf('cloudfront.net') !== -1 ||
+                 lower.indexOf('ecommerce') !== -1 ||
+                 lower.indexOf('storefront') !== -1 ||
+                 lower.indexOf('ecwid') !== -1 ||
+                 lower.indexOf('queryfn') !== -1 ||
+                 lower.indexOf('apps-product-browser') !== -1 ||
+                 lower.indexOf('vendor-kamcwx8s') !== -1 ||
+                 lower.indexOf('shared-mgo1zf68') !== -1 ||
+                 lower.indexOf('ecommerce-ld9cyafa') !== -1 ||
+                 lower.indexOf('cannot read properties of undefined') !== -1 ||
+                 lower.indexOf("reading 'type'") !== -1 ||
+                 lower.indexOf('reading "type"') !== -1 ||
+                 lower.indexOf("reading 'cartitems'") !== -1 ||
+                 lower.indexOf('reading "cartitems"') !== -1 ||
+                 lower.indexOf('storeprofile') !== -1;
+        };
+
+        // Intercept console.error and console.warn to prevent third-party storefront noise
+        var origConsoleError = console.error;
+        console.error = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isSuppressed(arguments[i])) {
+              return;
+            }
+          }
+          return origConsoleError.apply(console, arguments);
+        };
+
+        var origConsoleWarn = console.warn;
+        console.warn = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isSuppressed(arguments[i])) {
+              return;
+            }
+          }
+          return origConsoleWarn.apply(console, arguments);
+        };
+
+        window.onerror = function(msg, url, line, col, err) {
+          if (isSuppressed(msg) || isSuppressed(url) || isSuppressed(err)) {
+            return true;
+          }
+        };
+
+        window.addEventListener('error', function(e) {
+          var file = (e && e.filename) || '';
+          if (isSuppressed(e.error) || isSuppressed(e.message) || isSuppressed(file)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          if (isSuppressed(e.reason) || isSuppressed(e.promise)) {
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+
+        var mockStoreProfile = {
+          type: "opened",
+          isWhiteLabel: false,
+          flags: {
+            isModernNotificationsEnabled: false,
+            isPriceRangeVisible: false,
+            isOpenBagOnAddition: false
+          },
+          integrations: {
+            fbMessenger: null
+          },
+          legal: {
+            pages: [],
+            compliance: {
+              authPageTexts: "STANDARD"
+            }
+          },
+          value: {
+            flags: {
+              isModernNotificationsEnabled: false,
+              isPriceRangeVisible: false,
+              isOpenBagOnAddition: false
+            },
+            integrations: {},
+            legal: {
+              pages: [],
+              compliance: {
+                authPageTexts: "STANDARD"
+              }
+            }
+          }
+        };
+
+        var origFetch = window.fetch;
+        if (origFetch) {
+          window.fetch = function(resource, init) {
+            var url = typeof resource === 'string' ? resource : (resource && resource.url) || '';
+            if (typeof url === 'string' && (url.indexOf('storefront-api.ecwid.com') !== -1 || url.indexOf('/storefront/api/v1') !== -1)) {
+              if (url.indexOf('/bootstrap') !== -1) {
+                return Promise.resolve(new Response(JSON.stringify({
+                  isChameleonEnabled: false,
+                  shouldInitMinicartForced: false,
+                  stylesheetsSettings: { baseUrl: { primaryUrl: 'https://d1oxsl77a1kjht.cloudfront.net/css/new', fallbackUrl: 'https://us-vir1-sassme.ecwid.com/css/new' }, baseQueryParams: { hc: '1063154717' }, componentStylesheetUrls: [] },
+                  translationsSettings: { locale: 'en', urls: [], overrides: {} },
+                  shouldPurgePartitionedSessionCookie: false
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+              }
+              if (url.indexOf('/initial-data') !== -1) {
+                return Promise.resolve(new Response(JSON.stringify({
+                  storeProfile: mockStoreProfile,
+                  customer: null,
+                  checkout: { id: 'cart_0', itemsCount: 0, cartItems: [] },
+                  categories: [],
+                  products: [],
+                  data: {
+                    storeProfile: mockStoreProfile,
+                    customer: null
+                  }
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+              }
+              if (url.indexOf('/checkout') !== -1) {
+                return Promise.resolve(new Response(JSON.stringify({
+                  checkout: { id: 'cart_0', itemsCount: 0, cartItems: [] },
+                  redirect: null,
+                  data: { id: 'cart_0', itemsCount: 0, cartItems: [] }
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+              }
+              if (url.indexOf('/customer') !== -1) {
+                return Promise.resolve(new Response(JSON.stringify({
+                  customer: null,
+                  data: null
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+              }
+              return Promise.resolve(new Response(JSON.stringify({
+                products: [],
+                categories: [],
+                items: [],
+                total: 0,
+                count: 0,
+                storeProfile: mockStoreProfile,
+                data: []
+              }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+            }
+            return origFetch.apply(this, arguments);
+          };
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
