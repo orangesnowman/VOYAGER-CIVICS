@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Users, Megaphone, Paperclip, X, Star, ChevronsRight, Trash2, ArrowLeft, Mail, Clock, Download, Reply, Send, MessageSquare, CheckCircle2, GraduationCap, User } from 'lucide-react';
+import { 
+  BookOpen, Users, Megaphone, Paperclip, X, Star, ChevronsRight, Trash2, ArrowLeft, ArrowRight,
+  Mail, Clock, Download, Reply, Send, MessageSquare, CheckCircle2, GraduationCap, 
+  User, Square, CheckSquare, Heart, ClipboardList, Smile, 
+  Link as LinkIcon, Image as ImageIcon, ExternalLink, Bold, Italic, Underline, 
+  List, ListOrdered 
+} from 'lucide-react';
 
 export type ChannelId = 'profe' | 'grupo' | 'anuncios';
 
@@ -494,10 +500,10 @@ USA Voyager Platform`,
 ];
 
 // Yellow paper airplane matching the design guide image
-const YellowPaperPlane: React.FC = () => (
+export const YellowPaperPlane: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     viewBox="0 0 24 24" 
-    className="w-5.5 h-5.5 sm:w-6 sm:h-6 shrink-0 transition-transform active:scale-90 hover:scale-105" 
+    className={className || "w-5.5 h-5.5 sm:w-6 sm:h-6 shrink-0 transition-transform active:scale-90 hover:scale-105"} 
     fill="none"
   >
     <path 
@@ -516,6 +522,155 @@ const YellowPaperPlane: React.FC = () => (
   </svg>
 );
 
+// Custom Calendar Plus Icon matching image_e18fd2ae.png and scaled to match the Lucide family
+const CalendarPlusIcon: React.FC<{ className?: string }> = ({ className = "w-4.5 h-4.5 stroke-[1.8]" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    {/* Top Binder Pins / Rings */}
+    <path d="M8 2v3.5" />
+    <path d="M16 2v3.5" />
+    {/* Rounded Calendar Body */}
+    <rect x="3" y="4.5" width="18" height="16.5" rx="2.5" />
+    {/* Header Line */}
+    <path d="M3 9.5h18" />
+    {/* Centered Plus Sign */}
+    <path d="M12 12.5v5" />
+    <path d="M9.5 15h5" />
+  </svg>
+);
+
+const renderTextWithLinks = (textChunk: string) => {
+  // Regex to match markdown links [label](url) and bare URLs https?://...
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s)]+)/g;
+  const nodes: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = linkRegex.exec(textChunk)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(textChunk.substring(lastIndex, match.index));
+    }
+    if (match[1] && match[2]) {
+      const label = match[1];
+      const url = match[2];
+      nodes.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#1a73e8] underline font-medium hover:text-[#1557b0] break-all inline cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {label}
+        </a>
+      );
+    } else if (match[3]) {
+      const url = match[3];
+      nodes.push(
+        <a
+          key={match.index}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#1a73e8] underline font-medium hover:text-[#1557b0] break-all inline cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {url}
+        </a>
+      );
+    }
+    lastIndex = linkRegex.lastIndex;
+  }
+
+  if (lastIndex < textChunk.length) {
+    nodes.push(textChunk.substring(lastIndex));
+  }
+
+  return nodes.length > 0 ? nodes : textChunk;
+};
+
+// Renders text with emojis ("favicons") scaled 175% bigger for enhanced clarity and expression, and clickable links
+const renderContentWithLargeEmojis = (text: string) => {
+  if (!text) return null;
+  const isEmojiOnly = /^[\p{Extended_Pictographic}\s\p{Emoji_Component}\p{Punctuation}]+$/u.test(text.trim());
+  if (isEmojiOnly) {
+    return <span className="text-[24px] sm:text-[26px] leading-relaxed block tracking-wide">{text}</span>;
+  }
+  const parts = text.split(/([\p{Extended_Pictographic}]+)/u);
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (/^[\p{Extended_Pictographic}]+$/u.test(part)) {
+          return (
+            <span key={index} className="text-[1.75em] inline-block align-middle mx-0.5 leading-none">
+              {part}
+            </span>
+          );
+        }
+        return <React.Fragment key={index}>{renderTextWithLinks(part)}</React.Fragment>;
+      })}
+    </>
+  );
+};
+
+// Renders text with initial greetings and closing signatures styled in demi-bold (typical for Mensajería Voyager), scaled emojis, and clickable links
+const renderContentWithGreetingAndEmojis = (text: string) => {
+  if (!text) return null;
+
+  // Regex to match initial greeting / salutation typical of Mensajería Voyager:
+  // e.g. "Estimado Federico,", "Hola Federico,", "¡Hola a todos los compañeros!", "Estimados estudiantes de USA Voyager,"
+  const greetingRegex = /^(\s*(?:¡?Estimad[oa]s?[^,\n]*|¡?Hola[^,\n]*|¡?Querid[oa]s?[^,\n]*|¡?Buenos días[^,\n]*|¡?Buenas tardes[^,\n]*|¡Excelente trabajo[^!,\n]*|Dear[^,\n]*|Hello[^,\n]*|Hi[^,\n]*|Profesor\s+García)[,!])/i;
+
+  let greeting: string | null = null;
+  let bodyAndSig = text;
+
+  const match = text.match(greetingRegex);
+  if (match) {
+    greeting = match[1];
+    bodyAndSig = text.substring(match[0].length);
+  }
+
+  // Regex to match closing signature section typical of Mensajería Voyager:
+  // e.g. "¡Mucho éxito con tu preparación y nos vemos en clase!\n\nAtentamente,\nProfesor García\nDocente Titular..."
+  const signatureRegex = /(?:\n\n)((?:(?:¡(?:Mucho éxito|Nos vemos|Sigue con|A seguir|Felicitaciones|Feliz)[^\n]*\n\n)?(?:Atentamente|Un cordial saludo|Saludos cordiales|Cordialmente|Saludos|Que tengas [^\n]+,|Best regards|Sincerely|Warm regards|Regards|Profesor García|Coordinación Académica|Equipo Docente)[\s\S]*))$/i;
+
+  let mainBody = bodyAndSig;
+  let signature: string | null = null;
+
+  const sigMatch = bodyAndSig.match(signatureRegex);
+  if (sigMatch && sigMatch.index != null) {
+    mainBody = bodyAndSig.substring(0, sigMatch.index);
+    signature = sigMatch[1];
+  }
+
+  return (
+    <>
+      {greeting && (
+        <span className="font-semibold text-[#1F1A14] tracking-tight">
+          {renderContentWithLargeEmojis(greeting)}
+        </span>
+      )}
+      {mainBody && renderContentWithLargeEmojis(mainBody)}
+      {signature && (
+        <>
+          {"\n\n"}
+          <span className="font-semibold text-[#1F1A14] tracking-tight">
+            {renderContentWithLargeEmojis(signature)}
+          </span>
+        </>
+      )}
+    </>
+  );
+};
+
 export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
   isOpen,
   selectedLang = 'ES',
@@ -525,10 +680,92 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<ChannelId>('profe');
   const [selectedEmail, setSelectedEmail] = useState<ChannelMessage | null>(null);
+  const [scheduleNotice, setScheduleNotice] = useState<string | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Gmail-style reply states
   const [replyText, setReplyText] = useState('');
+  const [isReplying, setIsReplying] = useState(true);
+  const [attachedReplyFile, setAttachedReplyFile] = useState<{ name: string; size: string } | null>(null);
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyNotice, setReplyNotice] = useState<string | null>(null);
-  const replyTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showLinkPopover, setShowLinkPopover] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
+  const linkUrlInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenLinkPopover = () => {
+    if (showLinkPopover) {
+      setShowLinkPopover(false);
+      return;
+    }
+    const textarea = replyTextareaRef.current;
+    if (textarea && textarea.selectionStart !== textarea.selectionEnd) {
+      const selectedSub = replyText.substring(textarea.selectionStart, textarea.selectionEnd);
+      setLinkText(selectedSub);
+    } else {
+      setLinkText('');
+    }
+    setLinkUrl('');
+    setShowEmojiPicker(false);
+    setShowLinkPopover(true);
+    setTimeout(() => {
+      linkUrlInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleApplyLink = () => {
+    let cleanUrl = linkUrl.trim();
+    if (!cleanUrl) return;
+    if (!/^https?:\/\//i.test(cleanUrl) && !/^mailto:/i.test(cleanUrl)) {
+      cleanUrl = `https://${cleanUrl}`;
+    }
+    const displayText = linkText.trim() || cleanUrl;
+    const markdownLink = `[${displayText}](${cleanUrl})`;
+
+    const textarea = replyTextareaRef.current;
+    if (textarea && textarea.selectionStart != null && textarea.selectionEnd != null) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const nextText = replyText.substring(0, start) + markdownLink + replyText.substring(end);
+      setReplyText(nextText);
+      setShowLinkPopover(false);
+      setLinkUrl('');
+      setLinkText('');
+      setTimeout(() => {
+        textarea.focus();
+        const cursorAfter = start + markdownLink.length;
+        textarea.setSelectionRange(cursorAfter, cursorAfter);
+      }, 50);
+    } else {
+      setReplyText((prev) => (prev ? `${prev} ${markdownLink}` : markdownLink));
+      setShowLinkPopover(false);
+      setLinkUrl('');
+      setLinkText('');
+      setTimeout(() => {
+        textarea?.focus();
+      }, 50);
+    }
+  };
+
+  const handleAttachFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const sizeStr = file.size > 1024 * 1024 
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+        : `${Math.round(file.size / 1024)} KB`;
+      setAttachedReplyFile({ name: file.name, size: sizeStr });
+    }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    setReplyText((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    replyTextareaRef.current?.focus();
+  };
 
   const [messages, setMessages] = useState<ChannelMessage[]>(() => {
     try {
@@ -559,6 +796,14 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
 
   const [inputMessage, setInputMessage] = useState('');
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
+  const [starredFilter, setStarredFilter] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedMessageIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
 
   // Sync total unread count to parent
   useEffect(() => {
@@ -578,24 +823,25 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
 
   if (isOpen === false) return null;
 
-  const currentMessages = messages.filter((m) => m.channel === activeTab);
+  const currentMessages = messages.filter((m) => m.channel === activeTab && (!starredFilter || m.isStarred));
+  const likedMessagesCount = messages.filter((m) => m.channel === activeTab && m.isStarred).length;
 
   // Tabs matching the design guide
   const tabs: { id: ChannelId; label: string; icon: React.FC<{ className?: string }> }[] = [
     { 
       id: 'profe', 
       label: selectedLang === 'EN' ? 'Profesor García' : 'Profesor García', 
-      icon: BookOpen 
+      icon: GraduationCap 
     },
     { 
       id: 'grupo', 
-      label: selectedLang === 'EN' ? 'Grupo Chat' : 'Grupo Chat', 
+      label: selectedLang === 'EN' ? 'My Group' : 'Mi Grupo', 
       icon: Users 
     },
     { 
       id: 'anuncios', 
-      label: selectedLang === 'EN' ? 'Anuncios' : 'Anuncios', 
-      icon: Megaphone 
+      label: selectedLang === 'EN' ? 'Tasks' : 'Tareas', 
+      icon: ClipboardList 
     },
   ];
 
@@ -637,9 +883,11 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
     setTimeout(() => setDownloadNotice(null), 3000);
   };
 
-  const handleSendEmailReply = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim() || !selectedEmail || isSendingReply) return;
+  const handleSendEmailReply = (e?: React.FormEvent | React.MouseEvent) => {
+    if (e?.preventDefault) {
+      e.preventDefault();
+    }
+    if ((!replyText.trim() && !attachedReplyFile) || !selectedEmail || isSendingReply) return;
 
     const studentName = user?.firstName
       ? `${user.firstName} ${user.lastName || ''}`.trim()
@@ -653,7 +901,13 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
     const dateFormatted = `${d}/${m}/${y}`;
     const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const fullDateFormatted = `${dateFormatted}, ${timeFormatted}`;
-    const content = replyText.trim();
+    
+    let content = replyText.trim();
+    if (attachedReplyFile) {
+      content = content 
+        ? `${content}\n\n📎 ${attachedReplyFile.name} (${attachedReplyFile.size})` 
+        : `📎 ${attachedReplyFile.name} (${attachedReplyFile.size})`;
+    }
 
     const newReply: MessageReply = {
       id: `rep-${Date.now()}`,
@@ -678,6 +932,8 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
     );
     saveMessages(updatedMessages);
     setReplyText('');
+    setAttachedReplyFile(null);
+    setShowEmojiPicker(false);
 
     setReplyNotice(
       selectedLang === 'EN'
@@ -752,9 +1008,8 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
     }
   };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = inputMessage.trim();
+  const sendMessageText = (rawText: string) => {
+    const text = rawText.trim();
     if (!text || activeTab === 'anuncios') return;
 
     const studentName = user?.firstName
@@ -780,8 +1035,13 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
       channel: activeTab,
     };
 
-    const updated = [newMsg, ...messages];
-    saveMessages(updated);
+    setMessages((prev) => {
+      const updated = [newMsg, ...prev];
+      try {
+        localStorage.setItem('voyager_messaging_clean_v6', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
     setInputMessage('');
 
     // Simulate teacher automated response in 'profe' channel
@@ -800,19 +1060,35 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
           isUnread: true,
           channel: 'profe',
         };
-        saveMessages([teacherReply, ...updated]);
+        setMessages((prev) => {
+          const updated = [teacherReply, ...prev];
+          try {
+            localStorage.setItem('voyager_messaging_clean_v6', JSON.stringify(updated));
+          } catch (e) {}
+          return updated;
+        });
       }, 1500);
     }
   };
 
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessageText(inputMessage);
+  };
+
+  // Listen for messages dispatched from input box A on the passport
+  useEffect(() => {
+    const handleExternalMessage = (e: any) => {
+      if (e.detail?.text) {
+        sendMessageText(e.detail.text);
+      }
+    };
+    window.addEventListener('voyager-send-message', handleExternalMessage);
+    return () => window.removeEventListener('voyager-send-message', handleExternalMessage);
+  }, [activeTab, selectedLang, user]);
+
   return (
     <div className={`w-full flex flex-col font-sans select-none ${className || ''}`}>
-      {/* Title directly above folder: MENSAJERÍA VOYAGER */}
-      <div className="mb-3 px-1 text-left w-full">
-        <h3 className="text-xl sm:text-2xl font-black tracking-tight text-[#1F1A14] uppercase">
-          {selectedLang === 'EN' ? 'MENSAJERÍA VOYAGER' : 'MENSAJERÍA VOYAGER'}
-        </h3>
-      </div>
 
       {/* Download toast notification */}
       {downloadNotice && (
@@ -824,127 +1100,144 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
         </div>
       )}
 
-      {/* Main Folder Container - NO heavy left/right borders */}
-      <div className="w-full flex flex-col rounded-[26px] sm:rounded-[30px] overflow-hidden bg-[#FAF5EB] shadow-xs">
-        
-        {/* Top Folder Header Bar */}
-        <div className="w-full flex items-stretch relative bg-[#DEC7A3]">
-          {/* Active Tab: Profesor García (occupies left ~36% with seamless curved folder shoulder) */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('profe')}
-            className={`relative py-3 sm:py-3.5 px-4 sm:px-6 cursor-pointer flex flex-col items-center justify-center transition-all ${
-              activeTab === 'profe'
-                ? 'bg-[#FAF5EB] text-[#1F1A14] z-20 rounded-tl-[26px] sm:rounded-tl-[30px]'
-                : 'bg-[#DEC7A3] hover:bg-[#D5BF9A] text-[#332A1E]'
-            }`}
-            style={{ width: '36%' }}
-          >
-            {/* Outlined Book Icon with Red Notification Pill */}
-            <div className="relative mb-1 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8] text-[#1F1A14]" />
-              {messages.filter((m) => m.channel === 'profe' && m.isUnread).length > 0 && (
-                <span className="absolute -top-1.5 -right-3 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-[#D32F2F] text-white text-[10px] sm:text-[11px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/40">
-                  {messages.filter((m) => m.channel === 'profe' && m.isUnread).length}
-                </span>
-              )}
-            </div>
-            <span className={`text-xs sm:text-[13.5px] font-bold leading-tight ${activeTab === 'profe' ? 'text-[#1F1A14]' : 'text-[#362C1E]'}`}>
-              {tabs[0].label}
-            </span>
-
-            {/* Organic Folder Tab S-Curve on the right shoulder when active */}
-            {activeTab === 'profe' && (
-              <svg 
-                className="absolute -right-5 top-0 bottom-0 h-full w-5 pointer-events-none z-20" 
-                viewBox="0 0 20 64" 
-                preserveAspectRatio="none" 
-                fill="#FAF5EB"
-              >
-                <path d="M 0,0 Q 8,0 12,28 Q 16,56 20,64 L 0,64 Z" />
-              </svg>
-            )}
+      {/* Schedule advisory session notification */}
+      {scheduleNotice && (
+        <div className="mb-2 px-4 py-2 bg-[#1B365D] text-white text-xs font-semibold rounded-xl flex items-center justify-between shadow-md animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CalendarPlusIcon className="w-4 h-4 text-amber-300 stroke-[2] shrink-0" />
+            <span>{scheduleNotice}</span>
+          </div>
+          <button type="button" onClick={() => setScheduleNotice(null)} className="cursor-pointer">
+            <X className="w-3.5 h-3.5 text-white/80 hover:text-white" />
           </button>
+        </div>
+      )}
 
-          {/* Inactive Combined Header Area: Grupo Chat & Anuncios (NO vertical dividing line between them, NO bottom line) */}
-          <div className="flex-1 flex items-stretch justify-around pl-4 pr-3 sm:pr-6 relative z-10">
-            {/* Tab: Grupo Chat */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('grupo')}
-              className={`flex-1 py-3 sm:py-3.5 px-3 cursor-pointer flex flex-col items-center justify-center transition-colors ${
-                activeTab === 'grupo'
-                  ? 'bg-[#FAF5EB] text-[#1F1A14] rounded-t-xl z-20'
-                  : 'text-[#332A1E] hover:text-[#1F1A14]'
-              }`}
-            >
-              <div className="relative mb-1 flex items-center justify-center">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8] text-[#1F1A14]" />
-                {messages.filter((m) => m.channel === 'grupo' && m.isUnread).length > 0 && (
-                  <span className="absolute -top-1.5 -right-3 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-[#D32F2F] text-white text-[10px] sm:text-[11px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/40">
-                    {messages.filter((m) => m.channel === 'grupo' && m.isUnread).length}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs sm:text-[13.5px] font-bold leading-tight">
-                {tabs[1].label}
-              </span>
-            </button>
+      {/* Reply sent notification */}
+      {replyNotice && (
+        <div className="mb-2 px-4 py-2 bg-[#0B57D0] text-white text-xs font-semibold rounded-xl flex items-center justify-between shadow-md animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+            <span>{replyNotice}</span>
+          </div>
+          <button type="button" onClick={() => setReplyNotice(null)} className="cursor-pointer">
+            <X className="w-3.5 h-3.5 text-white/80 hover:text-white" />
+          </button>
+        </div>
+      )}
 
-            {/* Tab: Anuncios - Seamlessly next to Grupo Chat with ZERO dividing line */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('anuncios')}
-              className={`flex-1 py-3 sm:py-3.5 px-3 cursor-pointer flex flex-col items-center justify-center transition-colors ${
-                activeTab === 'anuncios'
-                  ? 'bg-[#FAF5EB] text-[#1F1A14] rounded-t-xl z-20'
-                  : 'text-[#332A1E] hover:text-[#1F1A14]'
-              }`}
-            >
-              <div className="relative mb-1 flex items-center justify-center">
-                <Megaphone className="w-5 h-5 sm:w-6 sm:h-6 stroke-[1.8] text-[#1F1A14]" />
-                {messages.filter((m) => m.channel === 'anuncios' && m.isUnread).length > 0 && (
-                  <span className="absolute -top-1.5 -right-3 w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full bg-[#D32F2F] text-white text-[10px] sm:text-[11px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/40">
-                    {messages.filter((m) => m.channel === 'anuncios' && m.isUnread).length}
+      {/* Main Container */}
+      <div className="w-full flex flex-col">
+        
+        {/* Top Tab Bar - All tabs have the exact same Chrome tab shape */}
+        <div className="w-full flex items-end relative pt-2 px-4 sm:px-6 z-10">
+          <div className="flex items-end w-full gap-5 sm:gap-7 relative">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const unreadCount = messages.filter((m) => m.channel === tab.id && m.isUnread).length;
+              const Icon = tab.icon;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setSelectedEmail(null);
+                    setSelectedMessageIds([]);
+                    setStarredFilter(false);
+                  }}
+                  className={`group relative flex-1 py-3 sm:py-3.5 px-2.5 sm:px-3 flex flex-col items-center justify-center cursor-pointer transition-colors ${
+                    isActive
+                      ? 'bg-[#eedfc2] text-[#eedfc2] z-20 rounded-t-[14px] sm:rounded-t-[18px]'
+                      : 'bg-[#ede9dc] hover:bg-[#e4dfd0] text-[#ede9dc] hover:text-[#e4dfd0] rounded-t-[14px] sm:rounded-t-[18px] z-10'
+                  }`}
+                >
+                  {/* Left Concave Flare / Inverted Fillet (Every tab has the Chrome shape) */}
+                  <svg
+                    className="absolute -left-[14px] sm:-left-[15px] bottom-0 w-[14px] sm:w-[15px] h-[14px] sm:h-[15px] pointer-events-none overflow-visible transition-colors"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M 16 0 L 16 16.5 L 0 16.5 Q 16 16.5 16 0 Z" />
+                  </svg>
+
+                  {/* Right Concave Flare / Inverted Fillet (Every tab has the Chrome shape) */}
+                  <svg
+                    className="absolute -right-[14px] sm:-right-[15px] bottom-0 w-[14px] sm:w-[15px] h-[14px] sm:h-[15px] pointer-events-none overflow-visible transition-colors"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M 0 0 L 0 16.5 L 16 16.5 Q 0 16.5 0 0 Z" />
+                  </svg>
+
+                  {/* Tab Icon with unread badge */}
+                  <div className="relative mb-1 flex items-center justify-center">
+                    <Icon className={`w-4 h-4 sm:w-[17px] sm:h-[17px] stroke-[1.8] ${isActive ? 'text-[#1F1A14]' : 'text-[#554C3E]'}`} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-2 -right-3 sm:-top-2 sm:-right-3.5 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#D32F2F] text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/60 pointer-events-none">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Tab Label - nowrap prevents awkward truncation */}
+                  <span className={`text-xs sm:text-[13px] font-bold leading-tight whitespace-nowrap ${isActive ? 'text-[#1F1A14]' : 'text-[#554C3E]'}`}>
+                    {tab.label}
                   </span>
-                )}
-              </div>
-              <span className="text-xs sm:text-[13.5px] font-bold leading-tight">
-                {tabs[2].label}
-              </span>
-            </button>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Folder Content Card Body - Seamlessly open to active tab, NO left/right borders */}
-        <div className="bg-[#FAF5EB] p-4 sm:p-7 flex flex-col w-full relative z-0 min-h-[420px]">
+        {/* Folder Content Card Body - Lighter golden parchment background (#eedfc2), seamlessly open to active tab */}
+        <div className="bg-[#eedfc2] rounded-b-[26px] sm:rounded-b-[30px] rounded-t-[14px] sm:rounded-t-[18px] p-4 sm:p-7 flex flex-col w-full relative z-0 min-h-[420px] shadow-xs">
           
           {selectedEmail ? (
             /* ===============================================================
                FULL EMAIL READER VIEW (Opened by clicking >> or message)
                =============================================================== */
             <div className="w-full flex flex-col animate-fade-in text-left">
-              {/* Navigation & Actions Top Bar */}
-              <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-[#E3D4BC]/80">
-                <button
-                  type="button"
-                  onClick={() => setSelectedEmail(null)}
-                  className="flex items-center gap-1.5 text-xs sm:text-[13px] font-bold text-[#1F1A14] hover:text-[#0D224A] bg-transparent p-0 transition-colors cursor-pointer active:scale-95"
-                  title={selectedLang === 'EN' ? 'Back to messages' : 'Volver a la lista'}
-                >
-                  <ArrowLeft className="w-4 h-4 stroke-[2.4]" />
-                  <span>{selectedLang === 'EN' ? 'Back to messages' : 'Volver a mensajes'}</span>
-                </button>
-
+              {/* Navigation & Actions Top Bar - Title on left, Right-aligned actions (Back Arrow, Heart, >>, Trash) */}
+              <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-black">
+                <h3 className="text-sm sm:text-[14.5px] font-semibold tracking-wide text-[#1F1A14] uppercase">
+                  {selectedLang === 'EN' ? 'MENSAJERÍA VOYAGER' : 'MENSAJERÍA VOYAGER'}
+                </h3>
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  {/* Star */}
+                  {/* Back to messages button (repositioned icon without text) */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEmail(null)}
+                    title={selectedLang === 'EN' ? 'Back to messages' : 'Volver a mensajes'}
+                    aria-label={selectedLang === 'EN' ? 'Back to messages' : 'Volver a mensajes'}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-[#0D224A] hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <ArrowLeft className="w-4.5 h-4.5 stroke-[2.2]" />
+                  </button>
+
+                  {/* Reply button in top bar */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReplying(true);
+                      setTimeout(() => replyTextareaRef.current?.focus(), 100);
+                    }}
+                    title={selectedLang === 'EN' ? 'Reply' : 'Responder'}
+                    aria-label={selectedLang === 'EN' ? 'Reply' : 'Responder'}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-[#0D224A] hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer active:scale-95"
+                  >
+                    <Reply className="w-4.5 h-4.5 stroke-[2.2]" />
+                  </button>
+
+                  {/* Heart / Favorite */}
                   <button
                     type="button"
                     onClick={() => handleToggleStar(selectedEmail.id)}
-                    title={selectedEmail.isStarred ? (selectedLang === 'EN' ? 'Starred' : 'Destacado') : (selectedLang === 'EN' ? 'Star message' : 'Destacar')}
-                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-amber-500 hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
+                    title={selectedEmail.isStarred ? (selectedLang === 'EN' ? 'Favorited' : 'Favorito') : (selectedLang === 'EN' ? 'Favorite message' : 'Marcar favorito')}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-rose-500 hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
                   >
-                    <Star className={`w-4.5 h-4.5 ${selectedEmail.isStarred ? 'fill-amber-400 text-amber-500 stroke-[1.8]' : 'stroke-[1.8]'}`} />
+                    <Heart className={`w-4.5 h-4.5 ${selectedEmail.isStarred ? 'fill-rose-500 text-rose-500 stroke-[1.8]' : 'stroke-[1.8]'}`} />
                   </button>
 
                   {/* Priority / Important */}
@@ -955,6 +1248,24 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
                     className="p-1.5 rounded-lg text-[#554C3E] hover:text-amber-600 hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
                   >
                     <ChevronsRight className={`w-4.5 h-4.5 ${selectedEmail.isImportant ? 'text-amber-600 stroke-[2.4]' : 'stroke-[2]'}`} />
+                  </button>
+
+                  {/* Calendar Plus - Schedule Advisory Session (Matches image_e18fd2ae.png) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScheduleNotice(
+                        selectedLang === 'EN'
+                          ? 'Advisory session scheduled with Profesor García! Added to your Voyager calendar.'
+                          : '¡Sesión de asesoría agendada con el Profesor García! Añadida a tu calendario Voyager.'
+                      );
+                      setTimeout(() => setScheduleNotice(null), 5000);
+                    }}
+                    title={selectedLang === 'EN' ? 'Schedule advisory session (Add to Calendar)' : 'Agendar sesión de asesoría (Añadir al calendario)'}
+                    aria-label={selectedLang === 'EN' ? 'Schedule advisory session' : 'Agendar sesión de asesoría'}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-[#0D224A] hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
+                  >
+                    <CalendarPlusIcon className="w-4.5 h-4.5 stroke-[1.8]" />
                   </button>
 
                   {/* Delete Email */}
@@ -982,8 +1293,14 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
               {/* Sender & Recipient Details - No pill, no background, no stroke */}
               <div className="flex items-start justify-between gap-3 bg-transparent border-0 p-0 mb-4 shadow-none">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center shrink-0 text-[#1F1A14]">
-                    <GraduationCap className="w-6 h-6 stroke-[1.8] text-[#1F1A14]" />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-black flex items-center justify-center shrink-0 text-[#1F1A14]">
+                    {selectedEmail.channel === 'grupo' ? (
+                      <Users className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] text-[#1F1A14]" />
+                    ) : selectedEmail.channel === 'anuncios' ? (
+                      <ClipboardList className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] text-[#1F1A14]" />
+                    ) : (
+                      <GraduationCap className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[1.8] text-[#1F1A14]" />
+                    )}
                   </div>
                   <div className="flex flex-col min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1008,168 +1325,547 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
                 </div>
               </div>
 
-              {/* Full Email Formatted Body */}
-              <div className="p-4 sm:p-6 bg-white rounded-2xl border border-[#E3D4BC]/60 shadow-xs text-xs sm:text-[13.5px] text-[#2A241C] leading-relaxed whitespace-pre-line mb-4 font-normal">
-                {selectedEmail.body}
+              {/* Full Email Formatted Body - Pill, background, and border eliminated */}
+              <div className="py-2 text-xs sm:text-[13.5px] text-[#2A241C] leading-relaxed whitespace-pre-line mb-5 font-normal">
+                {renderContentWithGreetingAndEmojis(selectedEmail.body)}
               </div>
 
-              {/* Attached Files Section if present */}
+              {/* Attached Files Section if present - No pill, no background, no border */}
               {selectedEmail.attachment && (
                 <div className="mb-4">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A7062] mb-1.5 block">
-                    {selectedLang === 'EN' ? 'Attachment (1 file)' : 'Archivo adjunto (1 archivo)'}
-                  </span>
                   <div 
                     onClick={(e) => handleDownloadAttachment(e, selectedEmail.attachment!)}
-                    className="bg-white rounded-xl border border-[#E3D4BC]/70 shadow-xs p-3 inline-flex items-center gap-3 transition-all hover:border-[#1F1A14] hover:shadow-md cursor-pointer group max-w-full sm:max-w-md"
+                    className="inline-flex items-center gap-2.5 p-0 bg-transparent border-0 shadow-none cursor-pointer hover:opacity-80 transition-opacity"
                   >
-                    <div className="bg-[#E53935] text-white text-[10px] font-extrabold px-2 py-1.5 rounded-md tracking-wider flex items-center justify-center font-mono shrink-0 shadow-xs">
+                    <div className="bg-black text-white text-[7.5px] font-bold px-1.5 py-0.5 rounded-[3px] tracking-wider flex items-center justify-center font-mono shrink-0 leading-none h-[14px]">
                       {selectedEmail.attachment.type.toUpperCase()}
                     </div>
-                    <div className="flex flex-col min-w-0 flex-1">
-                      <span className="font-bold text-xs sm:text-[13px] text-[#1F1A14] truncate group-hover:text-[#0D224A]">
-                        {selectedEmail.attachment.name}
-                      </span>
-                      <span className="text-[11px] text-[#7A7062]">
-                        {selectedEmail.attachment.size || (selectedLang === 'EN' ? 'Click to open' : 'Clic para abrir')}
-                      </span>
-                    </div>
-                    <Download className="w-4 h-4 text-[#7A7062] group-hover:text-[#1F1A14] transition-colors" />
+                    <span className="font-semibold text-[12.5px] sm:text-[13px] text-[#1F1A14]">
+                      {selectedEmail.attachment.name}
+                    </span>
+                    <span className="text-[11px] text-[#7A7062]">
+                      {selectedEmail.attachment.size}
+                    </span>
+                    <Download className="w-3.5 h-3.5 text-[#554C3E] hover:text-[#1F1A14] transition-colors ml-0.5" />
                   </div>
                 </div>
               )}
 
-              {/* Thread Replies Section */}
+              {/* Thread Replies Section with dotted divider lines after each response */}
               {selectedEmail.replies && selectedEmail.replies.length > 0 && (
-                <div className="mb-5 space-y-3">
+                <div className="mb-4">
+                  {/* Dotted divider line before responses */}
+                  <div className="w-full border-t border-dotted border-black my-3.5" />
+
                   {selectedEmail.replies.map((reply) => {
                     const isUserStudent = reply.isStudent;
                     return (
-                      <div
-                        key={reply.id}
-                        className={`p-3.5 sm:p-4 rounded-2xl border shadow-xs text-left transition-all animate-fade-in ${
-                          isUserStudent
-                            ? 'bg-[#F2E8D8] border-[#DEC7A3] ml-3 sm:ml-8'
-                            : 'bg-white border-[#E3D4BC]/80 mr-3 sm:mr-8'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-[#E3D4BC]/50">
-                          <div className="flex items-center gap-2">
-                            {isUserStudent ? (
-                              <User className="w-4 h-4 text-[#1F1A14] stroke-[2] shrink-0" />
-                            ) : (
-                              <GraduationCap className="w-4.5 h-4.5 text-[#1F1A14] stroke-[2] shrink-0" />
-                            )}
-                            <span className="text-xs sm:text-[13px] font-bold text-[#1F1A14]">
-                              {reply.sender}
+                      <React.Fragment key={reply.id}>
+                        <div
+                          className={`py-2 text-left transition-all animate-fade-in ${
+                            isUserStudent
+                              ? 'ml-3 sm:ml-6'
+                              : 'mr-3 sm:mr-6'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-5 h-5 rounded-full border border-black flex items-center justify-center shrink-0">
+                                {isUserStudent ? (
+                                  <User className="w-3 h-3 text-[#1F1A14] stroke-[2]" />
+                                ) : (
+                                  <GraduationCap className="w-3 h-3 text-[#1F1A14] stroke-[2]" />
+                                )}
+                              </div>
+                              <span className="text-xs sm:text-[13px] font-bold text-[#1F1A14]">
+                                {reply.sender}
+                              </span>
+                            </div>
+                            <span className="text-[10px] sm:text-[11px] text-[#7A7062] font-mono shrink-0">
+                              {formatSimpleDate(reply.fullDate, reply.date)}
                             </span>
                           </div>
-                          <span className="text-[10px] sm:text-[11px] text-[#7A7062] font-mono shrink-0">
-                            {formatSimpleDate(reply.fullDate, reply.date)}
-                          </span>
+                          <p className="text-xs sm:text-[13px] text-[#2A241C] leading-relaxed whitespace-pre-line font-normal">
+                            {renderContentWithGreetingAndEmojis(reply.body)}
+                          </p>
                         </div>
-                        <p className="text-xs sm:text-[13px] text-[#2A241C] leading-relaxed whitespace-pre-line pl-1 font-normal">
-                          {reply.body}
-                        </p>
-                      </div>
+
+                        {/* Dotted divider line after each response */}
+                        <div className="w-full border-t border-dotted border-black my-3.5" />
+                      </React.Fragment>
                     );
                   })}
                 </div>
               )}
 
-              {/* Toast Notification when reply is sent or teacher responds */}
-              {replyNotice && (
-                <div className="mb-3 p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-semibold rounded-xl flex items-center justify-between gap-2 animate-fade-in shadow-xs">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{replyNotice}</span>
+              {/* Gmail-Style Reply Interface - Outer border eliminated */}
+              {isReplying ? (
+                <div className="w-full bg-white rounded-2xl shadow-xs text-left my-4 overflow-hidden transition-all animate-fade-in">
+                  {/* Main Writing Canvas */}
+                  <div className="px-4 pt-3.5 pb-2">
+                    <textarea
+                      ref={replyTextareaRef}
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      rows={replyText.trim() && /^[\p{Extended_Pictographic}\s\p{Emoji_Component}\p{Punctuation}]+$/u.test(replyText.trim()) ? 3 : 4}
+                      className={`w-full bg-transparent border-0 outline-none resize-none font-sans text-[#1F1F1F] leading-relaxed placeholder-transparent focus:ring-0 ${
+                        replyText.trim() && /^[\p{Extended_Pictographic}\s\p{Emoji_Component}\p{Punctuation}]+$/u.test(replyText.trim())
+                          ? 'text-[24px] sm:text-[26px] tracking-wider'
+                          : replyText.trim() && /[\p{Extended_Pictographic}]/u.test(replyText)
+                          ? 'text-[20px] sm:text-[22px]'
+                          : 'text-[15px] sm:text-[16px]'
+                      }`}
+                    />
+
+                    {/* Attached file chip if present */}
+                    {attachedReplyFile && (
+                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#F2F4F7] border border-[#D0D5DD] text-xs text-[#1F1F1F] mb-1 font-mono">
+                        <Paperclip className="w-3.5 h-3.5 text-[#475467]" />
+                        <span className="font-semibold">{attachedReplyFile.name}</span>
+                        <span className="text-[#475467] text-[10px]">({attachedReplyFile.size})</span>
+                        <button
+                          type="button"
+                          onClick={() => setAttachedReplyFile(null)}
+                          className="hover:text-red-600 ml-1 text-[#98A2B3] cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <button type="button" onClick={() => setReplyNotice(null)} className="cursor-pointer text-emerald-700 hover:text-emerald-900">
-                    <X className="w-3.5 h-3.5" />
+
+                  {/* Dotted division line separating writing canvas and toolbar */}
+                  <div className="w-full border-t border-dotted border-black" />
+
+                  {/* Formatting & Actions Toolbar (Pill wrapper eliminated, flat clean layout, icons 133% bigger) */}
+                  <div className="w-full px-3.5 py-2 flex items-center gap-1 sm:gap-1.5 text-xs text-[#444746] select-none">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReplyText(prev => prev + ' **bold text** ');
+                        replyTextareaRef.current?.focus();
+                      }} 
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer" 
+                      title="Bold"
+                    >
+                      <Bold className="w-[18.6px] h-[18.6px] stroke-[2.2]" />
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReplyText(prev => prev + ' _italic text_ ');
+                        replyTextareaRef.current?.focus();
+                      }} 
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer" 
+                      title="Italic"
+                    >
+                      <Italic className="w-[18.6px] h-[18.6px] stroke-[2.2]" />
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReplyText(prev => prev + ' <u>underlined</u> ');
+                        replyTextareaRef.current?.focus();
+                      }} 
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer" 
+                      title="Underline"
+                    >
+                      <Underline className="w-[18.6px] h-[18.6px] stroke-[2.2]" />
+                    </button>
+                    <div className="w-[1px] h-[18.6px] bg-[#C7C7C7] my-auto mx-1" />
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReplyText(prev => prev + '\n1. ');
+                        replyTextareaRef.current?.focus();
+                      }} 
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer" 
+                      title="Numbered list"
+                    >
+                      <ListOrdered className="w-[18.6px] h-[18.6px]" />
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setReplyText(prev => prev + '\n• ');
+                        replyTextareaRef.current?.focus();
+                      }} 
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer" 
+                      title="Bulleted list"
+                    >
+                      <List className="w-[18.6px] h-[18.6px]" />
+                    </button>
+
+                    <div className="w-[1px] h-[18.6px] bg-[#C7C7C7] my-auto mx-1" />
+
+                    {/* Paperclip / Attach Files */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title={selectedLang === 'EN' ? 'Attach files' : 'Adjuntar archivos'}
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer text-[#444746] hover:text-[#1F1F1F]"
+                    >
+                      <Paperclip className="w-[18.6px] h-[18.6px] stroke-[2]" />
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleAttachFile} 
+                      className="hidden" 
+                    />
+
+                    {/* Link icon */}
+                    <button
+                      type="button"
+                      onClick={handleOpenLinkPopover}
+                      title={selectedLang === 'EN' ? 'Insert link' : 'Insertar enlace'}
+                      className={`p-1.5 rounded transition-colors cursor-pointer ${
+                        showLinkPopover
+                          ? 'bg-[#D3E3FD] text-[#041E49]'
+                          : 'text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E2E5E9]'
+                      }`}
+                    >
+                      <LinkIcon className="w-[18.6px] h-[18.6px] stroke-[2]" />
+                    </button>
+
+                    {/* Smile / Emoji Picker */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEmojiPicker(!showEmojiPicker);
+                        setShowLinkPopover(false);
+                      }}
+                      title={selectedLang === 'EN' ? 'Insert emoji' : 'Insertar emoji'}
+                      className={`p-1.5 rounded transition-colors cursor-pointer ${
+                        showEmojiPicker
+                          ? 'bg-[#D3E3FD] text-[#041E49]'
+                          : 'text-[#444746] hover:text-[#1F1F1F] hover:bg-[#E2E5E9]'
+                      }`}
+                    >
+                      <Smile className="w-[18.6px] h-[18.6px] stroke-[2]" />
+                    </button>
+
+                    {/* Image icon */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title={selectedLang === 'EN' ? 'Insert photo' : 'Insertar foto'}
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer text-[#444746] hover:text-[#1F1F1F]"
+                    >
+                      <ImageIcon className="w-[18.6px] h-[18.6px] stroke-[2]" />
+                    </button>
+
+                    {/* Flute divider (filete separador) */}
+                    <div className="w-[1px] h-[18.6px] bg-[#C7C7C7] my-auto mx-1" />
+
+                    {/* Discard Draft (Trash icon) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyText('');
+                        setAttachedReplyFile(null);
+                        setShowEmojiPicker(false);
+                        setShowLinkPopover(false);
+                        setIsReplying(false);
+                      }}
+                      title={selectedLang === 'EN' ? 'Discard draft' : 'Descartar borrador'}
+                      className="p-1.5 hover:bg-[#E2E5E9] rounded transition-colors cursor-pointer text-[#444746] hover:text-red-600"
+                    >
+                      <Trash2 className="w-[18.6px] h-[18.6px] stroke-[1.8]" />
+                    </button>
+
+                    {/* Large Paper Plane Send Option with black lines & yellow trapped inside */}
+                    <button
+                      type="button"
+                      onClick={() => handleSendEmailReply()}
+                      disabled={isSendingReply || (!replyText.trim() && !attachedReplyFile)}
+                      title={selectedLang === 'EN' ? 'Send' : 'Enviar'}
+                      className="ml-auto p-1 rounded-lg hover:bg-[#E2E5E9] active:scale-95 disabled:opacity-35 disabled:hover:bg-transparent transition-all cursor-pointer flex items-center justify-center"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="w-6 h-6 transition-transform hover:scale-105"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        {/* Trapped inside space filled with yellow, crisp black lines */}
+                        <path
+                          d="M22 2L15 22L11 13L2 9L22 2Z"
+                          fill="#FACC15"
+                          stroke="#000000"
+                          strokeWidth="2"
+                          strokeLinejoin="round"
+                        />
+                        {/* Center fold line in black */}
+                        <path
+                          d="M22 2L11 13"
+                          stroke="#000000"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Inline Link Inserter popover */}
+                  {showLinkPopover && (
+                    <div className="mx-3.5 mb-2.5 p-3 bg-[#F8F9FA] rounded-xl border border-neutral-200 shadow-sm animate-fade-in text-xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-[#1F1F1F] flex items-center gap-1.5">
+                          <LinkIcon className="w-3.5 h-3.5 text-[#1a73e8]" />
+                          {selectedLang === 'EN' ? 'Insert link' : 'Insertar enlace'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowLinkPopover(false)}
+                          className="text-neutral-400 hover:text-neutral-600 p-0.5 rounded cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={linkText}
+                          onChange={(e) => setLinkText(e.target.value)}
+                          placeholder={selectedLang === 'EN' ? 'Text to display (optional)' : 'Texto a mostrar (opcional)'}
+                          className="flex-1 px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8]"
+                        />
+                        <input
+                          ref={linkUrlInputRef}
+                          type="url"
+                          value={linkUrl}
+                          onChange={(e) => setLinkUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleApplyLink();
+                            }
+                          }}
+                          placeholder="https://example.com"
+                          className="flex-1 px-3 py-1.5 bg-white border border-[#D0D5DD] rounded-lg text-xs outline-none focus:border-[#1a73e8] focus:ring-1 focus:ring-[#1a73e8]"
+                        />
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setShowLinkPopover(false)}
+                            className="px-2.5 py-1.5 text-neutral-600 hover:bg-neutral-200 rounded-lg text-xs transition-colors cursor-pointer"
+                          >
+                            {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleApplyLink}
+                            disabled={!linkUrl.trim()}
+                            className="px-3.5 py-1.5 bg-[#1a73e8] hover:bg-[#1557b0] text-white font-medium rounded-lg text-xs disabled:opacity-40 cursor-pointer transition-colors shadow-xs"
+                          >
+                            {selectedLang === 'EN' ? 'Apply' : 'Aplicar'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Emoji Picker section moved below the toolbar as shown */}
+                  {showEmojiPicker && (
+                    <div className="mx-3.5 mb-2.5 p-2 bg-[#F8F9FA] rounded-xl border border-neutral-200 shadow-sm flex items-center gap-2 animate-fade-in flex-wrap">
+                      {['👍', '😊', '🙏', '📚', '✍️', '🎯', '⭐', '🤝', '💯', '🚀'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => insertEmoji(emoji)}
+                          className="text-[28px] p-1.5 hover:scale-125 transition-transform cursor-pointer leading-none"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Collapsed Gmail-style Reply Action Button */
+                <div className="my-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsReplying(true);
+                      setTimeout(() => replyTextareaRef.current?.focus(), 100);
+                    }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 text-xs sm:text-[13.5px] font-medium shadow-xs transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Reply className="w-4 h-4 text-neutral-600 stroke-[2.2]" />
+                    <span>{selectedLang === 'EN' ? 'Reply' : 'Responder'}</span>
                   </button>
                 </div>
               )}
 
-              {/* Inline Interactive Reply Composer */}
-              <div id="email-reply-composer" className="bg-white rounded-2xl border border-[#DEC7A3] shadow-xs p-4 sm:p-5 text-left mb-4">
-                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-[#E3D4BC]/60">
-                  <div className="flex items-center gap-2 text-xs sm:text-[13px] font-bold text-[#1F1A14]">
-                    <Reply className="w-4 h-4 text-[#DEC7A3]" strokeWidth={2.4} />
-                    <span>
-                      {selectedLang === 'EN' ? `Reply to ${selectedEmail.sender}` : `Responder a ${selectedEmail.sender}`}
-                    </span>
-                    <span className="text-[#7A7062] font-normal text-[11px] hidden sm:inline truncate max-w-[240px]">
-                      — Re: {selectedEmail.subject || selectedEmail.preview}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-[#7A7062] font-mono">
-                    {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Federico Sandoval'}
-                  </span>
-                </div>
+              {/* Bottom Navigation: Directional navigation arrows replacing "Volver" */}
+              {(() => {
+                const currentMsgIndex = selectedEmail ? currentMessages.findIndex((m) => m.id === selectedEmail.id) : -1;
+                const hasNextMsg = currentMsgIndex !== -1 && currentMsgIndex < currentMessages.length - 1;
+                const hasPrevMsg = currentMsgIndex > 0;
 
-                <form onSubmit={handleSendEmailReply} className="flex flex-col gap-2.5">
-                  <textarea
-                    ref={replyTextareaRef}
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder={
-                      selectedLang === 'EN'
-                        ? `Write your response to ${selectedEmail.sender}...`
-                        : `Escribe tu respuesta a ${selectedEmail.sender}...`
-                    }
-                    rows={3}
-                    className="w-full p-3 text-xs sm:text-[13.5px] text-[#1F1A14] bg-[#FAF5EB]/60 focus:bg-white rounded-xl border border-[#E3D4BC] focus:border-[#1F1A14] outline-none resize-none font-sans leading-relaxed transition-all placeholder-[#8A8072]"
-                  />
+                const handleNavigateNext = () => {
+                  if (hasNextMsg) {
+                    const nextMsg = currentMessages[currentMsgIndex + 1];
+                    handleMessageClick(nextMsg);
+                    setSelectedEmail(nextMsg);
+                    setReplyText('');
+                    setAttachedReplyFile(null);
+                    setShowEmojiPicker(false);
+                    setShowLinkPopover(false);
+                  }
+                };
 
-                  <div className="flex items-center justify-between flex-wrap gap-2 pt-0.5">
-                    <span className="text-[11px] text-[#7A7062]">
-                      {selectedLang === 'EN' ? 'Press Send Reply to post to this thread' : 'Presiona Enviar Respuesta para publicar en este hilo'}
-                    </span>
+                const handleNavigatePrev = () => {
+                  if (hasPrevMsg) {
+                    const prevMsg = currentMessages[currentMsgIndex - 1];
+                    handleMessageClick(prevMsg);
+                    setSelectedEmail(prevMsg);
+                    setReplyText('');
+                    setAttachedReplyFile(null);
+                    setShowEmojiPicker(false);
+                    setShowLinkPopover(false);
+                  } else {
+                    setSelectedEmail(null);
+                  }
+                };
 
-                    <div className="flex items-center gap-2">
-                      {replyText.trim() && (
-                        <button
-                          type="button"
-                          onClick={() => setReplyText('')}
-                          className="px-3 py-1.5 text-xs text-[#7A7062] hover:text-[#1F1A14] transition-colors cursor-pointer"
-                        >
-                          {selectedLang === 'EN' ? 'Discard' : 'Descartar'}
-                        </button>
-                      )}
+                return (
+                  <div className="flex items-center gap-1 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleNavigatePrev}
+                      title={hasPrevMsg ? (selectedLang === 'EN' ? 'Previous notification' : 'Notificación anterior') : (selectedLang === 'EN' ? 'Back to messages' : 'Volver a mensajes')}
+                      aria-label={hasPrevMsg ? (selectedLang === 'EN' ? 'Previous notification' : 'Notificación anterior') : (selectedLang === 'EN' ? 'Back to messages' : 'Volver a mensajes')}
+                      className="group p-1.5 rounded-lg text-[#1F1A14] hover:text-black hover:bg-[#EFE3CF]/80 transition-all duration-200 cursor-pointer active:scale-95 inline-flex items-center justify-center"
+                    >
+                      <ArrowLeft className="w-5 h-5 stroke-[3] transition-transform duration-200 ease-out group-hover:-translate-x-1 group-hover:scale-110" />
+                    </button>
+
+                    {/* Flute divider (filete separador) - 1pt black */}
+                    <div className="w-[1px] h-[18px] bg-black my-auto mx-0.5" />
+
+                    {hasNextMsg ? (
                       <button
-                        type="submit"
-                        disabled={!replyText.trim() || isSendingReply}
-                        className="px-4 py-2 bg-[#DEC7A3] hover:bg-[#D5BF9A] disabled:opacity-40 text-[#1F1A14] font-bold text-xs sm:text-[13px] rounded-xl transition-all cursor-pointer shadow-xs active:scale-95 inline-flex items-center gap-2"
+                        type="button"
+                        onClick={handleNavigateNext}
+                        title={selectedLang === 'EN' ? 'Next notification' : 'Siguiente notificación'}
+                        aria-label={selectedLang === 'EN' ? 'Next notification' : 'Siguiente notificación'}
+                        className="group p-1.5 rounded-lg text-[#1F1A14] hover:text-black hover:bg-[#EFE3CF]/80 transition-all duration-200 cursor-pointer active:scale-95 inline-flex items-center justify-center"
                       >
-                        <Send className="w-3.5 h-3.5 stroke-[2.2]" />
-                        <span>
-                          {isSendingReply
-                            ? (selectedLang === 'EN' ? 'Sending...' : 'Enviando...')
-                            : (selectedLang === 'EN' ? 'Send Reply' : 'Enviar Respuesta')}
-                        </span>
+                        <ArrowRight className="w-5 h-5 stroke-[3] transition-transform duration-200 ease-out group-hover:translate-x-1 group-hover:scale-110" />
                       </button>
-                    </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        title={selectedLang === 'EN' ? 'No next notification' : 'No hay siguiente notificación'}
+                        aria-label={selectedLang === 'EN' ? 'No next notification' : 'No hay siguiente notificación'}
+                        className="p-1.5 rounded-lg text-[#1F1A14] opacity-25 cursor-not-allowed inline-flex items-center justify-center"
+                      >
+                        <ArrowRight className="w-5 h-5 stroke-[3]" />
+                      </button>
+                    )}
                   </div>
-                </form>
-              </div>
-
-              {/* Bottom Navigation */}
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedEmail(null)}
-                  className="px-4 py-2 bg-white hover:bg-neutral-50 text-[#1F1A14] font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer border border-[#DEC7A3] shadow-2xs inline-flex items-center gap-2 active:scale-95"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>{selectedLang === 'EN' ? 'Back to all messages' : 'Volver a todos los mensajes'}</span>
-                </button>
-              </div>
+                );
+              })()}
             </div>
           ) : (
             /* ===============================================================
                MESSAGE LIST VIEW
                =============================================================== */
             <>
+              {/* Actions Top Bar - Title on left, Right-aligned actions (Heart, >>, Trash) */}
+              <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-black">
+                <h3 className="text-sm sm:text-[14.5px] font-semibold tracking-wide text-[#1F1A14] uppercase">
+                  {selectedLang === 'EN' ? 'MENSAJERÍA VOYAGER' : 'MENSAJERÍA VOYAGER'}
+                </h3>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Heart Filter with Liked Messages Count Badge */}
+                  <button
+                    type="button"
+                    onClick={() => setStarredFilter(!starredFilter)}
+                    title={
+                      starredFilter
+                        ? (selectedLang === 'EN' ? 'Show all' : 'Ver todos')
+                        : (selectedLang === 'EN' 
+                            ? (likedMessagesCount > 0 ? `Favorites (${likedMessagesCount})` : 'Favorites') 
+                            : (likedMessagesCount > 0 ? `Favoritos (${likedMessagesCount})` : 'Favoritos'))
+                    }
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-rose-500 hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer relative"
+                  >
+                    <Heart className={`w-4.5 h-4.5 ${starredFilter ? 'fill-rose-500 text-rose-500 stroke-[1.8]' : 'stroke-[1.8]'}`} />
+                    {likedMessagesCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-[#D32F2F] text-white text-[9px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/40 pointer-events-none">
+                        {likedMessagesCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Priority / ChevronsRight >> */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentMessages.length > 0) {
+                        setSelectedEmail(currentMessages[0]);
+                      }
+                    }}
+                    title={selectedLang === 'EN' ? 'Open latest email' : 'Abrir correo'}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-amber-600 hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
+                  >
+                    <ChevronsRight className="w-4.5 h-4.5 text-[#554C3E] hover:text-amber-600 stroke-[2.4]" />
+                  </button>
+
+                  {/* Calendar Plus - Schedule / Add to Calendar (Matches image_e18fd2ae.png) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScheduleNotice(
+                        selectedLang === 'EN'
+                          ? 'Practice / Advisory session scheduled on your Voyager calendar!'
+                          : '¡Sesión de práctica/asesoría agendada en tu calendario Voyager!'
+                      );
+                      setTimeout(() => setScheduleNotice(null), 5000);
+                    }}
+                    title={selectedLang === 'EN' ? 'Schedule session (Add to Calendar)' : 'Agendar sesión (Añadir al calendario)'}
+                    aria-label={selectedLang === 'EN' ? 'Schedule session' : 'Agendar sesión'}
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-[#0D224A] hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer"
+                  >
+                    <CalendarPlusIcon className="w-4.5 h-4.5 stroke-[1.8]" />
+                  </button>
+
+                  {/* Delete Email / Selected Messages */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedMessageIds.length > 0) {
+                        const updated = messages.filter((m) => !selectedMessageIds.includes(m.id));
+                        saveMessages(updated);
+                        setSelectedMessageIds([]);
+                      } else {
+                        const updated = messages.filter((m) => m.channel !== activeTab);
+                        saveMessages(updated);
+                      }
+                    }}
+                    title={
+                      selectedMessageIds.length > 0
+                        ? (selectedLang === 'EN' ? `Delete ${selectedMessageIds.length} selected` : `Eliminar ${selectedMessageIds.length} seleccionados`)
+                        : (selectedLang === 'EN' ? 'Clear channel messages' : 'Eliminar mensajes del canal')
+                    }
+                    className="p-1.5 rounded-lg text-[#554C3E] hover:text-[#D32F2F] hover:bg-[#EFE3CF]/60 transition-colors cursor-pointer relative"
+                  >
+                    <Trash2 className="w-4.5 h-4.5 stroke-[1.8]" />
+                    {selectedMessageIds.length > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-[#D32F2F] text-white text-[9px] font-bold flex items-center justify-center leading-none shadow-xs border border-white/40 pointer-events-none">
+                        {selectedMessageIds.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
               {/* Message List - Dividers eliminated as requested */}
               <div className="flex flex-col w-full space-y-3 sm:space-y-4 min-h-[360px]">
                 {currentMessages.length === 0 ? (
@@ -1177,35 +1873,77 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
                     {selectedLang === 'EN' ? 'No messages in this channel.' : 'No hay mensajes en este canal.'}
                   </div>
                 ) : (
-                  currentMessages.map((msg) => {
+                  currentMessages.map((msg, index) => {
                     return (
-                      <div
-                        key={msg.id}
-                        onClick={() => {
-                          handleMessageClick(msg);
-                          setSelectedEmail(msg);
-                        }}
-                        className="py-1 transition-colors cursor-pointer text-left w-full rounded-lg hover:bg-[#FAF0DE]/50 px-1"
-                      >
-                        {/* Top Row: Options (Star, >>, Reply, Trash) + Unread Dot + Headline + Date */}
-                        <div className="flex items-start justify-between gap-2.5 sm:gap-3 w-full group/row">
-                          <div className="flex items-start gap-2.5 sm:gap-3 flex-1 min-w-0">
-                            {/* Beginning of message options: Star, Double Arrow, Reply, Garbage Can */}
+                      <React.Fragment key={msg.id}>
+                        <div
+                          onClick={() => {
+                            handleMessageClick(msg);
+                            setSelectedEmail(msg);
+                          }}
+                          className="py-1 transition-colors cursor-pointer text-left w-full rounded-lg hover:bg-amber-300/40 px-1"
+                        >
+                          {/* Top Row: Options (Select, Star, Reply, >>) on left + Date on right */}
+                          <div className="flex items-center justify-between gap-2.5 sm:gap-3 w-full group/row">
+                            {/* Beginning of message options: Select Icon (First spot), Heart, Reply, Double Arrow */}
                             <div 
                               className="flex items-center gap-1.5 sm:gap-2 shrink-0 pt-0.5" 
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {/* 1. Star */}
+                              {/* 1. Select Icon (Square / CheckSquare) - moved to first spot */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleSelect(msg.id);
+                                }}
+                                title={
+                                  selectedMessageIds.includes(msg.id)
+                                    ? (selectedLang === 'EN' ? 'Deselect message' : 'Deseleccionar mensaje')
+                                    : (selectedLang === 'EN' ? 'Select message' : 'Seleccionar mensaje')
+                                }
+                                aria-label={
+                                  selectedMessageIds.includes(msg.id)
+                                    ? (selectedLang === 'EN' ? 'Deselect message' : 'Deseleccionar mensaje')
+                                    : (selectedLang === 'EN' ? 'Select message' : 'Seleccionar mensaje')
+                                }
+                                className="transition-colors p-0.5 rounded cursor-pointer hover:bg-[#EFE3CF]/80 text-[#554C3E] hover:text-[#1F1F1F]"
+                              >
+                                {selectedMessageIds.includes(msg.id) ? (
+                                  <CheckSquare className="w-4 h-4 text-[#1F1A14] stroke-[2.2]" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-[#6A6052] hover:text-[#1F1A14] stroke-[1.8]" />
+                                )}
+                              </button>
+
+                              {/* 2. Heart */}
                               <button
                                 type="button"
                                 onClick={() => handleToggleStar(msg.id)}
-                                title={msg.isStarred ? (selectedLang === 'EN' ? 'Starred' : 'Destacado') : (selectedLang === 'EN' ? 'Star message' : 'Destacar mensaje')}
+                                title={msg.isStarred ? (selectedLang === 'EN' ? 'Favorited' : 'Favorito') : (selectedLang === 'EN' ? 'Favorite message' : 'Marcar favorito')}
                                 className="transition-colors p-0.5 rounded cursor-pointer"
                               >
-                                <Star className={`w-4 h-4 transition-transform hover:scale-110 active:scale-90 ${msg.isStarred ? 'fill-amber-400 text-amber-500 stroke-[1.8]' : 'text-[#554C3E] hover:text-amber-500 stroke-[1.8]'}`} />
+                                <Heart className={`w-4 h-4 transition-transform hover:scale-110 active:scale-90 ${msg.isStarred ? 'fill-rose-500 text-rose-500 stroke-[1.8]' : 'text-[#554C3E] hover:text-rose-500 stroke-[1.8]'}`} />
                               </button>
 
-                              {/* 2. Double Arrow (ChevronsRight >>) - View full email */}
+                              {/* 3. Reply Icon (↩) - Quick reply to this message */}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMessageClick(msg);
+                                  setSelectedEmail(msg);
+                                  setIsReplying(true);
+                                  setTimeout(() => replyTextareaRef.current?.focus(), 150);
+                                }}
+                                title={selectedLang === 'EN' ? 'Reply to message' : 'Responder al mensaje'}
+                                aria-label={selectedLang === 'EN' ? 'Reply to message' : 'Responder al mensaje'}
+                                className="transition-colors p-0.5 rounded cursor-pointer hover:bg-[#EFE3CF]/80 text-[#554C3E] hover:text-[#0D224A]"
+                              >
+                                <Reply className="w-4 h-4 transition-transform hover:scale-125 active:scale-90 text-[#4A4237] hover:text-[#0D224A] stroke-[2.2]" />
+                              </button>
+
+                              {/* 4. Double Arrow (ChevronsRight >>) - View full email */}
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1219,146 +1957,74 @@ export const VoyagerMessagingModal: React.FC<VoyagerMessagingModalProps> = ({
                               >
                                 <ChevronsRight className="w-4 h-4 transition-transform hover:scale-125 active:scale-90 text-[#4A4237] hover:text-[#0D224A] stroke-[2.2]" />
                               </button>
-
-                              {/* 3. Reply Button */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMessageClick(msg);
-                                  setSelectedEmail(msg);
-                                  setTimeout(() => {
-                                    replyTextareaRef.current?.focus();
-                                    replyTextareaRef.current?.scrollIntoView({ behavior: 'smooth' });
-                                  }, 150);
-                                }}
-                                title={selectedLang === 'EN' ? 'Reply to this message' : 'Responder a este mensaje'}
-                                aria-label={selectedLang === 'EN' ? 'Reply to this message' : 'Responder a este mensaje'}
-                                className="transition-colors p-0.5 rounded cursor-pointer hover:bg-[#EFE3CF]/80 text-[#554C3E] hover:text-[#0D224A]"
-                              >
-                                <Reply className="w-4 h-4 transition-transform hover:scale-125 active:scale-90 text-[#4A4237] hover:text-[#0D224A] stroke-[2]" />
-                              </button>
-
-                              {/* 4. Garbage Can (Trash2) */}
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteMessage(msg.id)}
-                                title={selectedLang === 'EN' ? 'Delete message' : 'Eliminar mensaje'}
-                                className="text-[#554C3E] hover:text-[#D32F2F] transition-colors p-0.5 rounded cursor-pointer hover:scale-110 active:scale-90"
-                              >
-                                <Trash2 className="w-4 h-4 stroke-[1.8]" />
-                              </button>
                             </div>
 
-                            {/* Red Dot Unread Indicator */}
-                            {msg.isUnread ? (
-                              <span className="w-2.5 h-2.5 rounded-full bg-[#D32F2F] shrink-0 mt-1.5 inline-block shadow-xs" title={selectedLang === 'EN' ? 'Unread' : 'No leído'} />
-                            ) : null}
-
-                            <div className="flex flex-col min-w-0 flex-1">
-                              {/* Main headline text */}
-                              <span className={`text-[14px] sm:text-[15.5px] leading-snug ${msg.isUnread ? 'font-bold text-[#1F1A14]' : 'font-normal text-[#2A241C]'}`}>
-                                {msg.preview}
-                              </span>
-
-                              {/* Subtitle text if present */}
-                              {msg.subtitle && (
-                                <span className="text-[12.5px] sm:text-[13px] text-[#4A4237] mt-0.5 leading-snug">
-                                  {msg.subtitle}
-                                </span>
-                              )}
-
-                              {/* Thread reply counter badge */}
-                              {msg.replies && msg.replies.length > 0 && (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#5C5042] bg-[#EFE3CF] px-2 py-0.5 rounded-full shadow-2xs">
-                                    <MessageSquare className="w-3 h-3 text-[#554C3E]" />
-                                    <span>
-                                      {msg.replies.length}{' '}
-                                      {msg.replies.length === 1
-                                        ? (selectedLang === 'EN' ? 'reply' : 'respuesta')
-                                        : (selectedLang === 'EN' ? 'replies' : 'respuestas')}
-                                    </span>
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Small inline attachment preview */}
-                              {msg.attachment && !msg.attachment.size && (
-                                <div 
-                                  onClick={(e) => handleDownloadAttachment(e, msg.attachment!)}
-                                  className="flex items-center gap-1.5 text-xs text-[#2A241C] hover:text-[#0D224A] hover:underline mt-1 font-medium transition-colors"
-                                >
-                                  <Paperclip className="w-3.5 h-3.5 text-[#554C3E] stroke-[2] shrink-0" />
-                                  <span>{msg.attachment.name}</span>
-                                </div>
-                              )}
-
-                              {/* Rich PDF Card */}
-                              {msg.attachment && msg.attachment.size && (
-                                <div 
-                                  onClick={(e) => handleDownloadAttachment(e, msg.attachment!)}
-                                  className="bg-white rounded-xl shadow-xs p-2.5 sm:p-3 inline-flex items-center gap-3 mt-2 max-w-full sm:max-w-md transition-transform hover:scale-[1.01] cursor-pointer"
-                                >
-                                  {/* Red PDF Badge */}
-                                  <div className="bg-[#E53935] text-white text-[10px] font-extrabold px-1.5 py-1 rounded-md tracking-wider flex items-center justify-center font-mono shrink-0 shadow-xs">
-                                    PDF
-                                  </div>
-                                  <div className="flex flex-col min-w-0 flex-1">
-                                    <span className="font-bold text-xs sm:text-[13px] text-[#1F1A14] truncate">
-                                      {msg.attachment.name}
-                                    </span>
-                                    <span className="text-[11px] text-[#7A7062]">
-                                      {msg.attachment.size}
-                                    </span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            {/* Right Date in DD/MM/YY format */}
+                            <span className="text-xs sm:text-[13.5px] font-medium text-[#2A241C] shrink-0 ml-2">
+                              {msg.date}
+                            </span>
                           </div>
 
-                          {/* Right Date in DD/MM/YY format */}
-                          <span className="text-xs sm:text-[13.5px] font-medium text-[#2A241C] shrink-0 mt-0.5 ml-2">
-                            {msg.date}
-                          </span>
+                          {/* Message Content Block brought under the icons */}
+                          <div className="mt-1 flex flex-col min-w-0">
+                            {/* Main headline text with unread indicator dot */}
+                            <div className="flex items-center gap-2 min-w-0">
+                              {msg.isUnread ? (
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#D32F2F] shrink-0 inline-block shadow-xs" title={selectedLang === 'EN' ? 'Unread' : 'No leído'} />
+                              ) : null}
+                              <span className={`text-[12.5px] sm:text-[13px] leading-snug flex-1 min-w-0 ${msg.isUnread ? 'font-bold text-[#1F1A14]' : 'font-normal text-[#2A241C]'}`}>
+                                {msg.preview}
+                              </span>
+                            </div>
+
+                            {/* Subtitle text if present */}
+                            {msg.subtitle ? (
+                              <span className="text-[12.5px] sm:text-[13px] text-[#4A4237] leading-snug mt-0.5">
+                                {msg.subtitle}
+                              </span>
+                            ) : null}
+
+                            {/* Small inline attachment preview */}
+                            {msg.attachment && !msg.attachment.size && (
+                              <div 
+                                onClick={(e) => handleDownloadAttachment(e, msg.attachment!)}
+                                className="flex items-center gap-1.5 text-[12.5px] sm:text-[13px] text-[#2A241C] hover:text-[#0D224A] hover:underline mt-1 font-semibold transition-colors"
+                              >
+                                <Paperclip className="w-3.5 h-3.5 text-[#554C3E] stroke-[2] shrink-0" />
+                                <span>{msg.attachment.name}</span>
+                              </div>
+                            )}
+
+                            {/* PDF Attachment - No pill, no white background, no stroke */}
+                            {msg.attachment && msg.attachment.size && (
+                              <div 
+                                onClick={(e) => handleDownloadAttachment(e, msg.attachment!)}
+                                className="inline-flex items-center gap-2 mt-1.5 p-0 bg-transparent border-0 shadow-none cursor-pointer hover:opacity-80 transition-opacity"
+                              >
+                                {/* Black Attachment Badge with White Type - Reduced 75% */}
+                                <div className="bg-black text-white text-[7.5px] font-bold px-1.5 py-0.5 rounded-[3px] tracking-wider flex items-center justify-center font-mono shrink-0 leading-none h-[14px]">
+                                  {(msg.attachment.type || 'pdf').toUpperCase()}
+                                </div>
+                                <span className="font-semibold text-[12.5px] sm:text-[13px] text-[#1F1A14]">
+                                  {msg.attachment.name}
+                                </span>
+                                <span className="text-[11px] text-[#7A7062]">
+                                  {msg.attachment.size}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
+
+                        {/* Dashed divider between messages */}
+                        {index < currentMessages.length - 1 && (
+                          <div className="w-full border-t border-dashed border-black" />
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
               </div>
-
-              {/* Bottom Floating White Pill Input Bar - Outline border removed as requested */}
-              {activeTab !== 'anuncios' ? (
-                <form onSubmit={handleSendMessage} className="mt-5 w-full">
-                  <div className="bg-white rounded-full px-5 py-3 sm:py-3.5 border-0 shadow-sm flex items-center gap-3 w-full">
-                    <input
-                      type="text"
-                      value={inputMessage}
-                      onChange={(e) => setInputMessage(e.target.value)}
-                      placeholder={selectedLang === 'EN' ? 'Write your message...' : 'Escribe tu mensaje...'}
-                      className="flex-1 bg-transparent text-[14px] sm:text-[15px] text-[#1F1A14] placeholder-[#8A8072] outline-none font-sans"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!inputMessage.trim()}
-                      className="cursor-pointer transition-opacity disabled:opacity-40 p-1 flex items-center justify-center active:scale-95"
-                      title={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
-                      aria-label={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
-                    >
-                      <YellowPaperPlane />
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                <div className="mt-5 px-4 py-3 bg-[#EFE7D8]/80 rounded-full text-center border-0 shadow-xs">
-                  <span className="text-xs text-[#6B5F4E] font-medium">
-                    {selectedLang === 'EN'
-                      ? 'Official announcements are read-only'
-                      : 'Canal oficial de avisos solo lectura'}
-                  </span>
-                </div>
-              )}
             </>
           )}
         </div>

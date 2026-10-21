@@ -70,10 +70,12 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   const [internalText, setInternalText] = useState('');
   const [isDictating, setIsDictating] = useState(false);
   const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
   const recognitionRef = useRef<any>(null);
   const initialTextRef = useRef<string>('');
 
   const currentText = value !== undefined ? value : internalText;
+  const isArrowActive = isInputFocused || Boolean(currentText.trim());
 
   // Clean up recognition on unmount
   useEffect(() => {
@@ -216,7 +218,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     }
   };
 
-  const placeholder = placeholderText || (selectedLang === 'EN' ? 'Type a message...' : 'Escribe un mensaje...');
+  const placeholder = placeholderText || (selectedLang === 'EN' ? 'Write your message...' : 'Escribe tu mensaje...');
   const isListening = isDictating || isLiveVoiceActive;
 
   const modesList = [
@@ -350,32 +352,43 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
 
       {/* Bottom Control Row (Input Pill + Circular Mic Button) */}
       <form onSubmit={handleSubmit} className="w-full flex items-center gap-2 sm:gap-2.5">
-        {/* Input Pill */}
-        <div className={`flex-1 border rounded-full px-3.5 sm:px-4 py-2 sm:py-2.5 flex items-center gap-2.5 shadow-xl backdrop-blur-md transition-all ${
+        {/* Input Pill - Layout and behavior matching input B */}
+        <div className={`flex-1 border rounded-full px-4 sm:px-4.5 py-1.5 sm:py-2 flex items-center gap-2.5 shadow-xl backdrop-blur-md transition-all ${
           isDarkMode 
             ? 'border-slate-500/50 hover:border-slate-400/80 focus-within:border-slate-300 bg-[#081530]/80 text-white' 
             : 'border-slate-300 hover:border-slate-400 focus-within:border-slate-500 bg-slate-100 text-slate-900 shadow-sm'
         }`}>
-          <button
-            type="submit"
-            className={`transition-colors cursor-pointer shrink-0 -rotate-45 flex items-center justify-center ${
-              isDarkMode ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
-            }`}
-            title={selectedLang === 'EN' ? 'Send' : 'Enviar'}
-          >
-            <Send className="w-4 h-4" />
-          </button>
-
           <input
             type="text"
             value={currentText}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
             placeholder={placeholder}
-            className={`bg-transparent text-xs sm:text-sm outline-none w-full font-normal ${
+            className={`bg-transparent text-xs sm:text-sm outline-none flex-1 min-w-0 font-normal ${
               isDarkMode ? 'text-white placeholder-slate-400/90' : 'text-slate-900 placeholder-slate-500 font-medium'
             }`}
           />
+
+          <button
+            type="submit"
+            disabled={!currentText.trim()}
+            className={`transition-all duration-200 shrink-0 p-0.5 flex items-center justify-center active:scale-95 ${
+              !currentText.trim() ? 'cursor-default' : 'cursor-pointer hover:scale-105'
+            }`}
+            title={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
+            aria-label={selectedLang === 'EN' ? 'Send message' : 'Enviar mensaje'}
+          >
+            <Send
+              className={`w-[14.5px] h-[14.5px] sm:w-[15px] sm:h-[15px] shrink-0 transition-all duration-200 ${
+                isArrowActive
+                  ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]'
+                  : 'text-[#9CA3AF]'
+              }`}
+              strokeWidth={2}
+            />
+          </button>
         </div>
 
         {/* Circular Microphone Button */}

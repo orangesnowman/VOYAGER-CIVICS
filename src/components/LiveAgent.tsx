@@ -4778,15 +4778,15 @@ ${greetingPrompt}`;
   const renderVoiceControlCenterIcon = () => (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
       {isPaused ? (
-        /* PAUSED: White 20% transparent (80% opacity) in subtle inactive animation state */
+        /* PAUSED: Dark navy blue in subtle inactive animation state */
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          stroke="rgba(255, 255, 255, 0.8)"
-          strokeWidth="1.6"
+          stroke="#0D224A"
+          strokeWidth="1.9"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="w-7 h-7 sm:w-8 sm:h-8 opacity-85 group-hover:opacity-100 group-hover:stroke-[#FACC15] transition-all duration-200 drop-shadow-[0_0_6px_rgba(255,255,255,0.3)] group-hover:scale-105"
+          className="w-7 h-7 sm:w-8 sm:h-8 opacity-90 group-hover:opacity-100 group-hover:stroke-[#071329] transition-all duration-200 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)] group-hover:scale-105"
         >
           <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
           <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -4794,16 +4794,16 @@ ${greetingPrompt}`;
           <line x1="8" x2="16" y1="22" y2="22" />
         </svg>
       ) : (
-        /* ACTIVE: White 20% transparent (80% opacity) normally, Pause on hover */
+        /* ACTIVE: Dark navy blue normally, Pause on hover */
         <>
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="rgba(255, 255, 255, 0.8)"
-            strokeWidth="1.6"
+            stroke="#0D224A"
+            strokeWidth="1.9"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 group-hover:hidden drop-shadow-[0_0_6px_rgba(255,255,255,0.3)]"
+            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 group-hover:hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]"
           >
             <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
@@ -4813,11 +4813,11 @@ ${greetingPrompt}`;
           <svg
             viewBox="0 0 24 24"
             fill="none"
-            stroke="rgba(255, 255, 255, 0.8)"
-            strokeWidth="2.32"
+            stroke="#0D224A"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 hidden group-hover:block drop-shadow-[0_0_6px_rgba(255,255,255,0.35)]"
+            className="w-7 h-7 sm:w-8 sm:h-8 transition-all duration-150 hidden group-hover:block drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]"
           >
             <line x1="8.2" x2="8.2" y1="4.5" y2="19.5" />
             <line x1="15.8" x2="15.8" y1="4.5" y2="19.5" />
@@ -5061,12 +5061,16 @@ ${greetingPrompt}`;
           onSubmitText={(text) => {
             if (!text.trim()) return;
             setHasInteracted(true);
-            addUserMessage(text);
-            sendText(text);
-            setFullScreenInput('');
-            if (rightPanelTab !== 'chat') {
-              setRightPanelTab('chat');
+            if (rightPanelTab === 'roadmap') {
+              window.dispatchEvent(new CustomEvent('voyager-send-message', { detail: { text } }));
+            } else {
+              addUserMessage(text);
+              sendText(text);
+              if (rightPanelTab !== 'chat') {
+                setRightPanelTab('chat');
+              }
             }
+            setFullScreenInput('');
           }}
           isAdaptiveMode={isAdaptiveMode}
           setIsAdaptiveMode={setIsAdaptiveMode}
@@ -5105,7 +5109,7 @@ ${greetingPrompt}`;
  }}
  onClick={handleConnectClick}
  title={selectedLang === 'EN' ? 'Click to Connect' : 'Haz clic para conectar'}
- className="w-[385px] h-[385px] sm:w-[490px] sm:h-[490px] md:w-[595px] md:h-[595px] max-w-[95%] max-h-[75vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply pointer-events-auto select-none" 
+ className="w-[288px] h-[288px] sm:w-[368px] sm:h-[368px] md:w-[446px] md:h-[446px] max-w-[85%] max-h-[56vh] object-contain animate-float-zero-g cursor-pointer hover:scale-105 active:scale-95 transition-all duration-300 mix-blend-multiply pointer-events-auto select-none" 
  />
  </div>
  <div className="md:hidden absolute bottom-16 left-0 right-0 z-20 flex justify-center pointer-events-auto">
@@ -6361,7 +6365,7 @@ ${greetingPrompt}`;
                 }}
                 onClick={handleConnectClick}
                 title={selectedLang === 'EN' ? 'Click to Start Conversation' : 'Haz clic para iniciar conversación'}
-                className="w-[420px] h-[420px] sm:w-[490px] sm:h-[490px] md:w-[560px] md:h-[560px] max-w-[95%] max-h-[75vh] object-contain animate-float-zero-g select-none transition-all duration-300 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95" 
+                className="w-[315px] h-[315px] sm:w-[368px] sm:h-[368px] md:w-[420px] md:h-[420px] max-w-[85%] max-h-[56vh] object-contain animate-float-zero-g select-none transition-all duration-300 pointer-events-auto cursor-pointer hover:scale-105 active:scale-95" 
               />
             </div>
 
@@ -8093,8 +8097,12 @@ Pregunta del usuario: "${text}"]`;
               const trimmed = text ? text.trim() : '';
               if (!trimmed) return;
               setIsDictationActive(false);
-              addUserMessage(trimmed);
-              sendText(trimmed);
+              if (rightPanelTab === 'roadmap') {
+                window.dispatchEvent(new CustomEvent('voyager-send-message', { detail: { text: trimmed } }));
+              } else {
+                addUserMessage(trimmed);
+                sendText(trimmed);
+              }
               setFullScreenInput('');
             }}
             isLiveVoiceActive={isDictationActive}

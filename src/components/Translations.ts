@@ -51,7 +51,9 @@ export const translations = {
     reviewPlaceholder: "Tell us how your conversation went...",
     thankYouReview: "Thank you for practicing with Voyager!",
     pauseTooltip: "Pause",
-    resumeTooltip: "Resume"
+    resumeTooltip: "Resume",
+    myGroup: "My Group",
+    tasks: "Tasks"
   },
   ES: {
     standby: "EN ESPERA",
@@ -103,7 +105,9 @@ export const translations = {
     reviewPlaceholder: "Cuéntanos sobre tu experiencia de práctica...",
     thankYouReview: "¡Gracias por practicar con Voyager!",
     pauseTooltip: "Pausar",
-    resumeTooltip: "Reanudar"
+    resumeTooltip: "Reanudar",
+    myGroup: "Mi Grupo",
+    tasks: "Tareas"
   }
 };
 
