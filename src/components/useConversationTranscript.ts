@@ -44,10 +44,18 @@ export function useConversationTranscript(activeTab: string = 'chat') {
       cleaned = cleaned.replace(missionMatch[0], "");
     }
 
-    // 5. Strip non-Spanish/non-English foreign script characters (CJK ideographs, Katakana, Hiragana, Hangul)
+    // 5. Lesson Evaluation Trigger
+    let shouldEvaluateLesson = false;
+    const evalMatch = cleaned.match(/\[EVALUATE_LESSON_NOW\]/i);
+    if (evalMatch) {
+      shouldEvaluateLesson = true;
+      cleaned = cleaned.replace(evalMatch[0], "").trim();
+    }
+
+    // 6. Strip non-Spanish/non-English foreign script characters (CJK ideographs, Katakana, Hiragana, Hangul)
     cleaned = cleaned.replace(/[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff\uac00-\ud7af\uff00-\uffef]+/g, '');
 
-    return { cleaned, newScores, newLearnedWords, newAccentPattern, newCompletedMission };
+    return { cleaned, newScores, newLearnedWords, newAccentPattern, newCompletedMission, shouldEvaluateLesson };
   }, []);
 
   const addSystemMessage = useCallback((text: string, customId?: string) => {

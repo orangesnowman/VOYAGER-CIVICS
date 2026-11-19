@@ -13,6 +13,7 @@ export interface ModePromptOptions {
   userLevel?: string;
   activeTab?: string;
   userRole?: string;
+  activeLesson?: any;
 }
 
 const COACHING_PHILOSOPHY_INSTRUCTIONS = `
@@ -41,7 +42,7 @@ export class ConversationModePolicy {
    * Translates the active mode and options into the appropriate system instruction payload.
    */
   static getSystemInstructionsForMode(mode: ConversationMode, options: ModePromptOptions): string {
-    const { initialPrompt, selectedLang, userName, userAge, userCountry, usState, userGoal, userLevel } = options;
+    const { initialPrompt, selectedLang, userName, userAge, userCountry, usState, userGoal, userLevel, activeTab } = options;
     
     const displayName = userName ? userName.replace(/\s*\(.*?\)/g, "").trim().split(" ")[0] : "";
     const displayAge = userAge ? userAge.trim() : "";
@@ -50,7 +51,16 @@ export class ConversationModePolicy {
     
     let baseGreeting = "";
     
-    if (selectedLang === 'ES') {
+    if (activeTab === 'lessons' || initialPrompt?.includes('ÍNDICE DE LECCIONES') || initialPrompt?.includes('Lesson Index')) {
+      const isEn = selectedLang === 'EN';
+      baseGreeting = isEn
+        ? (displayName
+            ? `Please greet the user by name and welcome them to the Lesson Index in your natural Voyager voice. Say: "Hello, ${displayName}! Welcome to your Lesson Index. Here you can explore your lessons and learning materials. If you need any help, just ask me." Then remain completely silent until the user asks a question.`
+            : `Please welcome the user to the Lesson Index in your natural Voyager voice. Say: "Welcome to your Lesson Index! Here you can explore your lessons and learning materials. If you need any help, just ask me." Then remain completely silent until the user asks a question.`)
+        : (displayName
+            ? `Por favor, saluda al usuario por su nombre y dale la bienvenida al Índice de lecciones con tu voz natural de Voyager. Di: "¡Hola, ${displayName}! Te doy la bienvenida a tu Índice de lecciones. Aquí puedes explorar tus clases y materiales de aprendizaje. Si necesitas algo, solo pregúntame." Luego guarda completo silencio hasta que el usuario te pregunte algo.`
+            : `Por favor, dale la bienvenida al usuario al Índice de lecciones con tu voz natural de Voyager. Di: "¡Te doy la bienvenida a tu Índice de lecciones! Aquí puedes explorar tus clases y materiales de aprendizaje. Si necesitas algo, solo pregúntame." Luego guarda completo silencio hasta que el usuario te pregunte algo.`);
+    } else if (selectedLang === 'ES') {
       switch (mode) {
         case 'BILINGUAL':
           baseGreeting = displayName
@@ -179,6 +189,20 @@ Be friendly, encouraging, and clear. Ask a single question to start civics pract
       }
     }
 
+    if (options.activeLesson) {
+      const lessonTitle = options.activeLesson.title || 'English Practice';
+      const objective = options.activeLesson.objective || 'Practice speaking with confidence';
+      if (selectedLang === 'ES') {
+        baseGreeting = displayName
+          ? `Por favor, saluda brevemente a ${displayName} en español como "USA Voyager". Introduce la lección activa: "${lessonTitle}". Explica de forma muy concisa el objetivo de aprendizaje ("${objective}") y formula de inmediato la primera pregunta o ejercicio de práctica. REGLA OBLIGATORIA: Mantente 100% enfocado en esta lección. NO preguntes de qué le gustaría hablar ni introduzcas temas no relacionados.`
+          : `Por favor, preséntate brevemente en español como "USA Voyager". Introduce la lección activa: "${lessonTitle}". Explica de forma muy concisa el objetivo de aprendizaje ("${objective}") y formula de inmediato la primera pregunta o ejercicio de práctica. REGLA OBLIGATORIA: Mantente 100% enfocado en esta lección. NO preguntes de qué le gustaría hablar ni introduzcas temas no relacionados.`;
+      } else {
+        baseGreeting = displayName
+          ? `Please greet ${displayName} warmly and briefly in English as "USA Voyager". Introduce the active lesson: "${lessonTitle}". State the lesson objective ("${objective}") and immediately ask the first practice question or exercise. MANDATORY RULE: Stay 100% focused on this lesson. Do NOT ask what they want to talk about or introduce unrelated topics.`
+          : `Please introduce yourself warmly and briefly in English as "USA Voyager". Introduce the active lesson: "${lessonTitle}". State the lesson objective ("${objective}") and immediately ask the first practice question or exercise. MANDATORY RULE: Stay 100% focused on this lesson. Do NOT ask what they want to talk about or introduce unrelated topics.`;
+      }
+    }
+
     const localCache = getLocalProfileCache();
     const userRole = options.userRole || localCache?.role || 'STUDENT';
     const finalCountry = displayCountry || localCache?.country || "";
@@ -205,26 +229,58 @@ Proceed DIRECTLY into tailored conversation, tutoring, or practice using this co
 Only ask profile-related questions if the user explicitly requests to update their profile or if a specific detail is completely missing.]`;
     }
 
-    if (options.activeTab === 'roadmap' || options.activeTab === 'welcome' || options.activeTab === 'profile' || options.activeTab === 'student') {
+    const lessonPayload = options.activeLesson ? '\n\n' + ConversationModePolicy.getLessonSystemInstructions(options.activeLesson, selectedLang) : '';
+
+    if (!options.activeLesson && (options.activeTab === 'roadmap' || options.activeTab === 'welcome' || options.activeTab === 'profile' || options.activeTab === 'student')) {
       return baseGreeting + learnerInfo + '\n\n[INSTRUCCIÓN DE SISTEMA CRÍTICA Y MANDATORIA: PERFIL DE ESTUDIANTE - ORIENTACIÓN EXCLUSIVA]\nEl usuario está en su PERFIL DE ESTUDIANTE Y PANEL DE ESTADÍSTICAS.\n1. REGLA INQUEBRANTABLE: NO inicies ninguna lección, NO sugieras practicar, NO des clases de inglés ni propongas ejercicios. El perfil es únicamente para orientación, no para práctica.\n2. PROPÓSITO EXCLUSIVO: Explica brevemente en español qué es el perfil (que muestra su progreso general, su nivel estimado, sus habilidades y estadísticas), y PÁRATE AHÍ.\n3. Si el usuario desea practicar, él lo pedirá o irá a la sección de lecciones.\n4. Responde a cualquier consulta sobre este panel ÚNICAMENTE en español usando la voz existente de Voyager para dar orientación clara y directa sin iniciar prácticas.';
     }
 
     switch (mode) {
       case 'BILINGUAL':
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in BILINGUAL TUTOR MODE. KEEP IT EXTREMELY TIGHT AND COMPACT: speak and write a short, friendly response in Spanish, followed immediately by its English translation. Avoid long, overwhelming paragraphs. For EVERY SINGLE response, you must first speak and write your response in Spanish, and then immediately repeat the exact same response in English. This is conversational practice in both languages. Simply speak naturally in Spanish first, then repeat in English.]';
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload + '\n\n[SYSTEM MESSAGE: You are now in BILINGUAL TUTOR MODE. KEEP IT EXTREMELY TIGHT AND COMPACT: speak and write a short, friendly response in Spanish, followed immediately by its English translation. Avoid long, overwhelming paragraphs. For EVERY SINGLE response, you must first speak and write your response in Spanish, and then immediately repeat the exact same response in English. This is conversational practice in both languages. Simply speak naturally in Spanish first, then repeat in English.]';
       case 'LIVE_TRANSLATOR':
         return baseGreeting + '\n\n[SYSTEM MESSAGE: You are now in INSTANT 1-TO-1 SPEECH TRANSLATION MODE. You must act strictly and purely as a 1-to-1 speech translator between English and Spanish. Do NOT hold a conversation, do NOT answer questions, do NOT make small talk, do NOT offer tutoring, and do NOT output dual-language bilingual responses. Your ONLY job is to perform a direct 1-to-1 translation of whatever you hear: if you hear Spanish, translate it into English (output ONLY the single English translation once); if you hear English, translate it into Spanish (output ONLY the single Spanish translation once). Output ONLY the translated phrase in the opposite language once, with zero commentary, zero conversational replies, and zero dual-language repetitions.]';
       case 'LISTEN_ONLY':
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now starting in Monitor/Listen-only mode. The user is practicing by talking to a real person. You must only listen and analyze their English interaction. Do NOT speak. You can only respond via text. In your text responses, offer helpful, subtle language corrections or tips about their conversation, and if you want to speak aloud, explicitly ask the user for permission to talk (e.g. \'¿Puedo hablar?\').]';
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload + '\n\n[SYSTEM MESSAGE: You are now starting in Monitor/Listen-only mode. The user is practicing by talking to a real person. You must only listen and analyze their English interaction. Do NOT speak. You can only respond via text. In your text responses, offer helpful, subtle language corrections or tips about their conversation, and if you want to speak aloud, explicitly ask the user for permission to talk (e.g. \'¿Puedo hablar?\').]';
       case 'SPANISH':
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in SPANISH ONLY MODE. You must speak and write strictly and purely in Spanish from now on. Discuss daily life and scenarios in America in Spanish. Do NOT teach English, evaluate grammar, or translate any text. Speak only in Spanish.]';
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload + '\n\n[SYSTEM MESSAGE: You are now in SPANISH ONLY MODE. You must speak and write strictly and purely in Spanish from now on. Discuss daily life and scenarios in America in Spanish. Do NOT teach English, evaluate grammar, or translate any text. Speak only in Spanish.]';
       case 'AMERICAN_ENGLISH':
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in ENGLISH ONLY MODE. You must speak and write strictly and purely in English. Do NOT provide any Spanish translations, hints, corrections, or bilingual tips. Speak naturally as an American English speaker. This is a pure immersion practice mode for advanced students. Speak only in English.]';
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload + '\n\n[SYSTEM MESSAGE: You are now in ENGLISH ONLY MODE. You must speak and write strictly and purely in English. Do NOT provide any Spanish translations, hints, corrections, or bilingual tips. Speak naturally as an American English speaker. This is a pure immersion practice mode for advanced students. Speak only in English.]';
       case 'ADAPTIVE':
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + '\n\n[SYSTEM MESSAGE: You are now in ADAPTIVE MODE. Maintain maximum conversational flexibility: start in clear American English, evaluate how comfortably the learner responds, and dynamically adapt. If they struggle or show confusion, slow down your speed, simplify your English, and provide minimal Spanish clarification only when needed before returning to English. If they speak fluently, advance your vocabulary and sentence structure naturally. Support must be minimal, scaffolding-focused, and fade out as confidence grows.]';
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload + '\n\n[SYSTEM MESSAGE: You are now in ADAPTIVE MODE. Maintain maximum conversational flexibility: start in clear American English, evaluate how comfortably the learner responds, and dynamically adapt. If they struggle or show confusion, slow down your speed, simplify your English, and provide minimal Spanish clarification only when needed before returning to English. If they speak fluently, advance your vocabulary and sentence structure naturally. Support must be minimal, scaffolding-focused, and fade out as confidence grows.]';
       default:
-        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo;
+        return baseGreeting + COACHING_PHILOSOPHY_INSTRUCTIONS + learnerInfo + lessonPayload;
     }
+  }
+
+  /**
+   * Generates strict lesson context and pedagogical instructions for active lessons.
+   */
+  static getLessonSystemInstructions(
+    lesson: { id: string; title: string; category?: string; level?: string; objective?: string; instructions?: string; progressPercentage?: number },
+    selectedLang: 'EN' | 'ES' = 'ES'
+  ): string {
+    return `[SYSTEM INSTRUCTION: VOYAGER AMERICAN ENGLISH TEACHER — ACTIVE GUIDED LESSON]
+LESSON IDENTITY:
+- Title: "${lesson.title}"
+- Lesson ID: "${lesson.id}"
+- Level: ${lesson.level || 'B1/B2'}
+- Category: "${lesson.category || 'English Learning'}"
+- Current Progress: ${lesson.progressPercentage || 0}%
+- Primary Learning Objective: "${lesson.objective || 'Demonstrate practical American English proficiency.'}"
+- Required Exercises & Activities: "${lesson.instructions || 'Guide the student through contextual practice and assess demonstrated performance.'}"
+
+MANDATORY RULES FOR VOYAGER AS THE EXPERIENCED AMERICAN ENGLISH TEACHER:
+1. STRICT LESSON FOCUS: Stay strictly focused on this lesson. DO NOT ask the student what they want to study or introduce unrelated topics. Greet the student by acknowledging this specific lesson and immediately start the first exercise or prompt.
+2. PEDAGOGICAL PROGRESSION:
+   - Introduce the lesson objectives clearly.
+   - Lead the student step-by-step through the required questions and interactive exercises.
+   - Assess their answers as they speak or write.
+   - Provide gentle, immediate corrections for grammar and pronunciation in context.
+   - Track completion of each learning objective.
+3. CONCLUDE NATURALLY ON DEMONSTRATED EVIDENCE:
+   - When the student has addressed the learning objectives and provided sufficient conversational evidence, conclude the lesson naturally.
+   - End your final evaluation message with [EVALUATE_LESSON_NOW] so the American grading record is finalized.`;
   }
 
   /**

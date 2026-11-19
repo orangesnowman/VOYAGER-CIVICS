@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="tech-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Amber 45° -->
+    <pattern id="tech-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.2" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Server Rack Circuit Grid Backdrop in Deep Navy -->
+  <rect x="36" y="36" width="428" height="230" fill="#0B172E"/>
+  <rect x="36" y="36" width="428" height="230" fill="url(#tech-dots-gold)" opacity="0.3"/>
+
+  <!-- 4. Holographic AI Neural Network Core (Chiaroscuro Glowing Hero) -->
+  <!-- Screen bounce light beam radiating from neural core -->
+  <polygon points="250,90 120,320 380,320" fill="#FEF9EE" opacity="0.8"/>
+
+  <!-- Central Neural Core Node -->
+  <circle cx="250" cy="150" r="44" fill="#F59E0B"/>
+  <circle cx="248" cy="148" r="44" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <circle cx="248" cy="148" r="34" fill="#F59E0B" stroke="#000000" stroke-width="3"/>
+  <circle cx="248" cy="148" r="22" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <circle cx="248" cy="148" r="10" fill="#0B172E"/>
+
+  <!-- Neural Constellation Lines & Satellite Nodes in Amber -->
+  <line x1="248" y1="148" x2="160" y2="105" stroke="#F59E0B" stroke-width="4.5"/>
+  <circle cx="160" cy="105" r="16" fill="#FEF9EE" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="160" cy="105" r="7" fill="#F59E0B"/>
+
+  <line x1="248" y1="148" x2="336" y2="105" stroke="#F59E0B" stroke-width="4.5"/>
+  <circle cx="336" cy="105" r="16" fill="#FEF9EE" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="336" cy="105" r="7" fill="#F59E0B"/>
+
+  <line x1="248" y1="148" x2="180" y2="210" stroke="#F59E0B" stroke-width="4.5"/>
+  <circle cx="180" cy="210" r="14" fill="#FEF9EE" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="180" cy="210" r="6" fill="#F59E0B"/>
+
+  <line x1="248" y1="148" x2="316" y2="210" stroke="#F59E0B" stroke-width="4.5"/>
+  <circle cx="316" cy="210" r="14" fill="#FEF9EE" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="316" cy="210" r="6" fill="#F59E0B"/>
+
+  <!-- 5. Executive Boardroom Debate Terminal: Deep Navy Chiaroscuro Block -->
+  <polygon points="20,310 480,310 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <polygon points="20,310 480,310 460,330 40,330" fill="#F59E0B"/>
+  <rect x="40" y="345" width="420" height="130" fill="url(#tech-dots-navy)"/>
+
+  <!-- 6. Left Tech Strategist in Active Debate Gesture -->
+  <path d="M 50 500 L 70 340 Q 120 300 170 330 L 195 500 Z" fill="#F59E0B" stroke="#000000" stroke-width="5"/>
+  <polygon points="110,330 125,380 140,330" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <ellipse cx="125" cy="275" rx="30" ry="38" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <path d="M 95 270 Q 125 220 160 250 Z" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <!-- Gesturing Left Hand -->
+  <path d="M 170 365 Q 215 330 230 355 Q 205 385 170 395 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- 7. Right Tech Strategist in Counter-Argument Gesture -->
+  <path d="M 450 500 L 430 340 Q 380 300 330 330 L 305 500 Z" fill="#F59E0B" stroke="#000000" stroke-width="5"/>
+  <polygon points="390,330 375,380 360,330" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <ellipse cx="375" cy="275" rx="30" ry="38" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <path d="M 405 270 Q 375 220 340 250 Z" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <!-- Gesturing Right Hand -->
+  <path d="M 330 365 Q 285 330 270 355 Q 295 385 330 395 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- 8. Interactive Command Console Terminal on Table (Center) -->
+  <polygon points="210,360 290,360 310,450 190,450" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <rect x="220" y="375" width="60" height="25" fill="#0B172E"/>
+  <text x="250" y="392" font-family="'Courier New', monospace" font-size="12" font-weight="900" fill="#F59E0B" text-anchor="middle">AI:ETHICS</text>
+  <!-- Data waveform graph on console -->
+  <polyline points="205,425 225,410 245,430 265,405 285,420 295,415" stroke="#F59E0B" stroke-width="3.5" fill="none"/>
+
+  <!-- 9. Editorial Letterpress Badge (AI & TECH DEBATE) -->
+  <rect x="42" y="48" width="165" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="39" y="45" width="165" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="121" y="68" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">AI &amp; TECH TRENDS</text>
+</svg>

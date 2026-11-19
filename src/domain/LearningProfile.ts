@@ -7,6 +7,8 @@ export interface PerformanceMetrics {
   pronunciation: number;
   confidence: number;
   naturalness: number;
+  fluency?: number;
+  vocabulary?: number;
   timestamp: number;
 }
 
@@ -17,6 +19,8 @@ export class LearningProfile {
     pronunciation: number;
     confidence: number;
     naturalness: number;
+    fluency: number;
+    vocabulary: number;
   };
   private scoreHistory: PerformanceMetrics[] = [];
   private learnedWords: Set<string> = new Set();
@@ -27,7 +31,14 @@ export class LearningProfile {
 
   constructor() {
     this.id = `profile_${Date.now()}`;
-    this.currentScores = { grammar: 88, pronunciation: 82, confidence: 68, naturalness: 74 };
+    this.currentScores = { 
+      grammar: 88, 
+      pronunciation: 82, 
+      confidence: 68, 
+      naturalness: 74,
+      fluency: 74,
+      vocabulary: 86
+    };
     this.loadFromStorage();
     this.setupAuthListener();
   }
@@ -130,13 +141,24 @@ export class LearningProfile {
     return Array.from(this.accentPatterns);
   }
 
-  updateScores(grammar: number, pronunciation: number, confidence: number, naturalness: number): void {
-    this.currentScores = { grammar, pronunciation, confidence, naturalness };
+  updateScores(
+    grammar: number,
+    pronunciation: number,
+    confidence: number,
+    naturalness: number,
+    vocabulary?: number,
+    fluency?: number
+  ): void {
+    const vocab = typeof vocabulary === 'number' ? vocabulary : (this.currentScores.vocabulary || grammar);
+    const flu = typeof fluency === 'number' ? fluency : naturalness;
+    this.currentScores = { grammar, pronunciation, confidence, naturalness, vocabulary: vocab, fluency: flu };
     this.scoreHistory.push({
       grammar,
       pronunciation,
       confidence,
       naturalness,
+      vocabulary: vocab,
+      fluency: flu,
       timestamp: Date.now()
     });
     // Cap score history to prevent uncontrolled growth
@@ -226,9 +248,16 @@ export class LearningProfile {
           const s = parsed.currentScores;
           // Clean up legacy flat placeholders if all 4 scores are identical (e.g. 100, 92, 0)
           if ((s.grammar === s.pronunciation && s.pronunciation === s.confidence && s.confidence === s.naturalness) || (s.grammar === 100 && s.pronunciation === 100)) {
-            this.currentScores = { grammar: 88, pronunciation: 82, confidence: 68, naturalness: 74 };
+            this.currentScores = { grammar: 88, pronunciation: 82, confidence: 68, naturalness: 74, fluency: 74, vocabulary: 86 };
           } else {
-            this.currentScores = s;
+            this.currentScores = {
+              grammar: s.grammar ?? 88,
+              pronunciation: s.pronunciation ?? 82,
+              confidence: s.confidence ?? 68,
+              naturalness: s.naturalness ?? 74,
+              fluency: s.fluency ?? s.naturalness ?? 74,
+              vocabulary: s.vocabulary ?? s.grammar ?? 86
+            };
           }
         }
         this.scoreHistory = parsed.scoreHistory || this.scoreHistory;

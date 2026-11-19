@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="ph-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Amber 45° -->
+    <pattern id="ph-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.2" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Halftone Dot Acoustic Studio Backdrop -->
+  <rect x="36" y="36" width="428" height="260" fill="url(#ph-dots-navy)"/>
+
+  <!-- 4. Concentric Acoustic Sound Wave Rings in Golden Orange -->
+  <circle cx="250" cy="210" r="190" fill="none" stroke="#F59E0B" stroke-width="2" stroke-dasharray="6 6"/>
+  <circle cx="250" cy="210" r="150" fill="none" stroke="#F59E0B" stroke-width="3" stroke-dasharray="8 6"/>
+  <circle cx="250" cy="210" r="110" fill="none" stroke="#F59E0B" stroke-width="4"/>
+
+  <!-- 5. Sound Wave Phonetic Badges (/th/ Voiced & Unvoiced) -->
+  <!-- Left Badge: /θ/ (think) -->
+  <circle cx="115" cy="140" r="36" fill="#F59E0B"/>
+  <circle cx="112" cy="137" r="36" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <text x="112" y="152" font-family="'Georgia', serif" font-size="34" font-weight="900" fill="#FEF9EE" text-anchor="middle">/θ/</text>
+
+  <!-- Right Badge: /ð/ (this) -->
+  <circle cx="385" cy="140" r="36" fill="#F59E0B"/>
+  <circle cx="382" cy="137" r="36" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <text x="382" y="152" font-family="'Georgia', serif" font-size="34" font-weight="900" fill="#FEF9EE" text-anchor="middle">/ð/</text>
+
+  <!-- Flap T Badge: /ɾ/ (water / butter) -->
+  <rect x="185" y="55" width="130" height="36" rx="4" fill="#F59E0B"/>
+  <rect x="182" y="52" width="130" height="36" rx="4" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="247" y="76" font-family="'Georgia', serif" font-size="20" font-weight="900" fill="#FEF9EE" text-anchor="middle">TAP: /ɾ/</text>
+
+  <!-- 6. Studio Desk / Base: Massive Deep Navy Chiaroscuro Block -->
+  <polygon points="20,330 480,330 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <polygon points="20,330 480,330 460,350 40,350" fill="#F59E0B"/>
+  <rect x="40" y="365" width="420" height="110" fill="url(#ph-dots-navy)"/>
+
+  <!-- 7. Vintage 1950s Studio Ribbon Microphone (Center Hero Focal Point) -->
+  <!-- Hard-edged Downward Cast Shadow -->
+  <ellipse cx="250" cy="455" rx="70" ry="24" fill="#000000"/>
+
+  <!-- Mic Heavy Circular Cast Metal Base -->
+  <ellipse cx="250" cy="420" rx="65" ry="22" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <ellipse cx="250" cy="420" rx="45" ry="14" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+
+  <!-- Mic Chrome Vertical Stand -->
+  <rect x="242" y="270" width="16" height="150" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <rect x="238" y="320" width="24" height="20" rx="3" fill="#F59E0B" stroke="#000000" stroke-width="3"/>
+
+  <!-- Ribbon Microphone Housing (Art Deco Capsule) -->
+  <!-- Offset Orange Glow Behind Mic Body -->
+  <rect x="204" y="114" width="92" height="156" rx="46" fill="#F59E0B"/>
+  <!-- Mic Main Outer Casing -->
+  <rect x="200" y="110" width="100" height="160" rx="50" fill="#FEF9EE" stroke="#000000" stroke-width="6"/>
+
+  <!-- Mic Internal Grille in Deep Navy -->
+  <rect x="212" y="130" width="76" height="120" rx="38" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <rect x="212" y="130" width="76" height="120" rx="38" fill="url(#ph-dots-gold)"/>
+
+  <!-- Horizontal Grille Slat Lines -->
+  <line x1="216" y1="150" x2="284" y2="150" stroke="#FEF9EE" stroke-width="3.5"/>
+  <line x1="214" y1="170" x2="286" y2="170" stroke="#FEF9EE" stroke-width="3.5"/>
+  <line x1="214" y1="190" x2="286" y2="190" stroke="#FEF9EE" stroke-width="3.5"/>
+  <line x1="214" y1="210" x2="286" y2="210" stroke="#FEF9EE" stroke-width="3.5"/>
+  <line x1="216" y1="230" x2="284" y2="230" stroke="#FEF9EE" stroke-width="3.5"/>
+
+  <!-- Art Deco Horizontal Center Chrome Band -->
+  <rect x="194" y="182" width="112" height="16" rx="4" fill="#F59E0B" stroke="#000000" stroke-width="4"/>
+
+  <!-- 8. Editorial Letterpress Badge (PRONUNCIATION / ACCENT) -->
+  <rect x="42" y="48" width="165" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="39" y="45" width="165" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="121" y="68" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">AMERICAN ACCENT</text>
+</svg>

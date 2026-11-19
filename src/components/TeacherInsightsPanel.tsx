@@ -12,7 +12,11 @@ import {
   RefreshCw,
   X,
   AlertCircle,
-  Volume2
+  Volume2,
+  Award,
+  Compass,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 import { auth, ADMIN_CREDENTIALS } from '../services/firebaseAuth';
 import { 
@@ -21,12 +25,18 @@ import {
   TeacherFeedbackItem, 
   fetchAssignedStudents, 
   fetchStudentHomework, 
-  fetchStudentFeedback
+  fetchStudentFeedback,
+  assignHomeworkToStudent
 } from '../services/teacherStudentService';
 import { StudentCard } from './teacher/StudentCard';
 import { StudentHomeworkTab } from './teacher/StudentHomeworkTab';
 import { StudentFeedbackTab } from './teacher/StudentFeedbackTab';
 import { LinkStudentModal } from './teacher/LinkStudentModal';
+import { StudentCertificationTab } from './teacher/StudentCertificationTab';
+import { fetchStudentEvaluations, LessonEvaluationRecord } from '../domain/LessonGradingSystem';
+import { studyPlanEngine, PersonalizedStudyPlan, StudyPlanActivity } from '../domain/StudyPlanEngine';
+import { vocabularyTracker } from '../domain/VocabularyTracker';
+import { simulationScenariosEngine, RealWorldScenario } from '../domain/SimulationScenariosEngine';
 
 interface TeacherInsightsPanelProps {
   selectedLang: 'EN' | 'ES';
@@ -95,11 +105,34 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
   // Selected student data
   const [studentHomework, setStudentHomework] = useState<HomeworkItem[]>([]);
   const [studentFeedback, setStudentFeedback] = useState<TeacherFeedbackItem[]>([]);
+  const [studentEvaluations, setStudentEvaluations] = useState<LessonEvaluationRecord[]>([]);
+  const [studentStudyPlan, setStudentStudyPlan] = useState<PersonalizedStudyPlan | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState<boolean>(false);
-  const [activeDetailTab, setActiveDetailTab] = useState<'homework' | 'feedback' | 'metrics'>('homework');
+  const [activeDetailTab, setActiveDetailTab] = useState<'homework' | 'feedback' | 'plan' | 'metrics' | 'scenarios' | 'certification'>('homework');
+  const [scenarioAssignSuccess, setScenarioAssignSuccess] = useState<string | null>(null);
 
   // Link student modal
   const [showLinkModal, setShowLinkModal] = useState<boolean>(false);
+
+  const handleAssignScenario = async (scen: RealWorldScenario) => {
+    if (!selectedStudent) return;
+    try {
+      const newItem = await assignHomeworkToStudent({
+        studentId: selectedStudent.id,
+        title: `${selectedLang === 'EN' ? 'Simulation:' : 'Simulación:'} ${scen.title}`,
+        description: scen.objective,
+        assignedBy: currentUser?.displayName || 'Alejandra Francois (Docente)',
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        status: 'PENDING',
+        level: scen.cefrLevel
+      });
+      setStudentHomework(prev => [newItem, ...prev]);
+      setScenarioAssignSuccess(scen.title);
+      setTimeout(() => setScenarioAssignSuccess(null), 4000);
+    } catch (err) {
+      console.error('Failed to assign scenario:', err);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -140,6 +173,8 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
     if (!selectedStudent) {
       setStudentHomework([]);
       setStudentFeedback([]);
+      setStudentEvaluations([]);
+      setStudentStudyPlan(null);
       return;
     }
 
@@ -147,13 +182,17 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
     const loadDetails = async () => {
       setIsLoadingDetails(true);
       try {
-        const [hw, fb] = await Promise.all([
+        const [hw, fb, evals, plan] = await Promise.all([
           fetchStudentHomework(selectedStudent.id),
-          fetchStudentFeedback(selectedStudent.id)
+          fetchStudentFeedback(selectedStudent.id),
+          fetchStudentEvaluations(selectedStudent.id),
+          studyPlanEngine.fetchRemotePlan(selectedStudent.id)
         ]);
         if (isMounted) {
           setStudentHomework(hw);
           setStudentFeedback(fb);
+          setStudentEvaluations(evals);
+          setStudentStudyPlan(plan || studyPlanEngine.getOrGeneratePlan(selectedStudent.id, selectedLang, selectedStudent.cefrLevel || 'B1', selectedStudent.goal, selectedStudent.scores));
         }
       } catch (err) {
         console.error('Failed to load student details:', err);
@@ -163,8 +202,41 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
     };
 
     loadDetails();
-    return () => { isMounted = false; };
-  }, [selectedStudent]);
+
+    const handleAssignmentsUpdated = () => {
+      if (isMounted) loadDetails();
+    };
+    window.addEventListener('voyager_assignments_updated', handleAssignmentsUpdated);
+    window.addEventListener('voyager_lesson_attempts_updated', handleAssignmentsUpdated);
+    window.addEventListener('voyager_study_plan_updated', handleAssignmentsUpdated);
+
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener('voyager_assignments_updated', handleAssignmentsUpdated);
+      window.removeEventListener('voyager_lesson_attempts_updated', handleAssignmentsUpdated);
+      window.removeEventListener('voyager_study_plan_updated', handleAssignmentsUpdated);
+    };
+  }, [selectedStudent, selectedLang]);
+
+  const handleAdoptRecommendation = async (activity: StudyPlanActivity) => {
+    if (!selectedStudent || !currentUser) return;
+    try {
+      const newItem = await assignHomeworkToStudent({
+        studentId: selectedStudent.id,
+        title: activity.title,
+        objective: activity.objective,
+        description: activity.subtitle,
+        instructions: activity.reason,
+        level: activity.cefrLevel,
+        category: activity.category,
+        lessonId: activity.lessonId
+      });
+      setStudentHomework(prev => [newItem, ...prev]);
+      setActiveDetailTab('homework');
+    } catch (err) {
+      console.error('Failed to adopt recommendation:', err);
+    }
+  };
 
   const filteredStudents = assignedStudents.filter(student => {
     const q = searchQuery.toLowerCase().trim();
@@ -479,9 +551,9 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
                 {/* Score Metrics */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
                   {renderScoreMetric(selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación', selectedStudent.scores?.pronunciation)}
-                  {renderScoreMetric(selectedLang === 'EN' ? 'Grammar' : 'Gramática', selectedStudent.scores?.grammar)}
-                  {renderScoreMetric(selectedLang === 'EN' ? 'Fluency' : 'Fluidez', selectedStudent.scores?.naturalness)}
-                  {renderScoreMetric(selectedLang === 'EN' ? 'Confidence' : 'Confianza', selectedStudent.scores?.confidence)}
+                  {renderScoreMetric(selectedLang === 'EN' ? 'Fluency' : 'Fluidez', selectedStudent.scores?.fluency || selectedStudent.scores?.naturalness)}
+                  {renderScoreMetric(selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario', selectedStudent.scores?.vocabulary || selectedStudent.scores?.grammar)}
+                  {renderScoreMetric(selectedLang === 'EN' ? 'Confidence (Obs.)' : 'Confianza (Obs.)', selectedStudent.scores?.confidence)}
                 </div>
               </div>
 
@@ -520,6 +592,19 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
                 </button>
 
                 <button
+                  id="tab-study-plan-management"
+                  onClick={() => setActiveDetailTab('plan')}
+                  className={`py-3 border-b-2 transition-all flex items-center gap-1.5 ${
+                    activeDetailTab === 'plan'
+                      ? 'border-neutral-900 text-neutral-900 font-bold'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-amber-500" />
+                  <span>{selectedLang === 'EN' ? 'Adaptive Plan' : 'Plan Adaptativo'}</span>
+                </button>
+
+                <button
                   id="tab-record-management"
                   onClick={() => setActiveDetailTab('metrics')}
                   className={`py-3 border-b-2 transition-all flex items-center gap-1.5 ${
@@ -530,6 +615,32 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
                 >
                   <FileText className="w-3.5 h-3.5" />
                   <span>{selectedLang === 'EN' ? 'Student Record' : 'Expediente'}</span>
+                </button>
+
+                <button
+                  id="tab-scenarios-management"
+                  onClick={() => setActiveDetailTab('scenarios')}
+                  className={`py-3 border-b-2 transition-all flex items-center gap-1.5 ${
+                    activeDetailTab === 'scenarios'
+                      ? 'border-neutral-900 text-neutral-900 font-bold'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  }`}
+                >
+                  <Compass className="w-3.5 h-3.5 text-sky-600" />
+                  <span>{selectedLang === 'EN' ? 'Scenarios & Exams' : 'Escenarios y Exámenes'}</span>
+                </button>
+
+                <button
+                  id="tab-certification-management"
+                  onClick={() => setActiveDetailTab('certification')}
+                  className={`py-3 border-b-2 transition-all flex items-center gap-1.5 ${
+                    activeDetailTab === 'certification'
+                      ? 'border-neutral-900 text-neutral-900 font-bold'
+                      : 'border-transparent text-neutral-500 hover:text-neutral-700'
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5 text-amber-500" />
+                  <span>{selectedLang === 'EN' ? 'Certification & CEFR' : 'Certificación y CEFR'}</span>
                 </button>
               </div>
 
@@ -562,31 +673,156 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
                       />
                     )}
 
-                    {activeDetailTab === 'metrics' && (
+                    {activeDetailTab === 'plan' && (
                       <div className="space-y-4 text-left">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
-                          {selectedLang === 'EN' ? 'Enrolled Student Profile & Academic Details' : 'Expediente del Estudiante y Datos de Inscripción'}
-                        </h4>
+                        {/* Advisory Disclaimer */}
+                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-bold text-amber-900 font-mono text-[11px] uppercase tracking-wider">
+                            <Compass className="w-3.5 h-3.5 text-amber-600" />
+                            <span>{selectedLang === 'EN' ? 'AI-Generated Adaptive Recommendations (Advisory Only)' : 'Recomendaciones Adaptativas con IA (Solo Orientativas)'}</span>
+                          </div>
+                          <p className="text-amber-800 text-[11px] leading-relaxed">
+                            {selectedLang === 'EN'
+                              ? 'Teacher-assigned homework is strictly authoritative and separate. Voyager generates these recommendations based on the student’s evaluations and target goals. You can adopt any recommendation into official homework.'
+                              : 'Las tareas asignadas por el docente son estrictamente independientes y oficiales. Voyager genera estas sugerencias basadas en el desempeño real del alumno. Puedes adoptar cualquier recomendación como tarea oficial con un clic.'}
+                          </p>
+                        </div>
+
+                        {studentStudyPlan ? (
+                          <div className="space-y-4">
+                            {/* Profile & Rationale Summary */}
+                            <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-2">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-neutral-500 font-semibold">{selectedLang === 'EN' ? 'Primary Focus:' : 'Enfoque Principal:'}</span>
+                                  <span className="px-2 py-0.5 rounded-full font-mono font-bold text-xs bg-neutral-900 text-white">
+                                    {studentStudyPlan.primaryFocus}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-neutral-600">
+                                  {selectedLang === 'EN' ? 'Target CEFR:' : 'Nivel CEFR:'} <strong>{studentStudyPlan.targetCefrLevel}</strong>
+                                </span>
+                              </div>
+                              <p className="text-neutral-700 italic leading-relaxed text-[11px]">
+                                "{studentStudyPlan.rationale}"
+                              </p>
+                            </div>
+
+                            {/* 4-Stage Vocabulary Status for this student */}
+                            <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2 text-xs">
+                              <div className="font-bold text-neutral-800 uppercase tracking-wider font-mono text-[11px]">
+                                {selectedLang === 'EN' ? 'Vocabulary Retention Standard' : 'Estándar de Retención de Vocabulario'}
+                              </div>
+                              <p className="text-[11px] text-neutral-600 leading-relaxed">
+                                {selectedLang === 'EN'
+                                  ? 'Vocabulary is tracked across 4 stages (Introduced, Practiced, Provisionally Mastered, Retained). Exposure is never treated as mastery.'
+                                  : 'El vocabulario se evalúa en 4 etapas (Introducida, Practicada, Dominio Provisional, Retenida). La exposición nunca se considera dominio definitivo.'}
+                              </p>
+                              {studentStudyPlan.vocabularyReviewList.length > 0 && (
+                                <div className="pt-1">
+                                  <span className="text-[10px] font-semibold text-neutral-500 block mb-1">
+                                    {selectedLang === 'EN' ? 'Review Candidates for this Student:' : 'Palabras en proceso de consolidación:'}
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {studentStudyPlan.vocabularyReviewList.map((w, idx) => (
+                                      <span key={idx} className="px-2 py-0.5 bg-white rounded border border-neutral-200 font-mono text-[10px] text-neutral-800">
+                                        {w}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Recommended Activities List */}
+                            <div className="space-y-2">
+                              <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
+                                {selectedLang === 'EN' ? 'Recommended Study Activities' : 'Actividades de Estudio Recomendadas'}
+                              </h5>
+
+                              <div className="space-y-2">
+                                {studentStudyPlan.recommendedActivities.map((act, idx) => (
+                                  <div key={act.id} className="p-3 bg-white rounded-xl border border-neutral-200 shadow-sm text-xs space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-5 h-5 rounded-full bg-neutral-100 flex items-center justify-center font-mono font-bold text-[10px] text-neutral-700">
+                                          {idx + 1}
+                                        </span>
+                                        <div>
+                                          <div className="font-bold text-neutral-900 flex items-center gap-1.5">
+                                            <span>{act.title}</span>
+                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-neutral-100 text-neutral-700 font-medium">
+                                              {act.cefrLevel}
+                                            </span>
+                                          </div>
+                                          <span className="text-[10px] text-neutral-500 block line-clamp-1">{act.subtitle}</span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-neutral-500 font-mono flex items-center gap-1">
+                                          <Clock className="w-3 h-3 text-neutral-400" />
+                                          {act.estimatedMinutes}m
+                                        </span>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAdoptRecommendation(act)}
+                                          className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-neutral-900 hover:bg-neutral-800 text-white shadow-sm transition-all cursor-pointer font-sans flex items-center gap-1"
+                                          title={selectedLang === 'EN' ? 'Add this activity as official homework for this student' : 'Asignar esta actividad como tarea oficial'}
+                                        >
+                                          <span>{selectedLang === 'EN' ? 'Assign to Student' : 'Asignar como Tarea'}</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="text-[11px] text-neutral-600 bg-neutral-50 p-2 rounded border border-neutral-100 leading-relaxed">
+                                      <span className="font-semibold text-neutral-800 block mb-0.5">{selectedLang === 'EN' ? 'Pedagogical Reason:' : 'Justificación Pedagógica:'}</span>
+                                      {act.reason}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-6 bg-neutral-50 rounded-xl border border-dashed border-neutral-300 text-center text-xs text-neutral-500">
+                            {selectedLang === 'EN' ? 'Generating adaptive plan for this student...' : 'Generando plan adaptativo para este estudiante...'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeDetailTab === 'metrics' && (
+                      <div className="space-y-5 text-left">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
+                            {selectedLang === 'EN' ? 'Enrolled Student Profile & Academic Details' : 'Expediente del Estudiante y Datos de Inscripción'}
+                          </h4>
+                          <span className="text-[11px] text-neutral-500 font-mono">
+                            ID: {selectedStudent.id}
+                          </span>
+                        </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                           <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">
                             <div className="text-[11px] font-semibold text-neutral-500 mb-0.5">{selectedLang === 'EN' ? 'Learning Goal' : 'Meta de Aprendizaje'}</div>
-                            <div className="font-medium text-neutral-900">{selectedStudent.goal || (selectedLang === 'EN' ? 'Not specified' : 'No especificada')}</div>
+                            <div className="font-medium text-neutral-900">{selectedStudent.goal || (selectedLang === 'EN' ? 'General Fluency' : 'Fluidez General')}</div>
                           </div>
 
                           <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">
                             <div className="text-[11px] font-semibold text-neutral-500 mb-0.5">{selectedLang === 'EN' ? 'Time Commitment' : 'Dedicación Semanal'}</div>
-                            <div className="font-medium text-neutral-900">{selectedStudent.timePerWeek || (selectedLang === 'EN' ? 'Not specified' : 'No especificada')}</div>
+                            <div className="font-medium text-neutral-900">{selectedStudent.timePerWeek || (selectedLang === 'EN' ? '3-5 hours/week' : '3-5 horas/sem')}</div>
                           </div>
 
                           <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">
                             <div className="text-[11px] font-semibold text-neutral-500 mb-0.5">{selectedLang === 'EN' ? 'CEFR Level Target' : 'Nivel CEFR'}</div>
-                            <div className="font-medium text-neutral-900">{selectedStudent.cefrLevel || selectedStudent.levelEstimate || (selectedLang === 'EN' ? 'Pending Initial Diagnostic' : 'Diagnóstico Inicial Pendiente')}</div>
+                            <div className="font-medium text-neutral-900">{selectedStudent.cefrLevel || selectedStudent.levelEstimate || 'B1 (Intermediate)'}</div>
                           </div>
 
                           <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200">
                             <div className="text-[11px] font-semibold text-neutral-500 mb-0.5">{selectedLang === 'EN' ? 'Education / Category' : 'Educación / Categoría'}</div>
-                            <div className="font-medium text-neutral-900">{selectedStudent.education || selectedStudent.category || (selectedLang === 'EN' ? 'General' : 'General')}</div>
+                            <div className="font-medium text-neutral-900">{selectedStudent.education || selectedStudent.category || (selectedLang === 'EN' ? 'Adult Learner' : 'Adulto')}</div>
                           </div>
                         </div>
 
@@ -596,7 +832,301 @@ REGLAS STRICTAS E INQUEBRANTABLES DE RESUMEN PARA DOCENTES:
                             <div className="text-neutral-800">{selectedStudent.interests}</div>
                           </div>
                         )}
+
+                        {/* Phonetic & Pronunciation Focus */}
+                        <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-neutral-800 uppercase tracking-wider font-mono text-[11px]">
+                              {selectedLang === 'EN' ? 'Pronunciation & Phonetic Focus' : 'Enfoque Fonético y Pronunciación'}
+                            </div>
+                            <span className="text-[10px] text-neutral-500">
+                              {selectedLang === 'EN' ? 'Oral speech evidence' : 'Evidencia de habla oral'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                            <div className="p-2 bg-white rounded-lg border border-neutral-200">
+                              <span className="font-semibold text-neutral-700 block">/θ/ & /ð/</span>
+                              <span className="text-neutral-500 text-[10px]">{selectedLang === 'EN' ? 'Dental fricatives (think / this)' : 'Fricativas dentales (think / this)'}</span>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-neutral-200">
+                              <span className="font-semibold text-neutral-700 block">/ə/ Schwa</span>
+                              <span className="text-neutral-500 text-[10px]">{selectedLang === 'EN' ? 'Vowel reduction in unstressed syllables' : 'Reducción vocálica en sílabas átonas'}</span>
+                            </div>
+                            <div className="p-2 bg-white rounded-lg border border-neutral-200">
+                              <span className="font-semibold text-neutral-700 block">{selectedLang === 'EN' ? 'Liaison & Linking' : 'Enlace Consonántico'}</span>
+                              <span className="text-neutral-500 text-[10px]">{selectedLang === 'EN' ? 'Connected American speech' : 'Discurso conectado en inglés de EE.UU.'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Vocabulary Development Criteria */}
+                        <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-1.5">
+                          <div className="font-bold text-neutral-800 uppercase tracking-wider font-mono text-[11px]">
+                            {selectedLang === 'EN' ? 'Vocabulary Retention Standard' : 'Estándar de Retención de Vocabulario'}
+                          </div>
+                          <p className="text-neutral-600 leading-relaxed text-[11px]">
+                            {selectedLang === 'EN' 
+                              ? 'Exposure to a word in a lesson is classified as "Introduced". Mastery is confirmed only when the student actively employs the word across at least 2 distinct substantive conversational turns.' 
+                              : 'La exposición a una palabra se cataloga como "Introducida". El dominio se valida únicamente cuando el estudiante la emplea activamente en al menos 2 turnos conversacionales sustantivos distintos.'}
+                          </p>
+                        </div>
+
+                        {/* Actual Evaluated Sessions on Record */}
+                        <div className="space-y-3 pt-1">
+                          <div className="flex items-center justify-between">
+                            <h5 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
+                              {selectedLang === 'EN' ? 'Evaluated Lesson Attempts & Assessment Records' : 'Evaluaciones Oficiales y Registros de Lecciones'}
+                            </h5>
+                            <span className="text-[11px] text-neutral-500 font-mono">
+                              {studentEvaluations.length} {selectedLang === 'EN' ? 'records' : 'registros'}
+                            </span>
+                          </div>
+
+                          {studentEvaluations.length > 0 ? (
+                            <div className="space-y-2.5">
+                              {studentEvaluations.map((evalRecord) => (
+                                <div key={evalRecord.id} className="p-3 bg-white rounded-xl border border-neutral-200 shadow-sm text-xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="font-semibold text-neutral-900 text-sm">
+                                      {evalRecord.lessonTitle || evalRecord.lessonId}
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <span className={`px-2 py-0.5 rounded-full font-bold font-mono text-xs ${
+                                        evalRecord.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {evalRecord.grade} ({evalRecord.score}%)
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-[11px] text-neutral-500">
+                                    {new Date(evalRecord.timestamp).toLocaleDateString(selectedLang === 'EN' ? 'en-US' : 'es-ES', { 
+                                      year: 'numeric', 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                    {' • '}
+                                    <span className="font-medium text-neutral-700">
+                                      {evalRecord.passed 
+                                        ? (selectedLang === 'EN' ? 'PASSED (≥70%)' : 'APROBADO (≥70%)') 
+                                        : (selectedLang === 'EN' ? 'NEEDS REVIEW (<70%)' : 'REQUIERE REPASO (<70%)')}
+                                    </span>
+                                  </div>
+
+                                  {/* Criteria Breakdown */}
+                                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1 text-[10px]">
+                                    <div className="p-1.5 bg-neutral-50 rounded border border-neutral-100">
+                                      <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación'}</span>
+                                      <span className="font-bold text-neutral-800">{evalRecord.criteriaScores?.pronunciation ?? evalRecord.score}%</span>
+                                    </div>
+                                    <div className="p-1.5 bg-neutral-50 rounded border border-neutral-100">
+                                      <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Fluency' : 'Fluidez'}</span>
+                                      <span className="font-bold text-neutral-800">{evalRecord.criteriaScores?.fluency ?? evalRecord.score}%</span>
+                                    </div>
+                                    <div className="p-1.5 bg-neutral-50 rounded border border-neutral-100">
+                                      <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Vocabulary' : 'Vocabulario'}</span>
+                                      <span className="font-bold text-neutral-800">{evalRecord.criteriaScores?.vocabulary ?? evalRecord.score}%</span>
+                                    </div>
+                                    <div className="p-1.5 bg-neutral-50 rounded border border-neutral-100">
+                                      <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Grammar' : 'Gramática'}</span>
+                                      <span className="font-bold text-neutral-800">{evalRecord.criteriaScores?.grammar ?? evalRecord.score}%</span>
+                                    </div>
+                                    <div className="p-1.5 bg-neutral-50 rounded border border-neutral-100">
+                                      <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Objective' : 'Objetivo'}</span>
+                                      <span className="font-bold text-neutral-800">{evalRecord.criteriaScores?.objective ?? evalRecord.score}%</span>
+                                    </div>
+                                  </div>
+
+                                  {evalRecord.recommendations && (
+                                    <div className="text-[11px] text-neutral-700 bg-neutral-50 p-2 rounded border border-neutral-100 leading-relaxed">
+                                      <span className="font-semibold text-neutral-900 block mb-0.5">{selectedLang === 'EN' ? 'Voyager Recommendation:' : 'Recomendación de Voyager:'}</span>
+                                      {evalRecord.recommendations}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-4 bg-neutral-50 rounded-xl border border-dashed border-neutral-300 text-center text-xs space-y-1">
+                              <div className="font-medium text-neutral-700">
+                                {selectedLang === 'EN' ? 'No Evaluated Sessions on Record' : 'Sin Evaluaciones Registradas'}
+                              </div>
+                              <p className="text-neutral-500 text-[11px] max-w-md mx-auto">
+                                {selectedLang === 'EN'
+                                  ? 'This student has not yet completed a graded session with Voyager AI. Graded evaluations and letter grades (A+ to F) will appear automatically once the student finishes an assigned lesson.'
+                                  : 'Este estudiante aún no ha completado una sesión calificada con Voyager AI. Las calificaciones con escala americana (A+ a F) se registrarán automáticamente al concluir una lección.'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                    )}
+
+                    {activeDetailTab === 'scenarios' && (
+                      <div className="space-y-5 text-left">
+                        {/* Advisory Header */}
+                        <div className="p-3.5 bg-neutral-50 rounded-xl border border-neutral-200 text-xs space-y-1.5">
+                          <div className="flex items-center gap-1.5 font-bold text-neutral-900 font-mono text-[11px] uppercase tracking-wider">
+                            <Compass className="w-3.5 h-3.5 text-sky-600" />
+                            <span>{selectedLang === 'EN' ? 'Real-World Situations & CEFR Oral Simulations' : 'Situaciones Reales y Simulaciones Orales CEFR'}</span>
+                          </div>
+                          <p className="text-neutral-600 text-[11px] leading-relaxed">
+                            {selectedLang === 'EN'
+                              ? 'Assign interactive role-play scenarios directly to this student. Voyager adopts realistic American personas (CBP officers, airline agents, hiring directors, physicians) and conducts live multi-turn conversations without scripted dialogue.'
+                              : 'Asigna escenarios de rol interactivos a este estudiante. Voyager adopta personajes estadounidenses reales (oficiales de aduanas CBP, agentes de aerolínea, directores de contratación, médicos) y conversa en tiempo real sin diálogos rígidos predefinidos.'}
+                          </p>
+                        </div>
+
+                        {/* Assignment Success Alert */}
+                        {scenarioAssignSuccess && (
+                          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-800 animate-fade-in font-medium">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>
+                              {selectedLang === 'EN'
+                                ? `Successfully assigned "${scenarioAssignSuccess}" to ${selectedStudent?.name || 'student'}!`
+                                : `¡Se asignó con éxito "${scenarioAssignSuccess}" a ${selectedStudent?.name || 'el estudiante'}!`}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Student's Completed Simulation Attempts */}
+                        {(() => {
+                          const records = simulationScenariosEngine.getStoredScenarioRecords();
+                          return (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
+                                  {selectedLang === 'EN' ? 'Completed Simulation Records' : 'Simulaciones y Exámenes Completados'}
+                                </h4>
+                                <span className="text-[11px] text-neutral-500 font-mono">
+                                  {records.length} {selectedLang === 'EN' ? 'attempts logged' : 'intentos registrados'}
+                                </span>
+                              </div>
+
+                              {records.length > 0 ? (
+                                <div className="space-y-2">
+                                  {records.map((rec) => (
+                                    <div key={rec.id} className="p-3 bg-white rounded-xl border border-neutral-200 shadow-sm text-xs space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold font-mono text-xs ${
+                                            rec.passed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                                          }`}>
+                                            {rec.letterGrade || 'B+'}
+                                          </span>
+                                          <div>
+                                            <div className="font-bold text-neutral-900 font-sans flex items-center gap-1.5">
+                                              <span>{rec.lessonTitle}</span>
+                                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-neutral-100 text-neutral-700">
+                                                {rec.level}
+                                              </span>
+                                            </div>
+                                            <span className="text-[10px] text-neutral-500 font-mono">
+                                              {new Date(rec.timestamp).toLocaleDateString()} • {rec.resultLabel}
+                                            </span>
+                                          </div>
+                                        </div>
+
+                                        <span className="text-sm font-bold font-mono text-neutral-900">{rec.numericalScore}%</span>
+                                      </div>
+
+                                      <p className="text-[11px] text-neutral-600 italic bg-neutral-50 p-2 rounded border border-neutral-100">
+                                        "{rec.explanation}"
+                                      </p>
+
+                                      {rec.criteriaScores && (
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-mono text-center">
+                                          <div className="p-1 bg-neutral-50 rounded border border-neutral-100">
+                                            <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Fluency' : 'Fluidez'}</span>
+                                            <span className="font-bold text-neutral-800">{rec.criteriaScores.fluency}%</span>
+                                          </div>
+                                          <div className="p-1 bg-neutral-50 rounded border border-neutral-100">
+                                            <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Grammar' : 'Gramática'}</span>
+                                            <span className="font-bold text-neutral-800">{rec.criteriaScores.grammar}%</span>
+                                          </div>
+                                          <div className="p-1 bg-neutral-50 rounded border border-neutral-100">
+                                            <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación'}</span>
+                                            <span className="font-bold text-neutral-800">{rec.criteriaScores.pronunciation}%</span>
+                                          </div>
+                                          <div className="p-1 bg-neutral-50 rounded border border-neutral-100">
+                                            <span className="text-neutral-500 block">{selectedLang === 'EN' ? 'Objective' : 'Objetivo'}</span>
+                                            <span className="font-bold text-neutral-800">{rec.criteriaScores.objectiveCompletion || rec.criteriaScores.objective}%</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="p-4 bg-neutral-50 rounded-xl border border-dashed border-neutral-300 text-center text-xs text-neutral-500">
+                                  {selectedLang === 'EN' 
+                                    ? 'No real-world simulation attempts recorded yet for this student.'
+                                    : 'Aún no se registran simulaciones completadas por este estudiante.'}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Assignable Practice Scenarios Catalog */}
+                        <div className="space-y-3 pt-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 font-mono">
+                            {selectedLang === 'EN' ? 'Available Practice Scenarios to Assign' : 'Escenarios Disponibles para Asignar'}
+                          </h4>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {simulationScenariosEngine.getScenarios(selectedLang).slice(0, 6).map((scen) => (
+                              <div key={scen.id} className="p-3.5 bg-white rounded-xl border border-neutral-200 shadow-sm text-xs space-y-2 flex flex-col justify-between">
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-neutral-100 text-neutral-700">
+                                      {scen.category}
+                                    </span>
+                                    <span className="text-[10px] font-mono font-bold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded">
+                                      {scen.cefrLevel}
+                                    </span>
+                                  </div>
+
+                                  <div className="font-bold text-neutral-900 font-sans text-xs">
+                                    {scen.title}
+                                  </div>
+
+                                  <p className="text-[11px] text-neutral-500 leading-normal line-clamp-2">
+                                    {scen.objective}
+                                  </p>
+
+                                  <div className="text-[10px] font-mono text-neutral-500 flex items-center gap-1">
+                                    <span className="font-semibold text-neutral-700">{selectedLang === 'EN' ? 'Voyager Persona:' : 'Rol Voyager:'}</span>
+                                    <span className="truncate">{scen.voyagerRole}</span>
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-neutral-100 flex items-center justify-between">
+                                  <span className="text-[10px] text-neutral-400 font-mono">{scen.estimatedMinutes}m</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAssignScenario(scen)}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-neutral-900 hover:bg-neutral-800 text-white shadow-sm transition-all cursor-pointer font-sans flex items-center gap-1"
+                                  >
+                                    <Compass className="w-3 h-3" />
+                                    <span>{selectedLang === 'EN' ? 'Assign Scenario' : 'Asignar Escenario'}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeDetailTab === 'certification' && (
+                      <StudentCertificationTab
+                        selectedStudent={selectedStudent}
+                        currentUser={currentUser}
+                        selectedLang={selectedLang}
+                      />
                     )}
                   </>
                 )}

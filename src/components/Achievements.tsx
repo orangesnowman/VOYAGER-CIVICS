@@ -250,7 +250,7 @@ export const Achievements: React.FC<AchievementsProps> = ({
             <div className="flex items-center gap-2">
               <Trophy className="w-5 h-5 text-amber-400 animate-bounce" />
               <h3 style={{ fontFamily: '"American Typewriter", "Courier New", Courier, serif' }} className="text-lg font-bold text-white font-serif tracking-wide">
-                {selectedLang === 'EN' ? 'Learning Achievements & Milestones' : 'Logros y Hitos de Aprendizaje'}
+                {selectedLang === 'EN' ? 'My Achievements & Certificates' : 'Mis Logros y Certificados'}
               </h3>
             </div>
             <p className="text-xs text-slate-300 max-w-md leading-relaxed">

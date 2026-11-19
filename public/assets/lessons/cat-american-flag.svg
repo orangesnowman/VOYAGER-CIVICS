@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="flag-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.6" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Amber 45° -->
+    <pattern id="flag-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.0" fill="#F59E0B"/>
+    </pattern>
+    <!-- Star definition for canton -->
+    <g id="flag-star">
+      <polygon points="0,-6.5 1.9,-2 6.5,-2 2.8,0.8 4.2,5.2 0,2.4 -4.2,5.2 -2.8,0.8 -6.5,-2 -1.9,-2" fill="#FEF9EE"/>
+    </g>
+    <!-- Small star for accent -->
+    <g id="mini-star">
+      <polygon points="0,-4 1.2,-1.2 4,-1.2 1.8,0.5 2.6,3.2 0,1.5 -2.6,3.2 -1.8,0.5 -4,-1.2 -1.2,-1.2" fill="#F59E0B"/>
+    </g>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (Authentic Lithographic Paper) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Upper Background Sunburst / Halftone Sky -->
+  <rect x="36" y="36" width="428" height="240" fill="url(#flag-dots-gold)"/>
+
+  <!-- Decorative Engraved Sunrays radiating from top right -->
+  <path d="M 464 36 L 240 36 L 464 160 Z" fill="#FEF9EE" opacity="0.6"/>
+  <path d="M 464 190 L 150 36 L 200 36 L 464 250 Z" fill="#FEF9EE" opacity="0.4"/>
+
+  <!-- 4. Vintage Brass Flagstaff & Spearhead Finial (Left side) -->
+  <!-- Flagpole Shadow Offset -->
+  <rect x="68" y="52" width="16" height="400" rx="3" fill="#0B172E"/>
+  <!-- Flagpole Main Brass Body -->
+  <rect x="64" y="48" width="16" height="400" rx="3" fill="#F59E0B" stroke="#000000" stroke-width="3.5"/>
+  <line x1="68" y1="52" x2="68" y2="444" stroke="#FEF9EE" stroke-width="2"/>
+  <line x1="75" y1="52" x2="75" y2="444" stroke="#000000" stroke-width="1.5"/>
+
+  <!-- Spearhead Brass Finial -->
+  <polygon points="72,12 86,46 58,46" fill="#F59E0B" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="72" cy="48" r="7" fill="#F59E0B" stroke="#000000" stroke-width="3"/>
+  <!-- Gold Cord & Tassels dangling -->
+  <path d="M 72 56 Q 96 85 86 130" stroke="#000000" stroke-width="3" fill="none"/>
+  <path d="M 72 56 Q 96 85 86 130" stroke="#F59E0B" stroke-width="1.8" fill="none"/>
+  <polygon points="82,130 90,130 94,152 78,152" fill="#F59E0B" stroke="#000000" stroke-width="2"/>
+
+  <!-- 5. Waving American Flag Body (Lithographic Engraving Treatment) -->
+  <!-- Shadow Underfold for waving cloth -->
+  <path d="M 80 80 Q 180 50 270 95 Q 360 140 448 95 L 442 325 Q 355 375 265 325 Q 175 275 80 310 Z" fill="#0B172E"/>
+
+  <!-- Waving Flag Base (Cream Base) -->
+  <path d="M 78 76 Q 178 46 268 91 Q 358 136 444 91 L 438 319 Q 352 368 262 319 Q 172 270 78 304 Z" 
+        fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+
+  <!-- Red Stripes with Waving Curves and Vintage Linework -->
+  <!-- Stripe 1 (Top Red) -->
+  <path d="M 78 76 Q 178 46 268 91 Q 358 136 444 91 L 443 108 Q 357 153 267 108 Q 177 63 78 93 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 3 -->
+  <path d="M 78 111 Q 177 81 267 126 Q 357 171 442 126 L 441 144 Q 356 189 266 144 Q 176 99 78 129 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 5 -->
+  <path d="M 78 147 Q 176 117 266 162 Q 356 207 440 162 L 439 180 Q 355 225 265 180 Q 175 135 78 165 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 7 -->
+  <path d="M 78 183 Q 175 153 265 198 Q 355 243 438 198 L 437 216 Q 354 261 264 216 Q 174 171 78 201 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 9 -->
+  <path d="M 78 219 Q 174 189 264 234 Q 354 279 436 234 L 435 252 Q 353 297 263 252 Q 173 207 78 237 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 11 -->
+  <path d="M 78 255 Q 173 225 263 270 Q 353 315 434 270 L 433 288 Q 352 333 262 288 Q 172 243 78 273 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+  <!-- Stripe 13 (Bottom Red) -->
+  <path d="M 78 291 Q 172 261 262 306 Q 352 351 432 306 L 430 324 Q 351 369 261 324 Q 171 279 78 309 Z" 
+        fill="#B22234" stroke="#000000" stroke-width="2.5"/>
+
+  <!-- 6. Blue Canton with Offset Gold Edge & Gold Shadow -->
+  <path d="M 78 76 Q 160 51 230 84 L 227 207 Q 160 174 78 201 Z" fill="#F59E0B"/>
+  <path d="M 76 74 Q 158 49 228 82 L 225 204 Q 158 171 76 198 Z" 
+        fill="#0B172E" stroke="#000000" stroke-width="4.5"/>
+
+  <!-- Canton Engraved Wave Hatching -->
+  <path d="M 100 80 Q 150 62 215 90" stroke="#1A2D54" stroke-width="2" fill="none"/>
+  <path d="M 95 110 Q 150 90 220 120" stroke="#1A2D54" stroke-width="2" fill="none"/>
+  <path d="M 90 140 Q 150 120 215 150" stroke="#1A2D54" stroke-width="2" fill="none"/>
+  <path d="M 85 170 Q 150 148 210 178" stroke="#1A2D54" stroke-width="2" fill="none"/>
+
+  <!-- Crisp Cream Lithograph Stars in Canton Grid -->
+  <!-- Row 1 -->
+  <g transform="translate(98, 92)"><use href="#flag-star"/></g>
+  <g transform="translate(132, 98)"><use href="#flag-star"/></g>
+  <g transform="translate(166, 105)"><use href="#flag-star"/></g>
+  <g transform="translate(200, 114)"><use href="#flag-star"/></g>
+
+  <!-- Row 2 -->
+  <g transform="translate(115, 118)"><use href="#flag-star"/></g>
+  <g transform="translate(149, 125)"><use href="#flag-star"/></g>
+  <g transform="translate(183, 134)"><use href="#flag-star"/></g>
+
+  <!-- Row 3 -->
+  <g transform="translate(98, 142)"><use href="#flag-star"/></g>
+  <g transform="translate(132, 149)"><use href="#flag-star"/></g>
+  <g transform="translate(166, 157)"><use href="#flag-star"/></g>
+  <g transform="translate(200, 166)"><use href="#flag-star"/></g>
+
+  <!-- Row 4 -->
+  <g transform="translate(115, 168)"><use href="#flag-star"/></g>
+  <g transform="translate(149, 175)"><use href="#flag-star"/></g>
+  <g transform="translate(183, 183)"><use href="#flag-star"/></g>
+
+  <!-- 7. Fine Lithographic Crosshatch Shading on Fabric Folds -->
+  <!-- Valley Fold Shading between wave peaks (fine dark hatch lines) -->
+  <g stroke="#000000" stroke-width="1.3" opacity="0.35">
+    <line x1="168" y1="80" x2="162" y2="280"/>
+    <line x1="174" y1="82" x2="168" y2="283"/>
+    <line x1="180" y1="84" x2="174" y2="286"/>
+    <line x1="186" y1="86" x2="180" y2="289"/>
+    <line x1="348" y1="140" x2="340" y2="345"/>
+    <line x1="354" y1="142" x2="346" y2="348"/>
+    <line x1="360" y1="145" x2="352" y2="351"/>
+    <line x1="366" y1="148" x2="358" y2="354"/>
+  </g>
+
+  <!-- 8. Editorial Letterpress Lower Base & Plinth -->
+  <polygon points="20,405 480,405 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <polygon points="20,405 480,405 460,422 40,422" fill="#F59E0B"/>
+  <rect x="40" y="430" width="420" height="48" fill="url(#flag-dots-navy)"/>
+
+  <!-- Plinth Label in Vintage Educational Typography -->
+  <rect x="100" y="415" width="300" height="34" rx="4" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <text x="250" y="438" font-family="'Georgia', serif" font-size="14" font-weight="900" fill="#0B172E" text-anchor="middle" letter-spacing="2">CIVICS &amp; RIGHTS · EE.UU.</text>
+  <g transform="translate(120, 432)"><use href="#mini-star"/></g>
+  <g transform="translate(380, 432)"><use href="#mini-star"/></g>
+</svg>

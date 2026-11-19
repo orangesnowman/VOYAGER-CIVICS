@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone (45° angle, ~45% coverage) -->
+    <pattern id="benday-mid-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.6" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Shadow (45° angle, ~75% coverage) -->
+    <pattern id="benday-shadow-navy" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="5" cy="5" r="3.6" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Orange Accent -->
+    <pattern id="benday-amber" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Aged Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Vintage Letterpress Outer Border Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Upper Background: 45° Ben-Day Amber Tone Panel -->
+  <rect x="36" y="36" width="428" height="230" fill="url(#benday-amber)"/>
+
+  <!-- 4. Directional Chiaroscuro Light Beam (Solid flat polygon cutting down at 45°) -->
+  <polygon points="120,36 340,36 440,300 80,300" fill="#FEF9EE" opacity="0.9"/>
+
+  <!-- 5. Background Office Window Architectural Linework with Offset Color Bleed -->
+  <polygon points="50,50 200,50 170,220 50,220" fill="#F59E0B"/>
+  <polygon points="48,48 196,48 166,218 48,218" fill="#0B172E" stroke="#000000" stroke-width="4.5"/>
+  <line x1="120" y1="48" x2="105" y2="218" stroke="#FEF9EE" stroke-width="2.5"/>
+  <line x1="48" y1="130" x2="180" y2="130" stroke="#FEF9EE" stroke-width="2.5"/>
+
+  <!-- 6. Heavy Interview Desk: Bold Navy Shadow Block -->
+  <polygon points="36,320 464,320 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <!-- Desk Bevel in Golden Orange with Offset Bleed -->
+  <polygon points="36,320 464,320 446,336 54,336" fill="#F59E0B"/>
+  <!-- Desk Underside Ben-Day Shadow -->
+  <rect x="40" y="348" width="420" height="120" fill="url(#benday-shadow-navy)"/>
+
+  <!-- 7. Left Silhouette: The Interviewer (Over-shoulder shot, solid deep navy) -->
+  <!-- Offset Registration Bleed on Shoulder -->
+  <path d="M 0 500 L 0 350 Q 70 320 135 385 L 180 500 Z" fill="#F59E0B"/>
+  <path d="M -2 498 L -2 348 Q 66 318 131 383 L 176 498 Z" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <!-- Interviewer Head & Collar -->
+  <ellipse cx="80" cy="270" rx="44" ry="54" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <polygon points="95,345 125,400 115,440 90,390" fill="#F59E0B" stroke="#000000" stroke-width="3"/>
+
+  <!-- 8. Right Focus: The Confident Candidate (Central Subject) -->
+  <!-- Hard-edged Graphic Cast Shadow (Chiaroscuro rule: solid shape, never feathered) -->
+  <polygon points="270,480 430,480 390,440 290,440" fill="#000000"/>
+  
+  <!-- Candidate Blazer: Rich Golden Orange with Bold Black Linework -->
+  <path d="M 230 500 L 255 350 Q 325 320 410 355 L 450 500 Z" fill="#F59E0B" stroke="#000000" stroke-width="6"/>
+  <!-- Lapels (Cream paper tone) -->
+  <polygon points="305,345 330,430 350,345" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <!-- Navy Tie -->
+  <polygon points="324,370 336,370 334,450 326,450" fill="#0B172E" stroke="#000000" stroke-width="2"/>
+
+  <!-- Candidate Head with Offset Bleed -->
+  <path d="M 285 235 Q 335 185 385 235 Q 395 310 340 320 Q 285 310 285 235 Z" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Hair: Deep Navy Block Shape -->
+  <path d="M 280 235 Q 310 170 390 195 Q 395 240 370 240 Q 345 210 290 240 Z" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+
+  <!-- Facial Features: Minimal High-Contrast Ink Work -->
+  <!-- Eyebrow & Focused Eye -->
+  <path d="M 305 242 Q 320 234 335 242" stroke="#000000" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <circle cx="320" cy="250" r="4.5" fill="#0B172E"/>
+  <!-- Nose -->
+  <path d="M 312 250 L 306 268 L 318 270" stroke="#000000" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <!-- Confident Smile -->
+  <path d="M 306 286 Q 322 300 340 284" stroke="#000000" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- Candidate Gesturing Hand (STAR Storytelling) -->
+  <path d="M 225 385 Q 200 345 220 325 Q 240 345 240 375 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- 9. Desk Artifacts: STAR Method Resume & Notepad -->
+  <polygon points="210,370 310,360 330,415 220,430" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <!-- Halftone texture on resume header -->
+  <polygon points="215,376 305,368 310,390 220,396" fill="url(#benday-mid-navy)"/>
+  <!-- Bold Text Lines on Resume -->
+  <line x1="230" y1="404" x2="295" y2="398" stroke="#000000" stroke-width="3"/>
+  <line x1="230" y1="414" x2="280" y2="408" stroke="#000000" stroke-width="3"/>
+
+  <!-- 10. Letterpress Editorial Badge: STAR FRAMEWORK -->
+  <rect x="318" y="52" width="136" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="315" y="49" width="136" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="383" y="72" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">STAR METHOD</text>
+
+  <!-- Offset Print Stamp Star Burst -->
+  <polygon points="420,95 428,112 447,114 432,127 437,146 420,135 403,146 408,127 393,114 412,112" fill="#F59E0B" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="420" cy="120" r="6" fill="#0B172E"/>
+</svg>

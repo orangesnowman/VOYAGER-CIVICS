@@ -5,6 +5,7 @@ import { ConversationMemory } from '../domain/ConversationMemory';
 import { getLocalProfileCache, flushAllPendingUserData } from '../services/userProfileService';
 import { ALL_CIVICS_128_QUESTIONS } from '../data/civics128Data';
 import { playStateSwitchBing } from '../services/audioUtils';
+import { auth } from '../services/firebaseAuth';
 
 interface UseConversationSessionConfig {
   selectedLang: 'EN' | 'ES';
@@ -20,7 +21,7 @@ interface UseConversationSessionConfig {
   onMessageReceived: (msg: any) => void;
   onError: (error: string) => void;
   onClose: () => void;
-  onAutoPause?: () => void;
+  onAutoPause?: (reason: 'inactivity') => void;
   memory?: ConversationMemory;
   hasInteracted: boolean;
   userName?: string;
@@ -32,6 +33,9 @@ interface UseConversationSessionConfig {
   userLevel?: string;
   userRole?: string;
   activeTab?: string;
+  activeGuidedLesson?: any;
+  isSpeakingOrTtsActive?: boolean;
+  isUserTyping?: boolean;
 }
 
 export function useConversationSession(config: UseConversationSessionConfig) {
@@ -61,6 +65,9 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     userLevel,
     userRole,
     activeTab,
+    activeGuidedLesson,
+    isSpeakingOrTtsActive,
+    isUserTyping,
   } = config;
 
   const [isConnected, setIsConnected] = useState(false);
@@ -161,28 +168,58 @@ export function useConversationSession(config: UseConversationSessionConfig) {
   // Timestamp-based active session timer
   const activeAccumulatedMsRef = useRef<number>(0);
   const lastActiveStartTimestampRef = useRef<number | null>(null);
+  const lastGenuineActivityTimestampRef = useRef<number>(Date.now());
 
-  const pauseTimer = useCallback(() => {
+  const recordGenuineActivity = useCallback(() => {
+    lastGenuineActivityTimestampRef.current = Date.now();
+    vadRef.current.recordActivity();
+    if (isTimerPausedRef.current) {
+      lastActiveStartTimestampRef.current = Date.now();
+      setIsTimerPaused(false);
+      isTimerPausedRef.current = false;
+    }
+  }, []);
+
+  const pauseTimer = useCallback((isDueToInactivity: boolean = false) => {
     if (lastActiveStartTimestampRef.current) {
-      activeAccumulatedMsRef.current += (Date.now() - lastActiveStartTimestampRef.current);
+      if (isDueToInactivity && lastGenuineActivityTimestampRef.current) {
+        // Exclude the 30 seconds of inactivity: only credit time up to the last genuine activity
+        const genuineElapsedMs = Math.max(0, lastGenuineActivityTimestampRef.current - lastActiveStartTimestampRef.current);
+        activeAccumulatedMsRef.current += genuineElapsedMs;
+      } else {
+        // Manual pause: credit active time up to the exact moment pause was triggered
+        activeAccumulatedMsRef.current += Math.max(0, Date.now() - lastActiveStartTimestampRef.current);
+      }
       lastActiveStartTimestampRef.current = null;
     }
+    const currentSeconds = Math.floor(activeAccumulatedMsRef.current / 1000);
+    setSecondsElapsed(currentSeconds);
     setIsTimerPaused(true);
     isTimerPausedRef.current = true;
   }, []);
 
   const resumeTimer = useCallback(() => {
-    if (isTimerPausedRef.current || !lastActiveStartTimestampRef.current) {
-      lastActiveStartTimestampRef.current = Date.now();
-      setIsTimerPaused(false);
-      isTimerPausedRef.current = false;
-    }
+    lastActiveStartTimestampRef.current = Date.now();
+    lastGenuineActivityTimestampRef.current = Date.now();
+    setIsTimerPaused(false);
+    isTimerPausedRef.current = false;
     vadRef.current.recordActivity();
+  }, []);
+
+  const setSecondsElapsedWithSync = useCallback((valOrUpdater: React.SetStateAction<number>) => {
+    setSecondsElapsed(prev => {
+      const next = typeof valOrUpdater === 'function' ? valOrUpdater(prev) : valOrUpdater;
+      activeAccumulatedMsRef.current = next * 1000;
+      if (!isTimerPausedRef.current && lastActiveStartTimestampRef.current) {
+        lastActiveStartTimestampRef.current = Date.now();
+      }
+      return next;
+    });
   }, []);
 
   // Session timer using local timestamps (Date.now())
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && !activeGuidedLesson) {
       setSecondsElapsed(0);
       setIsTimerPaused(false);
       isTimerPausedRef.current = false;
@@ -206,7 +243,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isConnected, isPaused, isTimerPaused]);
+  }, [isConnected, isPaused, isTimerPaused, activeGuidedLesson]);
 
   // Clean WebSocket and media resources using domain abstractions
   const disconnect = useCallback(() => {
@@ -314,7 +351,45 @@ export function useConversationSession(config: UseConversationSessionConfig) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const nameParam = userName ? `&userName=${encodeURIComponent(userName)}` : '';
       const emailParam = userEmail ? `&userEmail=${encodeURIComponent(userEmail)}` : '';
-      const wsUrl = `${protocol}//${window.location.host}/api/live?lang=${activeLang}${nameParam}${emailParam}`;
+      const levelParam = userLevel ? `&userLevel=${encodeURIComponent(userLevel)}` : '';
+      const goalParam = userGoal ? `&userGoal=${encodeURIComponent(userGoal)}` : '';
+      
+      let lessonParam = '';
+      try {
+        const rawLesson = localStorage.getItem('voyager_current_guided_lesson');
+        if (rawLesson) {
+          const parsed = JSON.parse(rawLesson);
+          if (parsed && parsed.title) {
+            lessonParam = `&lessonTitle=${encodeURIComponent(parsed.title)}&lessonId=${encodeURIComponent(parsed.id || '')}&lessonLevel=${encodeURIComponent(parsed.level || '')}&lessonObjective=${encodeURIComponent(parsed.objective || '')}&lessonInstructions=${encodeURIComponent(parsed.instructions || '')}`;
+          }
+        }
+      } catch (e) {}
+
+      let planParam = '';
+      try {
+        const studentId = auth.currentUser?.uid || 'STU-001';
+        const rawPlan = localStorage.getItem(`voyager_student_study_plan_${studentId}`);
+        if (rawPlan) {
+          const parsedPlan = JSON.parse(rawPlan);
+          if (parsedPlan?.primaryFocus) {
+            const reviewWords = (parsedPlan.vocabularyReviewList || []).slice(0, 5).join(',');
+            planParam = `&planFocus=${encodeURIComponent(parsedPlan.primaryFocus)}&reviewWords=${encodeURIComponent(reviewWords)}`;
+          }
+        }
+      } catch (e) {}
+
+      let simParam = '';
+      try {
+        const rawSim = localStorage.getItem('voyager_active_simulation_session');
+        if (rawSim) {
+          const parsedSim = JSON.parse(rawSim);
+          if (parsedSim && parsedSim.title && parsedSim.status === 'ACTIVE') {
+            simParam = `&simType=${encodeURIComponent(parsedSim.type)}&simId=${encodeURIComponent(parsedSim.scenarioId)}&simTitle=${encodeURIComponent(parsedSim.title)}&simLevel=${encodeURIComponent(parsedSim.cefrLevel)}&simStep=${parsedSim.currentCheckpointIndex + 1}&simTotal=${parsedSim.totalCheckpoints}`;
+          }
+        }
+      } catch (e) {}
+
+      const wsUrl = `${protocol}//${window.location.host}/api/live?lang=${activeLang}${nameParam}${emailParam}${levelParam}${goalParam}${lessonParam}${planParam}${simParam}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
@@ -427,6 +502,14 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                 (userName && userName !== 'Guest' && userName !== 'Invitado')
               );
 
+              let activeLessonData = null;
+              try {
+                const rawLesson = localStorage.getItem('voyager_current_guided_lesson');
+                if (rawLesson) {
+                  activeLessonData = JSON.parse(rawLesson);
+                }
+              } catch (e) {}
+
               if (hasExistingProfile) {
                 let greetingPrompt = ConversationModePolicy.getSystemInstructionsForMode(currentMode, {
                   initialPrompt,
@@ -438,7 +521,8 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                   userGoal: userGoal || localCache?.goal,
                   userLevel: userLevel || localCache?.levelEstimate,
                   userRole: userRole || localCache?.role,
-                  activeTab
+                  activeTab,
+                  activeLesson: activeLessonData
                 });
 
                 if (activeTab === 'civics') {
@@ -475,10 +559,26 @@ export function useConversationSession(config: UseConversationSessionConfig) {
                   wsRef.current.send(JSON.stringify({ text: greetingPrompt }));
                 }
               } else {
-                const welcomeSpeech = selectedLang === 'EN'
-                  ? "Welcome! I am USA Voyager, your American English tutor. How can I help you today?"
-                  : "¡Bienvenido! Yo soy USA Voyager, tu tutor de Inglés Americano. ¿En qué te puedo ayudar hoy?";
-                const welcomePrompt = `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Preséntate y saluda al usuario en voz alta con tu voz natural de Voyager diciendo: "${welcomeSpeech}". Luego escucha atentamente la respuesta del usuario y conversa naturalmente en voz alta.]`;
+                const isLessonsTab = activeTab === 'lessons';
+                const welcomeSpeech = isLessonsTab
+                  ? (selectedLang === 'EN'
+                      ? "Welcome to your Lesson Index! Here you can explore your lessons and learning materials. If you need any help, just ask me."
+                      : "¡Te doy la bienvenida a tu Índice de lecciones! Aquí puedes explorar tus clases y materiales de aprendizaje. Si necesitas algo, solo pregúntame.")
+                  : activeLessonData && activeLessonData.title
+                  ? (selectedLang === 'EN'
+                      ? `Welcome! I am USA Voyager, your American English tutor. We are working on your lesson: "${activeLessonData.title}". Let's begin!`
+                      : `¡Bienvenidos! Yo soy USA Voyager, tu tutor de Inglés Americano. Estamos trabajando en tu lección: "${activeLessonData.title}". ¡Vamos a comenzar!`)
+                  : (selectedLang === 'EN'
+                      ? "Welcome! I am USA Voyager, your American English tutor. How can I help you today?"
+                      : "¡Bienvenido! Yo soy USA Voyager, tu tutor de Inglés Americano. ¿En qué te puedo ayudar hoy?");
+                const welcomePrompt = isLessonsTab
+                  ? `[INSTRUCCIÓN CRÍTICA DE SISTEMA — ASISTENTE CONTEXTUAL VOYAGER:
+El usuario ha ingresado al ÍNDICE DE LECCIONES (Lesson Index).
+Tu rol es de asistente de ayuda contextual, NO de profesor de inglés. NO enseñes inglés por defecto ni propongas ejercicios.
+Pronuncia en voz alta con tu voz natural de Voyager la siguiente bienvenida: "${welcomeSpeech}". Luego guarda completo silencio hasta que el estudiante te pregunte algo.]`
+                  : activeLessonData && activeLessonData.title
+                  ? `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Saluda al estudiante en voz alta diciendo: "${welcomeSpeech}". Conduce la lección "${activeLessonData.title}", explica brevemente el objetivo y formula la primera pregunta o ejercicio de práctica. NO preguntes de qué le gustaría hablar.]`
+                  : `[INSTRUCCIÓN DE SISTEMA MANDATORIA: Preséntate y saluda al usuario en voz alta con tu voz natural de Voyager diciendo: "${welcomeSpeech}". Luego escucha atentamente la respuesta del usuario y conversa naturalmente en voz alta.]`;
 
                 if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
                   wsRef.current.send(JSON.stringify({ text: welcomePrompt }));
@@ -667,25 +767,41 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     }
   }, []);
 
-  // Inactivity auto-pause for USER TIMER ONLY (2 minutes threshold for user inactivity)
+  // Inactivity auto-pause with 30s threshold and exact idle time exclusion
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected && !activeGuidedLesson) return;
+
     const interval = setInterval(() => {
-      const inactiveMs = vadRef.current.getInactiveMs();
-      if (inactiveMs > 120000) {
+      // Safeguards:
+      // 1. Never interrupt if model is currently speaking (TTS or live playback chunks)
+      const isModelSpeaking = (typeof playbackRef.current?.isPlaying === 'function' && playbackRef.current.isPlaying()) || Boolean(isSpeakingOrTtsActive);
+      // 2. Never interrupt if student is actively speaking into microphone
+      const isStudentSpeaking = volume > 0.05 || (typeof captureRef.current?.isActive === 'function' && captureRef.current.isActive() && typeof vadRef.current?.isSpeaking === 'function' && vadRef.current.isSpeaking());
+      // 3. Never interrupt if student is actively typing or writing in chat
+      const isStudentTyping = Boolean(isUserTyping);
+
+      if (isModelSpeaking || isStudentSpeaking || isStudentTyping) {
+        lastGenuineActivityTimestampRef.current = Date.now();
+        vadRef.current.recordActivity();
+        return;
+      }
+
+      if (isPausedRef.current || isTimerPausedRef.current) {
+        return;
+      }
+
+      const inactiveMs = Date.now() - (lastGenuineActivityTimestampRef.current || Date.now());
+      if (inactiveMs >= 30000) {
         if (!isTimerPausedRef.current) {
-          console.log('Pausing user active session timer due to 120s inactivity');
-          pauseTimer();
-          if (onAutoPause) onAutoPause();
-        }
-      } else {
-        if (isTimerPausedRef.current) {
-          resumeTimer();
+          // Pause learning timer and exclude the 30-second inactive interval
+          pauseTimer(true);
+          if (onAutoPause) onAutoPause('inactivity');
         }
       }
     }, 1000);
+
     return () => clearInterval(interval);
-  }, [isConnected, pauseTimer, resumeTimer, onAutoPause]);
+  }, [isConnected, activeGuidedLesson, isSpeakingOrTtsActive, isUserTyping, volume, pauseTimer, onAutoPause]);
 
   return {
     isConnected,
@@ -695,7 +811,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     isPaused,
     isTimerPaused,
     secondsElapsed,
-    setSecondsElapsed,
+    setSecondsElapsed: setSecondsElapsedWithSync,
     volume,
     framesSent,
     chunksReceived,
@@ -708,6 +824,7 @@ export function useConversationSession(config: UseConversationSessionConfig) {
     resume,
     pauseTimer,
     resumeTimer,
+    recordGenuineActivity,
     recordInteraction,
     wsRef
   };

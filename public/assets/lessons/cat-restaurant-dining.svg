@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="din-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Amber 45° -->
+    <pattern id="din-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.2" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Halftone Window View (Night Streetscape) -->
+  <rect x="36" y="36" width="428" height="230" fill="url(#din-dots-navy)"/>
+
+  <!-- 4. Glowing Golden Amber Neon "DINER" Sign (Chiaroscuro Light Source) -->
+  <rect x="155" y="55" width="190" height="60" rx="8" fill="#F59E0B"/>
+  <rect x="150" y="50" width="190" height="60" rx="8" fill="#0B172E" stroke="#000000" stroke-width="4.5"/>
+  <text x="245" y="93" font-family="'Impact', 'Arial Black', sans-serif" font-size="36" font-weight="900" fill="#F59E0B" text-anchor="middle" letter-spacing="4">CITY DINER</text>
+
+  <!-- Neon Bounce Light Beam: 45° Hard Polygon Angle onto Table -->
+  <polygon points="170,110 320,110 440,320 80,320" fill="#FEF9EE" opacity="0.85"/>
+
+  <!-- 5. Classic Diner Table in Formica Navy with Hard Edge -->
+  <polygon points="20,300 480,300 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <polygon points="20,300 480,300 460,320 40,320" fill="#F59E0B"/>
+  <rect x="40" y="335" width="420" height="140" fill="url(#din-dots-navy)"/>
+
+  <!-- 6. Heavy Ceramic Diner Coffee Mug (Left Foreground) -->
+  <!-- Hard-edged Oval Cast Shadow -->
+  <ellipse cx="140" cy="430" rx="55" ry="18" fill="#000000"/>
+  <!-- Mug Body in Warm Cream Paper Tone -->
+  <rect x="100" y="310" width="80" height="105" rx="10" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Hot Black Coffee Top -->
+  <ellipse cx="140" cy="310" rx="40" ry="15" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <ellipse cx="140" cy="310" rx="28" ry="10" fill="#F59E0B"/>
+  <!-- Mug Handle -->
+  <path d="M 100 330 Q 60 330 60 365 Q 60 400 100 400" stroke="#000000" stroke-width="6" fill="none"/>
+  <path d="M 100 335 Q 70 335 70 365 Q 70 395 100 395" stroke="#FEF9EE" stroke-width="3" fill="none"/>
+  <!-- Rising Graphic Steam Lines in Golden Orange -->
+  <path d="M 130 295 Q 120 270 135 250" stroke="#F59E0B" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 150 295 Q 160 270 145 250" stroke="#F59E0B" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+  <!-- 7. Open Laminated Diner Menu (Center Right) -->
+  <!-- Menu Cast Shadow -->
+  <polygon points="215,350 385,335 410,460 240,475" fill="#000000"/>
+  <!-- Menu Folder with Offset Bleed -->
+  <polygon points="212,342 382,327 407,452 237,467" fill="#F59E0B"/>
+  <polygon points="210,340 380,325 405,450 235,465" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Menu Header in Solid Navy -->
+  <polygon points="218,348 372,334 376,365 222,379" fill="#0B172E"/>
+  <text x="295" y="362" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle">SPECIALS</text>
+  <!-- Menu Food Items / Price Lines -->
+  <line x1="230" y1="395" x2="350" y2="385" stroke="#000000" stroke-width="3"/>
+  <line x1="230" y1="410" x2="340" y2="400" stroke="#000000" stroke-width="3"/>
+  <line x1="230" y1="425" x2="360" y2="415" stroke="#000000" stroke-width="3"/>
+
+  <!-- 8. Guest Check / Order Pad on Table -->
+  <polygon points="340,380 430,370 445,460 355,470" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <rect x="355" y="385" width="60" height="10" fill="#F59E0B"/>
+  <text x="385" y="445" font-family="'Impact', 'Arial Black', sans-serif" font-size="20" font-weight="900" fill="#0B172E" text-anchor="middle">TOTAL</text>
+
+  <!-- 9. Editorial Letterpress Badge (DINING & SERVICE) -->
+  <rect x="42" y="48" width="165" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="39" y="45" width="165" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="121" y="68" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">RESTAURANT</text>
+</svg>

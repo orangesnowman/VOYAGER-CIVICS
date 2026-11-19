@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="civ-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Gold Flag Accent 45° -->
+    <pattern id="civ-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.2" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Stylized American Flag Canton (Halftonator Chiaroscuro Treatment) -->
+  <polygon points="36,36 240,36 215,225 36,225" fill="#F59E0B"/>
+  <polygon points="34,34 236,34 211,223 34,223" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <rect x="42" y="42" width="180" height="170" fill="url(#civ-dots-gold)"/>
+
+  <!-- Graphic Flag Stripes with 45° offset newsprint cuts -->
+  <polygon points="236,34 464,34 456,80 230,80" fill="#F59E0B" stroke="#000000" stroke-width="4"/>
+  <polygon points="230,80 456,80 448,126 224,126" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <polygon points="224,126 448,126 440,172 218,172" fill="#F59E0B" stroke="#000000" stroke-width="4"/>
+  <polygon points="218,172 440,172 432,218 212,218" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <polygon points="212,218 432,218 424,264 206,264" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+
+  <!-- 4. Naturalization Desk Base: Heavy Navy Chiaroscuro Block -->
+  <polygon points="20,380 480,380 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <polygon points="20,380 480,380 460,398 40,398" fill="#F59E0B"/>
+
+  <!-- 5. Naturalization Applicant (Right Foreground - Taking the Oath) -->
+  <!-- Suit Jacket in Solid Deep Navy with Golden Offset Bleed -->
+  <path d="M 240 500 L 270 370 Q 350 330 430 365 L 470 500 Z" fill="#F59E0B"/>
+  <path d="M 238 498 L 268 368 Q 346 328 426 363 L 466 498 Z" fill="#0B172E" stroke="#000000" stroke-width="6"/>
+  <!-- Lapels -->
+  <polygon points="325,365 348,460 370,365" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- Applicant Head & Proud Gaze -->
+  <ellipse cx="355" cy="285" rx="42" ry="52" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Hair: Bold Navy Shape -->
+  <path d="M 315 280 Q 355 220 405 250 Q 405 285 385 285 Q 365 250 320 280 Z" fill="#0B172E" stroke="#000000" stroke-width="4"/>
+  <!-- Eyes & Features -->
+  <circle cx="342" cy="280" r="4.5" fill="#0B172E"/>
+  <path d="M 334 270 Q 345 264 354 270" stroke="#000000" stroke-width="3.5" fill="none"/>
+  <path d="M 336 304 Q 350 316 366 304" stroke="#000000" stroke-width="4" fill="none"/>
+
+  <!-- 6. Raised Right Hand (The Oath of Allegiance - High Contrast Key Focal Point) -->
+  <path d="M 140 480 L 160 300 L 195 270 L 215 300 L 190 480 Z" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Raised Fingers -->
+  <rect x="175" y="210" width="13" height="68" rx="6" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <rect x="191" y="196" width="13" height="82" rx="6" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <rect x="207" y="202" width="13" height="76" rx="6" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <rect x="223" y="218" width="13" height="60" rx="6" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- 7. Official USCIS 128 Civics Guide on Table -->
+  <polygon points="45,400 165,385 185,480 60,495" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <polygon points="50,408 160,394 165,420 55,426" fill="#0B172E"/>
+  <text x="108" y="418" font-family="'Impact', 'Arial Black', sans-serif" font-size="12" font-weight="900" fill="#FEF9EE" text-anchor="middle">USCIS 128</text>
+  <rect x="62" y="435" width="95" height="18" fill="url(#civ-dots-navy)"/>
+  <line x1="65" y1="465" x2="155" y2="455" stroke="#000000" stroke-width="3"/>
+
+  <!-- 8. Editorial Badge (CITIZENSHIP / USCIS) -->
+  <rect x="312" y="48" width="144" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="309" y="45" width="144" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="381" y="68" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">CITIZENSHIP</text>
+</svg>

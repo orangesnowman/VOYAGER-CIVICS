@@ -1,0 +1,178 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile representing a student or teacher in Voyager USA.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "teacher", "admin"] },
+        "assignedTeacherId": { "type": "string" },
+        "assignedTeacherEmail": { "type": "string" },
+        "cefrLevel": { "type": "string" },
+        "learningGoal": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Homework": {
+      "title": "Homework",
+      "description": "Educational assignment issued by a teacher to a student or group.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherEmail": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "objective": { "type": "string" },
+        "instructions": { "type": "string" },
+        "level": { "type": "string" },
+        "category": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "COMPLETED"] },
+        "progressPercentage": { "type": "number" },
+        "grade": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" },
+        "assignedAt": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "completedAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "teacherId", "title", "status"]
+    },
+    "TeacherFeedback": {
+      "title": "TeacherFeedback",
+      "description": "Constructive pedagogical feedback and guidance from teacher to student.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "homeworkId": { "type": "string" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "teacherId", "comment"]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "description": "Comprehensive rubrics and criteria assessment for completed lessons.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "lessonId": { "type": "string" },
+        "lessonTitle": { "type": "string" },
+        "category": { "type": "string" },
+        "level": { "type": "string" },
+        "attemptNumber": { "type": "number" },
+        "date": { "type": "string" },
+        "durationSeconds": { "type": "number" },
+        "numericalScore": { "type": "number" },
+        "letterGrade": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "resultLabel": { "type": "string" },
+        "criteriaScores": { "type": "object" },
+        "explanation": { "type": "string" },
+        "strengths": { "type": "array" },
+        "areasToImprove": { "type": "array" },
+        "recommendations": { "type": "array" },
+        "assignmentId": { "type": "string" }
+      },
+      "required": ["id", "lessonId", "letterGrade", "numericalScore"]
+    },
+    "StudyPlan": {
+      "title": "StudyPlan",
+      "description": "Personalized adaptive learning plan generated from student performance and goals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "targetCefrLevel": { "type": "string" },
+        "learningGoal": { "type": "string" },
+        "primaryFocus": { "type": "string" },
+        "rationale": { "type": "string" },
+        "recommendedActivities": { "type": "array" },
+        "vocabularyReviewList": { "type": "array" },
+        "phoneticFocusAreas": { "type": "array" },
+        "generatedAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "targetCefrLevel"]
+    },
+    "ScenarioAttempt": {
+      "title": "ScenarioAttempt",
+      "description": "Student record of a real-world conversational roleplay or capstone simulation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "scenarioId": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "cefrLevel": { "type": "string" },
+        "date": { "type": "string" },
+        "durationSeconds": { "type": "number" },
+        "numericalScore": { "type": "number" },
+        "letterGrade": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "criteriaScores": { "type": "object" },
+        "milestonesAchieved": { "type": "array" },
+        "feedback": { "type": "string" }
+      },
+      "required": ["id", "studentId", "scenarioId", "numericalScore"]
+    },
+    "MockExamAttempt": {
+      "title": "MockExamAttempt",
+      "description": "Voyager USA CEFR practice examination performance record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "examLevel": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "durationSeconds": { "type": "number" },
+        "overallScore": { "type": "number" },
+        "letterGrade": { "type": "string" },
+        "passed": { "type": "boolean" },
+        "areaScores": { "type": "object" },
+        "examinerNotes": { "type": "string" }
+      },
+      "required": ["id", "studentId", "examLevel", "overallScore"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of student and teacher user profiles"
+    },
+    "/users/{userId}/evaluations/{evalId}": {
+      "schema": "Evaluation",
+      "description": "Collection of lesson evaluation records and assessments"
+    },
+    "/users/{userId}/studyPlan/{planId}": {
+      "schema": "StudyPlan",
+      "description": "Adaptive study plan and recommendations for a student"
+    },
+    "/users/{userId}/scenarios/{scenarioId}": {
+      "schema": "ScenarioAttempt",
+      "description": "Student real-world scenario and capstone simulation attempts"
+    },
+    "/users/{userId}/mockExams/{examId}": {
+      "schema": "MockExamAttempt",
+      "description": "Student CEFR mock examination attempts and evaluation results"
+    },
+    "/homework/{homeworkId}": {
+      "schema": "Homework",
+      "description": "Collection of educational assignments tracking learning progress"
+    },
+    "/teacherFeedback/{feedbackId}": {
+      "schema": "TeacherFeedback",
+      "description": "Collection of feedback notes provided by teachers"
+    }
+  }
+}

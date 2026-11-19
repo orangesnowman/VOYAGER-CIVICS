@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Midtone Navy 45° -->
+    <pattern id="conf-dots-navy" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#0B172E"/>
+    </pattern>
+    <!-- Ben-Day Dots: Golden Amber 45° -->
+    <pattern id="conf-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="3.2" fill="#F59E0B"/>
+    </pattern>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (No gradients) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Pitch-Dark Auditorium Background in Deep Navy -->
+  <rect x="36" y="36" width="428" height="428" fill="#0B172E"/>
+
+  <!-- 4. Theatrical Chiaroscuro Spotlight Cone (Pure Crisp Cream & Amber Cutting Downward) -->
+  <!-- Hard-edged angular light beam cutting down across darkness (Zero feathering) -->
+  <polygon points="250,36 120,500 380,500" fill="#FEF9EE"/>
+  <polygon points="248,36 118,500 160,500 250,36" fill="#F59E0B" opacity="0.4"/>
+
+  <!-- 5. Poised Speaker at Wooden Podium (Center Hero) -->
+  <!-- Speaker Blazer / Torso in Rich Golden Orange with Bold Linework -->
+  <path d="M 180 500 L 205 280 Q 250 250 295 280 L 320 500 Z" fill="#F59E0B" stroke="#000000" stroke-width="6"/>
+  <!-- Crisp Cream Shirt Collar & Navy Tie -->
+  <polygon points="240,280 250,340 260,280" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <polygon points="247,300 253,300 252,360 248,360" fill="#0B172E"/>
+
+  <!-- Speaker Head & Hair -->
+  <ellipse cx="250" cy="210" rx="36" ry="46" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Hair: Deep Navy Sharp Silhouette -->
+  <path d="M 214 205 Q 250 145 288 185 Q 292 215 272 215 Q 252 185 220 210 Z" fill="#0B172E" stroke="#000000" stroke-width="4.5"/>
+
+  <!-- Expressive, Confident Facial Linework -->
+  <path d="M 235 205 Q 244 198 253 205" stroke="#000000" stroke-width="3" fill="none"/>
+  <circle cx="245" cy="212" r="3.5" fill="#0B172E"/>
+  <path d="M 240 215 L 236 226 L 244 227" stroke="#000000" stroke-width="2.5" fill="none"/>
+  <!-- Confident Vocal Projection (Open speaking gesture) -->
+  <path d="M 236 238 Q 248 248 260 238" stroke="#000000" stroke-width="3.5" fill="none"/>
+
+  <!-- 6. Confident Gesturing Hands Above Podium -->
+  <path d="M 175 320 Q 150 280 170 260 Q 190 280 190 310 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+  <path d="M 325 320 Q 350 280 330 260 Q 310 280 310 310 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4"/>
+
+  <!-- 7. Wooden Stage Lectern / Podium (Center Foreground) -->
+  <!-- Hard Graphic Cast Shadow -->
+  <polygon points="170,480 330,480 350,500 150,500" fill="#000000"/>
+  
+  <!-- Podium Slanted Top -->
+  <polygon points="160,330 340,330 360,360 140,360" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <!-- Podium Column in Deep Navy with Offset Bleed -->
+  <polygon points="175,360 325,360 340,490 160,490" fill="#F59E0B"/>
+  <polygon points="172,358 322,358 337,488 157,488" fill="#0B172E" stroke="#000000" stroke-width="5.5"/>
+  <rect x="190" y="380" width="120" height="80" fill="url(#conf-dots-gold)"/>
+
+  <!-- Podium Gooseneck Microphone -->
+  <path d="M 190 330 Q 210 270 235 270" stroke="#000000" stroke-width="4.5" fill="none"/>
+  <ellipse cx="235" cy="270" rx="8" ry="6" fill="#F59E0B" stroke="#000000" stroke-width="2.5"/>
+
+  <!-- 8. Silhouetted Audience Rows at Bottom (Theatrical Chiaroscuro Contrast) -->
+  <g fill="#071224" stroke="#000000" stroke-width="3">
+    <!-- Audience Heads -->
+    <circle cx="70" cy="460" r="28"/>
+    <circle cx="125" cy="475" r="32"/>
+    <circle cx="375" cy="475" r="32"/>
+    <circle cx="430" cy="460" r="28"/>
+  </g>
+
+  <!-- 9. Editorial Letterpress Badge (CONFIDENCE & DRILLS) -->
+  <rect x="42" y="48" width="165" height="34" rx="3" fill="#F59E0B"/>
+  <rect x="39" y="45" width="165" height="34" rx="3" fill="#0B172E" stroke="#000000" stroke-width="3"/>
+  <text x="121" y="68" font-family="'Impact', 'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#FEF9EE" text-anchor="middle" letter-spacing="1.5">CONFIDENCE</text>
+</svg>

@@ -2,6 +2,7 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { WebSocketServer, WebSocket } from "ws";
 import { GoogleGenAI, LiveServerMessage, Modality } from "@google/genai";
 import { SYSTEM_INSTRUCTION } from "./src/constants";
@@ -30,14 +31,44 @@ try {
   console.error("Failed to load .env file manually:", err);
 }
 
+const SERVER_LOG_PATH = path.join(os.tmpdir(), "voyager-server.log");
+
 function logToFile(message: string) {
   const timestamp = new Date().toISOString();
   try {
-    fs.appendFileSync(path.join(process.cwd(), "server.log"), `[${timestamp}] ${message}\n`);
+    fs.appendFileSync(SERVER_LOG_PATH, `[${timestamp}] ${message}\n`);
   } catch (err) {
     console.error("Failed to write to server.log:", err);
   }
   console.log(message);
+}
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  logToFile(`Uncaught Exception: ${err?.stack || err}`);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
+  logToFile(`Unhandled Rejection: ${reason}`);
+});
+
+function safeSend(ws: WebSocket | null | undefined, data: any) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      ws.send(typeof data === "string" ? data : JSON.stringify(data));
+    } catch (err: any) {
+      logToFile(`safeSend error: ${err?.message || err}`);
+    }
+  }
+}
+
+function safeClose(ws: WebSocket | null | undefined) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    try {
+      ws.close();
+    } catch (err: any) {}
+  }
 }
 
 async function performWebSearch(query: string): Promise<string> {
@@ -102,13 +133,34 @@ async function performWebSearch(query: string): Promise<string> {
 async function startServer() {
   const app = express();
   const server = http.createServer(app);
-  const PORT = 3000;
+
+  const defaultDevPort = process.env.DEFAULT_APP_PORT ? parseInt(process.env.DEFAULT_APP_PORT, 10) : 3000;
+  const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : NaN;
+  const nginxPort = process.env.NGINX_PORT ? parseInt(process.env.NGINX_PORT, 10) : NaN;
+  let PORT =
+    process.env.NODE_ENV !== "production" && !isNaN(nginxPort) && envPort === nginxPort
+      ? defaultDevPort
+      : (!isNaN(envPort) ? envPort : defaultDevPort);
+  let HOST = process.env.HOST || "0.0.0.0";
+  const portArgIndex = process.argv.indexOf("--port");
+  if (portArgIndex !== -1 && process.argv[portArgIndex + 1]) {
+    const parsed = parseInt(process.argv[portArgIndex + 1], 10);
+    if (!isNaN(parsed)) PORT = parsed;
+  }
+  const hostArgIndex = process.argv.indexOf("--host");
+  if (hostArgIndex !== -1 && process.argv[hostArgIndex + 1]) {
+    HOST = process.argv[hostArgIndex + 1];
+  }
+
+  app.get(["/api/health", "/_health", "/healthz"], (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
 
   try {
-    fs.writeFileSync(path.join(process.cwd(), "server.log"), "");
+    fs.writeFileSync(SERVER_LOG_PATH, "");
   } catch (err) {}
 
-  logToFile("Server starting up...");
+  logToFile(`Server starting up on ${HOST}:${PORT}...`);
 
   const wss = new WebSocketServer({ noServer: true });
 
@@ -132,13 +184,28 @@ async function startServer() {
     const lang = reqUrl.searchParams.get("lang") || "EN";
     const userName = reqUrl.searchParams.get("userName") || "";
     const userEmail = reqUrl.searchParams.get("userEmail") || "";
-    logToFile(`Client connected to server WebSocket wrapper. Language: ${lang}, User: ${userName || 'None'} (${userEmail || 'None'})`);
+    const userLevel = reqUrl.searchParams.get("userLevel") || "";
+    const userGoal = reqUrl.searchParams.get("userGoal") || "";
+    const planFocus = reqUrl.searchParams.get("planFocus") || "";
+    const reviewWords = reqUrl.searchParams.get("reviewWords") || "";
+    const simType = reqUrl.searchParams.get("simType") || "";
+    const simId = reqUrl.searchParams.get("simId") || "";
+    const simTitle = reqUrl.searchParams.get("simTitle") || "";
+    const simLevel = reqUrl.searchParams.get("simLevel") || "";
+    const simStep = reqUrl.searchParams.get("simStep") || "";
+    const simTotal = reqUrl.searchParams.get("simTotal") || "";
+    const lessonTitle = reqUrl.searchParams.get("lessonTitle") || "";
+    const lessonId = reqUrl.searchParams.get("lessonId") || "";
+    const lessonLevel = reqUrl.searchParams.get("lessonLevel") || "";
+    const lessonObjective = reqUrl.searchParams.get("lessonObjective") || "";
+    const lessonInstructions = reqUrl.searchParams.get("lessonInstructions") || "";
+    logToFile(`Client connected to server WebSocket wrapper. Language: ${lang}, User: ${userName || 'None'} (${userEmail || 'None'}), Level: ${userLevel || 'default'}, Sim: ${simTitle || 'None'}, Lesson: ${lessonTitle || 'None'}`);
     
     const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
       logToFile("Error: GEMINI_API_KEY is not set in environment variables!");
-      clientWs.send(JSON.stringify({ error: "GEMINI_API_KEY is not configured on the server." }));
-      clientWs.close();
+      safeSend(clientWs, { error: "GEMINI_API_KEY is not configured on the server." });
+      safeClose(clientWs);
       return;
     }
 
@@ -174,6 +241,50 @@ async function startServer() {
         ? `\n\nCRITICAL USER IDENTITY & PROFILE: The user is ALREADY LOGGED IN with Google/USA Voyager account as "${userName || userEmail}"${userEmail ? ` (${userEmail})` : ''}. YOU ALREADY KNOW THEIR NAME (${userName || userEmail}). YOU MUST NEVER ASK "What is your name?", "Who am I speaking with?", or ask for their identity. Greet them warmly by their name "${userName || userEmail}".`
         : ``;
 
+      const learnerProfileInstruction = (userLevel || userGoal)
+        ? `\n\nADAPTIVE LEARNER PROFILE:
+The student's target proficiency level is ${userLevel || 'Intermediate (B1/B2)'}${userGoal ? ` and their personal goal is "${userGoal}"` : ''}.
+ADAPTATION RULES FOR VOYAGER:
+1. Calibrate vocabulary, sentence structure, and conversational tempo to this CEFR proficiency level.
+2. Provide positive, constructive feedback on natural American pronunciation (e.g. vowel reductions, schwa, consonant liaisons).
+3. Do not interrupt mid-sentence; support student speaking confidence with encouraging oral practice.`
+        : ``;
+
+      const studyPlanInstruction = (planFocus || reviewWords)
+        ? `\n\nADAPTIVE STUDY PLAN CONTEXT:
+Primary focus dimension: ${planFocus || 'General Fluency'}.
+Target vocabulary needing contextual reinforcement: ${reviewWords || 'standard CEFR vocabulary'}.
+CRITICAL PEDAGOGICAL RULE:
+- Naturally model and contextualize these target vocabulary words in your dialogue when relevant.
+- Do NOT interrupt conversations with unsolicited vocabulary drills or quizzes.
+- Students must remain fully in control of their learning experience.`
+        : ``;
+
+      const simulationInstruction = simTitle
+        ? `\n\nCRITICAL REAL-WORLD SIMULATION & ROLE-PLAY INSTRUCTION:
+Active situation: "${simTitle}" (Type: ${simType || 'Scenario'}, Target CEFR: ${simLevel || 'B1'}${simStep ? `, Checkpoint ${simStep} of ${simTotal}` : ''}).
+MANDATORY ROLE-PLAY RULES FOR VOYAGER AS CONVERSATION PARTNER:
+1. Act as the realistic American counterpart for this scenario (e.g. Airline Gate Agent, CBP Officer, Hotel Receptionist, Hiring Manager, Diner Waiter, Physician, Neighbor).
+2. Maintain natural American spoken English cadence, clear pronunciation, and realistic situational responses.
+3. Allow multiple conversational paths; do NOT force the student into a rigid script.
+4. Support realistic follow-up questions and provide encouraging, constructive corrections in context.
+5. The student has full control to START, PAUSE, RESUME, or END the scenario. When they conclude, provide encouraging, evidence-based feedback on communication, vocabulary, and task completion.`
+        : ``;
+
+      const lessonInstruction = lessonTitle
+        ? `\n\nCRITICAL ACTIVE GUIDED LESSON INSTRUCTION:
+The student is currently taking the official lesson: "${lessonTitle}" (ID: ${lessonId || 'active'}, CEFR Level: ${lessonLevel || 'B1/B2'}).
+Primary Objective: "${lessonObjective}"
+Required Exercises & Activities: "${lessonInstructions}"
+MANDATORY RULES FOR VOYAGER AS THE AMERICAN ENGLISH TEACHER:
+1. Stay strictly focused on this lesson. DO NOT ask the student what they want to study or introduce unrelated topics. Greet the student by acknowledging this specific lesson and immediately start the first exercise or prompt.
+2. Guide the student through the required exercises and interactive questions.
+3. Provide gentle corrections for grammar and pronunciation in context.
+4. Assess student responses throughout the lesson.
+5. Conclude only when sufficient evidence exists for a meaningful evaluation.
+6. When the student has addressed the learning objectives and provided sufficient conversational evidence, conclude the lesson naturally and provide an automatic evaluation using the American letter grade system (A+, A, A-, B+, B, B-, C+, C, C-, D+, D, D-, F with numerical score 0-100, passing threshold 70%).`
+        : ``;
+
       const newSession = await ai.live.connect({
         model: modelName,
         config: {
@@ -181,7 +292,7 @@ async function startServer() {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } },
           },
-          systemInstruction: SYSTEM_INSTRUCTION + languageInstruction + userIdentityInstruction,
+          systemInstruction: SYSTEM_INSTRUCTION + languageInstruction + userIdentityInstruction + learnerProfileInstruction + studyPlanInstruction + simulationInstruction + lessonInstruction,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           tools: [
@@ -294,7 +405,7 @@ async function startServer() {
                   session = newSess;
                   isTransitioning = false;
                   logToFile("Successfully re-established Gemini Live API session after GoAway signal.");
-                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                  safeSend(clientWs, { status: "connected", model: currentModel, reconnected: true });
                 }).catch(err => {
                   isTransitioning = false;
                   logToFile(`Auto-reconnect after GoAway message failed: ${err.message || err}`);
@@ -305,7 +416,7 @@ async function startServer() {
 
             if ((message as any).setupComplete) {
               logToFile("Gemini setupComplete received. Session is ready. Notifying client.");
-              clientWs.send(JSON.stringify({ status: "connected", model: modelName }));
+              safeSend(clientWs, { status: "connected", model: modelName });
               return;
             }
             
@@ -323,7 +434,7 @@ async function startServer() {
                 
                 if (delta) {
                   logToFile(`Sending user voice transcription delta: "${delta}"`);
-                  clientWs.send(JSON.stringify({ userTranscription: delta }));
+                  safeSend(clientWs, { userTranscription: delta });
                 }
                 
                 if (transcription.finished) {
@@ -347,11 +458,11 @@ async function startServer() {
                 if (delta) {
                   if (/\[?SWITCH[-_ ]?LANG:?\s*ES\]?/i.test(delta)) {
                     logToFile("Auto-detect: model switched to Spanish.");
-                    clientWs.send(JSON.stringify({ languageSwitch: "ES" }));
+                    safeSend(clientWs, { languageSwitch: "ES" });
                   }
                   if (/\[?SWITCH[-_ ]?LANG:?\s*EN\]?/i.test(delta)) {
                     logToFile("Auto-detect: model switched to English.");
-                    clientWs.send(JSON.stringify({ languageSwitch: "EN" }));
+                    safeSend(clientWs, { languageSwitch: "EN" });
                   }
 
                   // Thoroughly strip any residual switch_lang tags/phrases
@@ -361,7 +472,7 @@ async function startServer() {
 
                   if (delta.trim() && !clientIsPaused && !ignoreModelTurnUntilUserSpeaks) {
                     logToFile(`Sending model voice transcription delta: "${delta.trim()}"`);
-                    clientWs.send(JSON.stringify({ text: delta }));
+                    safeSend(clientWs, { text: delta });
                   }
                 }
 
@@ -376,7 +487,7 @@ async function startServer() {
               for (const part of parts) {
                 if (part.inlineData?.data) {
                   logToFile(`Sending ${part.inlineData.data.length} bytes of audio back to client.`);
-                  clientWs.send(JSON.stringify({ audio: part.inlineData.data }));
+                  safeSend(clientWs, { audio: part.inlineData.data });
                 }
                 if (part.text) {
                   let text = part.text;
@@ -387,13 +498,13 @@ async function startServer() {
                     showForm = true;
                   }
                   logToFile(`Sending text back to client: ${text} (showForm: ${showForm})`);
-                  clientWs.send(JSON.stringify({ text, showForm }));
+                  safeSend(clientWs, { text, showForm });
                 }
               }
             }
             if (message.serverContent?.interrupted) {
               logToFile("Gemini session was interrupted");
-              clientWs.send(JSON.stringify({ interrupted: true }));
+              safeSend(clientWs, { interrupted: true });
             }
             if (message.serverContent?.turnComplete) {
               logToFile("Gemini model turn complete.");
@@ -418,10 +529,10 @@ async function startServer() {
                       
                       logToFile(`Tool call map_show_location: ${placeName} (${latitude}, ${longitude})`);
                       
-                      clientWs.send(JSON.stringify({
+                      safeSend(clientWs, {
                         mapAction: "show_location",
                         data: { placeName, latitude, longitude, description }
-                      }));
+                      });
                       
                       result = { success: true, message: `Successfully focused map on ${placeName} at [${latitude}, ${longitude}].` };
                     } else if (call.name === "map_draw_route") {
@@ -433,10 +544,10 @@ async function startServer() {
                       
                       logToFile(`Tool call map_draw_route: ${origin} to ${destination} via ${travelMode}`);
                       
-                      clientWs.send(JSON.stringify({
+                      safeSend(clientWs, {
                         mapAction: "draw_route",
                         data: { origin, destination, travelMode, description }
-                      }));
+                      });
                       
                       result = { success: true, message: `Successfully requested route from ${origin} to ${destination} via ${travelMode}.` };
                     } else if (call.name === "get_current_time") {
@@ -478,14 +589,14 @@ async function startServer() {
                       
                       logToFile(`Tool call update_user_progress: scores[G:${grammar}, P:${pronunciation}, C:${confidence}, N:${naturalness}]`);
                       
-                      clientWs.send(JSON.stringify({
+                      safeSend(clientWs, {
                         progressUpdate: {
                           scores: { grammar, pronunciation, confidence, naturalness },
                           learnedWords,
                           accentTips,
                           completedMissionId
                         }
-                      }));
+                      });
                       
                       result = { success: true, message: "Progress metrics updated successfully." };
                     } else if (call.name === "google_calendar_book_meeting") {
@@ -499,7 +610,7 @@ async function startServer() {
                       const bookResult = await googleWorkspace.calendarBookMeeting(title, startISO, durationMinutes, attendeeEmail);
                       
                       if (bookResult.success) {
-                        clientWs.send(JSON.stringify({ meetingBooked: true, meetingInfo: { title, startISO, durationMinutes } }));
+                        safeSend(clientWs, { meetingBooked: true, meetingInfo: { title, startISO, durationMinutes } });
                       }
                       result = bookResult;
                     }
@@ -588,15 +699,13 @@ async function startServer() {
 
             if (isQuotaOrSpendCap) {
               logToFile(`Gemini Live API quota/spending cap reached: ${reason}`);
-              if (clientWs.readyState === WebSocket.OPEN) {
-                clientWs.send(JSON.stringify({ 
-                  sessionEnded: true,
-                  isQuotaNotice: true,
-                  error: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend",
-                  info: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend"
-                }));
-              }
-              setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+              safeSend(clientWs, { 
+                sessionEnded: true,
+                isQuotaNotice: true,
+                error: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend",
+                info: "Tu proyecto de Gemini ha alcanzado el límite de gasto mensual (monthly spending cap). Administra tu cuota en https://ai.studio/spend"
+              });
+              setTimeout(() => { safeClose(clientWs); }, 120);
               return;
             }
 
@@ -631,10 +740,10 @@ async function startServer() {
                   if (reconnectedSess && clientWs.readyState === WebSocket.OPEN) {
                     session = reconnectedSess;
                     logToFile(`Successfully re-established Gemini Live API session seamlessly (model: ${currentModel}).`);
-                    clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                    safeSend(clientWs, { status: "connected", model: currentModel, reconnected: true });
                   } else if (clientWs.readyState === WebSocket.OPEN) {
-                    clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz se interrumpió temporalmente." }));
-                    setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+                    safeSend(clientWs, { sessionEnded: true, info: "La sesión de voz se interrumpió temporalmente." });
+                    setTimeout(() => { safeClose(clientWs); }, 120);
                   }
                 })();
                 return;
@@ -642,24 +751,16 @@ async function startServer() {
 
               if (isGoAwayOrTimeout) {
                 logToFile(`Gemini session completed or timed out cleanly (code: ${code}).`);
-                if (clientWs.readyState === WebSocket.OPEN) {
-                  clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
-                }
+                safeSend(clientWs, { sessionEnded: true, info: "La sesión de voz finalizó automáticamente." });
               } else if (reason) {
-                if (clientWs.readyState === WebSocket.OPEN) {
-                  clientWs.send(JSON.stringify({ error: `La conexión con Gemini se interrumpió: ${reason}` }));
-                }
+                safeSend(clientWs, { error: `La conexión con Gemini se interrumpió: ${reason}` });
               } else if (code === 1007) {
-                if (clientWs.readyState === WebSocket.OPEN) {
-                  clientWs.send(JSON.stringify({ error: "Clave API de Gemini caducada o no válida." }));
-                }
+                safeSend(clientWs, { error: "Clave API de Gemini caducada o no válida." });
               } else {
-                if (clientWs.readyState === WebSocket.OPEN) {
-                  clientWs.send(JSON.stringify({ sessionEnded: true }));
-                }
+                safeSend(clientWs, { sessionEnded: true });
               }
               setTimeout(() => {
-                try { clientWs.close(); } catch(e) {}
+                safeClose(clientWs);
               }, 120);
             }
           },
@@ -709,10 +810,10 @@ async function startServer() {
                 if (reconnectedSess && clientWs.readyState === WebSocket.OPEN) {
                   session = reconnectedSess;
                   logToFile(`Successfully re-established Gemini Live API session after onerror.`);
-                  clientWs.send(JSON.stringify({ status: "connected", model: currentModel, reconnected: true }));
+                  safeSend(clientWs, { status: "connected", model: currentModel, reconnected: true });
                 } else if (clientWs.readyState === WebSocket.OPEN) {
-                  clientWs.send(JSON.stringify({ sessionEnded: true, info: "La sesión de voz finalizó automáticamente." }));
-                  setTimeout(() => { try { clientWs.close(); } catch(e) {} }, 120);
+                  safeSend(clientWs, { sessionEnded: true, info: "La sesión de voz finalizó automáticamente." });
+                  setTimeout(() => { safeClose(clientWs); }, 120);
                 }
               })();
               return;
@@ -722,9 +823,7 @@ async function startServer() {
               logToFile(`Error occurred on model ${modelName}. Initiating fallback sequence...`);
               triggerFallback();
             } else if (!isTransitioning) {
-              if (clientWs.readyState === WebSocket.OPEN) {
-                clientWs.send(JSON.stringify({ error: "La conexión con Gemini se interrumpió temporalmente." }));
-              }
+              safeSend(clientWs, { error: "La conexión con Gemini se interrumpió temporalmente." });
             }
           }
         }
@@ -748,8 +847,8 @@ async function startServer() {
           isTransitioning = false;
         } catch (fallbackErr: any) {
           logToFile(`Fallback to ${currentModel} failed: ${fallbackErr.stack || fallbackErr.message || fallbackErr}`);
-          clientWs.send(JSON.stringify({ error: `Connection failed: ${fallbackErr.message || "models unsupported"}` }));
-          clientWs.close();
+          safeSend(clientWs, { error: `Connection failed: ${fallbackErr.message || "models unsupported"}` });
+          safeClose(clientWs);
         }
       }
     }
@@ -766,8 +865,8 @@ async function startServer() {
         logToFile(`Successfully connected via fallback model ${currentModel} on initial catch`);
       } catch (fallbackErr: any) {
         logToFile(`Both primary and fallback connection failed. Fallback error: ${fallbackErr.stack || fallbackErr.message || fallbackErr}`);
-        clientWs.send(JSON.stringify({ error: err.message || "Failed to initialize Gemini Live API connection" }));
-        clientWs.close();
+        safeSend(clientWs, { error: err.message || "Failed to initialize Gemini Live API connection" });
+        safeClose(clientWs);
         return;
       }
     }
@@ -1072,7 +1171,8 @@ async function startServer() {
     const vite = await createViteServer({
       server: { 
         middlewareMode: true,
-        hmr: { server }
+        hmr: false,
+        watch: null
       },
       appType: "spa",
     });
@@ -1085,8 +1185,23 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  server.on("error", (err: any) => {
+    logToFile(`HTTP Server Error: ${err?.message || err}`);
+    console.error("HTTP Server Error:", err);
+  });
+
+  process.on("SIGINT", () => {
+    logToFile("Received SIGINT. Gracefully shutting down...");
+    server.close(() => process.exit(0));
+  });
+
+  process.on("SIGTERM", () => {
+    logToFile("Received SIGTERM. Gracefully shutting down...");
+    server.close(() => process.exit(0));
+  });
+
+  server.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
   });
 }
 

@@ -11,7 +11,13 @@ import { getLocalProfileCache } from '../services/userProfileService';
 export function useConversationEngine(
   activeTab: string = 'chat',
   onUserVoiceTranscription?: (text: string) => void,
-  userIdentity?: { name?: string; email?: string }
+  userIdentity?: { name?: string; email?: string },
+  sessionExtras?: {
+    activeGuidedLesson?: any;
+    isSpeakingOrTtsActive?: boolean;
+    isUserTyping?: boolean;
+    onAutoPause?: (reason: 'inactivity') => void;
+  }
 ) {
   const [selectedLang, setSelectedLang] = useState<'EN' | 'ES'>('ES');
 
@@ -87,6 +93,9 @@ export function useConversationEngine(
     userLevel: profile?.levelEstimate || getLocalProfileCache()?.levelEstimate,
     userRole: profile?.role || getLocalProfileCache()?.role,
     activeTab,
+    activeGuidedLesson: sessionExtras?.activeGuidedLesson,
+    isSpeakingOrTtsActive: sessionExtras?.isSpeakingOrTtsActive,
+    isUserTyping: sessionExtras?.isUserTyping,
     onUserTranscription: (text) => {
       updateUserVoiceTranscription(text);
       if (onUserVoiceTranscription) {
@@ -131,7 +140,9 @@ export function useConversationEngine(
             grammar: norm(pScores.grammar, 88),
             pronunciation: norm(pScores.pronunciation, 82),
             confidence: norm(pScores.confidence, 68),
-            naturalness: norm(pScores.naturalness, 74)
+            naturalness: norm(pScores.naturalness, 74),
+            fluency: norm(pScores.fluency || pScores.naturalness, 74),
+            vocabulary: norm(pScores.vocabulary || pScores.grammar, 86)
           });
         }
         
@@ -176,6 +187,9 @@ export function useConversationEngine(
       );
     },
     onAutoPause: () => {
+      if (sessionExtras?.onAutoPause) {
+        sessionExtras.onAutoPause('inactivity');
+      }
       addSystemMessage(
         selectedLang === 'EN'
           ? 'ℹ️ Session paused. Type a message below to resume.'
@@ -342,6 +356,9 @@ export function useConversationEngine(
     sendText: session.sendText,
     pause: session.pause,
     resume: session.resume,
+    pauseTimer: session.pauseTimer,
+    resumeTimer: session.resumeTimer,
+    recordGenuineActivity: session.recordGenuineActivity,
     recordInteraction: session.recordInteraction,
     setSecondsElapsed: session.setSecondsElapsed,
     wsRef

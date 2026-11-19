@@ -104,6 +104,18 @@ export function getLocalProfileCache(): UserProfileData | null {
 export function setLocalProfileCache(profile: UserProfileData): void {
   if (typeof window === 'undefined') return;
   try {
+    const prevRaw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (prevRaw) {
+      try {
+        const parsedPrev = JSON.parse(prevRaw);
+        // Compare keys excluding updatedAt timestamp to avoid infinite ping-pong loops
+        const { updatedAt: _prevUp, ...restPrev } = parsedPrev;
+        const { updatedAt: _nextUp, ...restNext } = profile as any;
+        if (JSON.stringify(restPrev) === JSON.stringify(restNext)) {
+          return;
+        }
+      } catch (e) {}
+    }
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profile));
     window.dispatchEvent(new Event('voyager_profile_updated'));
   } catch (e) {}
@@ -385,7 +397,7 @@ export async function syncOrMigrateUserOnAuth(firebaseUser: User): Promise<UserP
       state: localCache.state || localCache.usState || 'Florida',
       age: localCache.age ?? 63,
       completedDays: localCache.completedDays || [1],
-      plan: localCache.plan || 'FREE',
+      plan: localCache.plan || 'PRO',
       avatarUrl: photoURL || localCache.avatarUrl || '',
       avatarType: localCache.avatarType || (photoURL ? 'custom' : 'user'),
       onboardingCompleted: true,

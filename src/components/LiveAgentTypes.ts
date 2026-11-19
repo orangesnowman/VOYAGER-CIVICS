@@ -2,13 +2,15 @@ import { ConversationMode } from './ConversationModes';
 
 export interface ChatMessage {
   id: string;
-  sender: 'user' | 'splash' | 'system';
+  sender: 'user' | 'splash' | 'system' | 'voyager' | 'assistant';
   text: string;
   timestamp: string;
-  timeMs: number;
+  timeMs?: number;
   showForm?: boolean;
   tab?: string;
   feedback?: 'up' | 'down';
+  isEvaluation?: boolean;
+  evaluationRecord?: any;
 }
 
 export interface Lead {

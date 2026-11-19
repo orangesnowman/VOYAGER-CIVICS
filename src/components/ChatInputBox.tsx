@@ -383,7 +383,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             <Send
               className={`w-[14.5px] h-[14.5px] sm:w-[15px] sm:h-[15px] shrink-0 transition-all duration-200 ${
                 isArrowActive
-                  ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.35)]'
+                  ? 'text-white'
                   : 'text-[#9CA3AF]'
               }`}
               strokeWidth={2}

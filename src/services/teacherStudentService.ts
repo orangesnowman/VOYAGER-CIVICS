@@ -18,6 +18,8 @@ export interface StudentSummary {
     grammar?: number;
     naturalness?: number;
     confidence?: number;
+    fluency?: number;
+    vocabulary?: number;
   };
   [key: string]: any;
 }
@@ -156,14 +158,45 @@ export async function fetchStudentHomework(studentId: string): Promise<HomeworkI
     handleFirestoreWriteError(err, 'fetch student homework');
     console.warn('Firestore homework fetch fallback:', err);
   }
+
+  // Load from local unified demo assignment state so student and teacher view stay synchronized
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('voyager_demo_assignments_state');
+      const list: UnifiedAssignment[] = cached ? JSON.parse(cached) : DEMO_ASSIGNMENTS;
+      const filtered = list.filter(a => !studentId || a.studentId === studentId || studentId === 'STU-001');
+      if (filtered.length > 0) {
+        return filtered.map(a => ({
+          id: a.id,
+          studentId: a.studentId || studentId,
+          title: a.title,
+          description: a.instructions || a.objective,
+          objective: a.objective,
+          level: a.level,
+          status: a.status,
+          dueDate: a.dueDate,
+          assignedBy: a.teacherName,
+          teacherName: a.teacherName,
+          progressPercentage: a.progressPercentage || (a.status === 'COMPLETED' ? 100 : a.status === 'IN_PROGRESS' ? 50 : 0),
+          grade: a.grade,
+          feedback: a.feedback,
+          createdAt: a.assignedDate || a.createdAt || new Date().toLocaleDateString()
+        }));
+      }
+    } catch (e) {}
+  }
+
   return [
     {
       id: 'HW-101',
       studentId,
-      title: 'USCIS Civics Session Practice',
-      description: 'Practice 10 key questions regarding the US Constitution and Legislative Branch.',
-      status: 'SUBMITTED',
-      dueDate: 'Tomorrow',
+      title: 'STAR Method Interview',
+      description: 'Practice answering 3 situational interview questions using the STAR framework.',
+      objective: 'Structure professional responses clearly in English using STAR framework.',
+      level: 'B2',
+      status: 'PENDING',
+      progressPercentage: 0,
+      dueDate: '31/10/2026',
       createdAt: new Date().toLocaleDateString()
     }
   ];
@@ -201,16 +234,21 @@ export async function fetchStudentFeedback(studentId: string): Promise<TeacherFe
 
 export async function assignHomeworkToStudent(item: Omit<HomeworkItem, 'id'>): Promise<HomeworkItem> {
   const newItem: HomeworkItem = {
-    studentId: item.studentId || '',
+    studentId: item.studentId || 'STU-001',
     title: item.title || 'Practice Task',
     description: item.description || '',
+    objective: (item as any).objective || item.description || '',
+    level: (item as any).level || 'B2',
     dueDate: item.dueDate || '',
     teacherName: item.teacherName || 'Voyager Tutor',
     ...item,
     id: `HW-${Date.now()}`,
     createdAt: new Date().toLocaleDateString(),
-    status: item.status || 'PENDING'
+    status: item.status || 'PENDING',
+    progressPercentage: item.progressPercentage || 0
   };
+
+  // 1. Save to Firestore if available
   try {
     if (db && !isFirestoreQuotaExceeded()) {
       const ref = await addDoc(collection(db, 'homework'), {
@@ -222,6 +260,34 @@ export async function assignHomeworkToStudent(item: Omit<HomeworkItem, 'id'>): P
   } catch (err) {
     handleFirestoreWriteError(err, 'assign homework');
   }
+
+  // 2. Also save to local unified assignments state so student immediately sees it in ASIGNADOS
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('voyager_demo_assignments_state');
+      const currentList: UnifiedAssignment[] = cached ? JSON.parse(cached) : [...DEMO_ASSIGNMENTS];
+      const newUnified: UnifiedAssignment = {
+        id: newItem.id,
+        studentId: newItem.studentId,
+        teacherName: newItem.teacherName || 'Voyager Tutor',
+        lessonId: (item as any).lessonId || `lesson-${Date.now()}`,
+        title: newItem.title,
+        instructions: newItem.description || (item as any).instructions || '',
+        objective: (item as any).objective || newItem.description || '',
+        category: (item as any).category || 'Teacher Assignment',
+        level: (item as any).level || 'B2',
+        estimatedMinutes: Number((item as any).estimatedMinutes) || 20,
+        assignedDate: new Date().toLocaleDateString(),
+        dueDate: newItem.dueDate || 'Próxima Sesión',
+        status: 'PENDING',
+        progressPercentage: 0,
+        isDemo: true
+      };
+      localStorage.setItem('voyager_demo_assignments_state', JSON.stringify([newUnified, ...currentList]));
+      window.dispatchEvent(new Event('voyager_assignments_updated'));
+    } catch (e) {}
+  }
+
   return newItem;
 }
 
@@ -267,5 +333,452 @@ export async function linkStudentToTeacher(studentEmail: string, teacherUid: str
   } catch (err) {
     handleFirestoreWriteError(err, 'link student');
   }
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNIFIED ASSIGNMENT ARCHITECTURE (STUDENT EXPERIENCE FIRST)
+// Supports seamless transition between Demonstration Mode and Production Mode.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UnifiedAssignment {
+  id: string;
+  studentId: string;
+  teacherName: string;
+  lessonId: string;
+  title: string;
+  instructions: string;
+  objective: string;
+  category: string;
+  level: string; // Authentic CEFR level: A1-A2, B1, B2, C1
+  estimatedMinutes: number;
+  assignedDate: string;
+  dueDate: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'GRADED';
+  progressPercentage?: number;
+  grade?: string;
+  feedback?: string;
+  isDemo?: boolean;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+export interface FetchAssignmentsResult {
+  assignments: UnifiedAssignment[];
+  source: 'production' | 'demo' | 'empty';
+  isDemoMode: boolean;
+  error?: string;
+}
+
+/**
+ * Normalizes any assignment date format (DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, ISO string)
+ * into a standardized YYYY-MM-DD calendar key.
+ */
+export function parseDateToKey(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const trimmed = dateStr.trim();
+  // Check YYYY-MM-DD or ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  // Check DD/MM/YYYY
+  const matchFull = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (matchFull) {
+    const day = matchFull[1].padStart(2, '0');
+    const month = matchFull[2].padStart(2, '0');
+    const year = matchFull[3];
+    return `${year}-${month}-${day}`;
+  }
+  // Check DD/MM/YY
+  const matchShort = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})/);
+  if (matchShort) {
+    const day = matchShort[1].padStart(2, '0');
+    const month = matchShort[2].padStart(2, '0');
+    const year = `20${matchShort[3]}`;
+    return `${year}-${month}-${day}`;
+  }
+  return null;
+}
+
+export const DEMO_ASSIGNMENTS: UnifiedAssignment[] = [
+  {
+    id: 'demo-assign-1',
+    studentId: 'STU-001',
+    teacherName: 'Profesor García',
+    lessonId: 'cat-job-interview',
+    title: 'STAR Method Interview',
+    instructions: 'Practice answering 3 situational interview questions using the STAR framework. Quantify your actions and maintain clear enunciation.',
+    objective: 'Structure professional responses clearly in English using Situation, Task, Action, and Result.',
+    category: 'Career & Business',
+    level: 'B2',
+    estimatedMinutes: 20,
+    assignedDate: '26/10/2026',
+    dueDate: '31/10/2026',
+    status: 'PENDING',
+    progressPercentage: 0,
+    feedback: 'Excellent opening on the Situation phase. In your next practice, add specific metric results to your final sentence.',
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-2',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Sarah Jenkins',
+    lessonId: 'cat-civics-128',
+    title: 'USCIS Civics 128: Judicial',
+    instructions: 'Review civics questions 37-57. Practice natural oral responses with Voyager without hesitation.',
+    objective: 'Master spoken accuracy for official USCIS naturalization questions on rights and judicial checks.',
+    category: 'Civics & Rights',
+    level: 'B1-B2',
+    estimatedMinutes: 20,
+    assignedDate: '27/10/2026',
+    dueDate: '02/11/2026',
+    status: 'IN_PROGRESS',
+    progressPercentage: 35,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-3',
+    studentId: 'STU-001',
+    teacherName: 'Profesor García',
+    lessonId: 'cat-doctor-pharmacy',
+    title: 'Healthcare & Prescription',
+    instructions: 'Simulate a medical consultation: describe sudden symptoms, clarify medication dosages, and ask about side effects.',
+    objective: 'Communicate essential medical needs accurately and understand healthcare instructions.',
+    category: 'Health & Living',
+    level: 'B1',
+    estimatedMinutes: 15,
+    assignedDate: '20/10/2026',
+    dueDate: '25/10/2026',
+    status: 'COMPLETED',
+    progressPercentage: 100,
+    grade: 'A',
+    feedback: 'Outstanding medical vocabulary and clear pronunciation of medication frequency terms.',
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-4',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Sarah Jenkins',
+    lessonId: 'cat-salary-negotiation',
+    title: 'Salary & Compensation Discussion',
+    instructions: 'Engage in a professional discussion around salary expectations and benefits package.',
+    objective: 'Practice polite assertion, comparative grammar, and salary negotiation terms.',
+    category: 'Career & Business',
+    level: 'B2-C1',
+    estimatedMinutes: 25,
+    assignedDate: '28/10/2026',
+    dueDate: '05/11/2026',
+    status: 'IN_PROGRESS',
+    progressPercentage: 50,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-5',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Michael Chang',
+    lessonId: 'cat-airport-tsa',
+    title: 'Airport TSA & Customs Inspection',
+    instructions: 'Practice answering immigration and customs officer questions smoothly without long pauses.',
+    objective: 'Confidently navigate airport security checkpoints and express travel details clearly.',
+    category: 'Travel & Transit',
+    level: 'A2-B1',
+    estimatedMinutes: 15,
+    assignedDate: '29/10/2026',
+    dueDate: '06/11/2026',
+    status: 'PENDING',
+    progressPercentage: 0,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-6',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Sarah Jenkins',
+    lessonId: 'cat-constitution-branches',
+    title: 'US Constitution & Bill of Rights',
+    instructions: 'Explain the three branches of the US government and the core individual rights protected by the First Amendment.',
+    objective: 'Understand and articulate fundamental principles of American democratic governance.',
+    category: 'Civics & Rights',
+    level: 'B1-B2',
+    estimatedMinutes: 20,
+    assignedDate: '18/10/2026',
+    dueDate: '24/10/2026',
+    status: 'COMPLETED',
+    progressPercentage: 100,
+    grade: 'A+',
+    feedback: 'Flawless distinction between Executive, Legislative, and Judicial duties.',
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-7',
+    studentId: 'STU-001',
+    teacherName: 'Profesor García',
+    lessonId: 'cat-urgent-care',
+    title: 'Urgent Care & ER Triage',
+    instructions: 'Communicate pain levels, acute allergy reactions, and current medications to a triage nurse.',
+    objective: 'Use urgent medical vocabulary and describe immediate physical conditions accurately.',
+    category: 'Health & Living',
+    level: 'B1',
+    estimatedMinutes: 18,
+    assignedDate: '30/10/2026',
+    dueDate: '08/11/2026',
+    status: 'IN_PROGRESS',
+    progressPercentage: 20,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-8',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Elena Torres',
+    lessonId: 'cat-housing-lease',
+    title: 'Apartment Lease & Repairs Request',
+    instructions: 'Request urgent maintenance from a property manager and discuss lease renewal conditions.',
+    objective: 'Master formal spoken English for housing agreements and domestic service issues.',
+    category: 'Daily Life & Living',
+    level: 'A2-B1',
+    estimatedMinutes: 15,
+    assignedDate: '01/11/2026',
+    dueDate: '10/11/2026',
+    status: 'PENDING',
+    progressPercentage: 0,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-9',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Michael Chang',
+    lessonId: 'cat-banking-credit',
+    title: 'US Banking & Credit Score Basics',
+    instructions: 'Inquire about opening a checking account, managing credit limits, and reporting a fraudulent charge.',
+    objective: 'Navigate American financial terms, routing numbers, and consumer protection phrases.',
+    category: 'Finance & Banking',
+    level: 'B1-B2',
+    estimatedMinutes: 20,
+    assignedDate: '02/11/2026',
+    dueDate: '12/11/2026',
+    status: 'IN_PROGRESS',
+    progressPercentage: 65,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-10',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Sarah Jenkins',
+    lessonId: 'cat-n400-interview',
+    title: 'Naturalization Oral Interview N-400',
+    instructions: 'Practice answering personal eligibility, travel history, and oath requirements from Form N-400.',
+    objective: 'Respond clearly and confidently under simulated USCIS oral examination conditions.',
+    category: 'Civics & Rights',
+    level: 'B1',
+    estimatedMinutes: 25,
+    assignedDate: '03/11/2026',
+    dueDate: '14/11/2026',
+    status: 'PENDING',
+    progressPercentage: 0,
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-11',
+    studentId: 'STU-001',
+    teacherName: 'Profesor García',
+    lessonId: 'cat-team-presentation',
+    title: 'Quarterly Team Presentation',
+    instructions: 'Present quarterly project results, field peer questions, and summarize executive action items.',
+    objective: 'Use confident transition phrases, graph descriptions, and persuasive rhetoric.',
+    category: 'Career & Business',
+    level: 'B2',
+    estimatedMinutes: 20,
+    assignedDate: '15/10/2026',
+    dueDate: '22/10/2026',
+    status: 'COMPLETED',
+    progressPercentage: 100,
+    grade: 'A',
+    feedback: 'Excellent vocal modulation and command of corporate presentation transition phrases.',
+    isDemo: true
+  },
+  {
+    id: 'demo-assign-12',
+    studentId: 'STU-001',
+    teacherName: 'Prof. Elena Torres',
+    lessonId: 'cat-school-conference',
+    title: 'Parent-Teacher School Conference',
+    instructions: 'Discuss academic progress, extracurricular interests, and behavioral milestones with an American schoolteacher.',
+    objective: 'Express educational support, ask clarifying questions, and establish school partnerships.',
+    category: 'Daily Life & Living',
+    level: 'A2-B1',
+    estimatedMinutes: 15,
+    assignedDate: '04/11/2026',
+    dueDate: '15/11/2026',
+    status: 'PENDING',
+    progressPercentage: 0,
+    isDemo: true
+  }
+];
+
+export async function fetchUnifiedStudentAssignments(
+  studentId?: string,
+  studentEmail?: string,
+  options?: { forceDemo?: boolean }
+): Promise<FetchAssignmentsResult> {
+  const normEmail = (studentEmail || '').toLowerCase().trim();
+  const isDemoAccount = options?.forceDemo || normEmail === 'theorangesnowman@gmail.com' || studentId === 'STU-001' || !studentId;
+
+  // If real Firestore is available and this is NOT a demo account:
+  if (db && !isFirestoreQuotaExceeded() && !options?.forceDemo && normEmail !== 'theorangesnowman@gmail.com') {
+    try {
+      const hwRef = collection(db, 'homework');
+      let q = query(hwRef, where('studentId', '==', studentId || ''));
+      let snapshot = await getDocs(q);
+
+      if (snapshot.empty && normEmail) {
+        q = query(hwRef, where('studentEmail', '==', normEmail));
+        snapshot = await getDocs(q);
+      }
+
+      if (!snapshot.empty) {
+        const prodItems: UnifiedAssignment[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          prodItems.push({
+            id: docSnap.id,
+            studentId: data.studentId || studentId || '',
+            teacherName: data.teacherName || data.assignedBy || 'Voyager Tutor',
+            lessonId: data.lessonId || data.activityId || '',
+            title: data.title || 'Assigned Lesson',
+            instructions: data.instructions || data.description || '',
+            objective: data.objective || data.pedagogicalObjective || '',
+            category: data.category || 'General',
+            level: data.level || 'B1',
+            estimatedMinutes: Number(data.estimatedMinutes) || 15,
+            assignedDate: data.assignedDate || data.createdAt || '',
+            dueDate: data.dueDate || '',
+            status: (data.status as any) || 'PENDING',
+            progressPercentage: typeof data.progressPercentage === 'number' 
+              ? data.progressPercentage 
+              : (data.status === 'COMPLETED' ? 100 : 0),
+            grade: data.grade,
+            feedback: data.feedback,
+            isDemo: false
+          });
+        });
+        return {
+          assignments: prodItems,
+          source: 'production',
+          isDemoMode: false
+        };
+      } else {
+        // Authentic student has 0 assignments in Firestore -> Clean Empty State!
+        return {
+          assignments: [],
+          source: 'empty',
+          isDemoMode: false
+        };
+      }
+    } catch (err: any) {
+      handleFirestoreWriteError(err, 'fetch unified assignments');
+      console.warn('Firestore assignments fetch error:', err);
+      return {
+        assignments: [],
+        source: 'empty',
+        isDemoMode: false,
+        error: err?.message || 'Error fetching assignments'
+      };
+    }
+  }
+
+  // Demonstration Mode: load local edits if user modified demo items, else default demo list
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('voyager_demo_assignments_state');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          if (parsed.length < 4) {
+            const existingIds = new Set(parsed.map((a: any) => a.id));
+            const existingLessonIds = new Set(parsed.map((a: any) => a.lessonId).filter(Boolean));
+            const extraDemo = DEMO_ASSIGNMENTS.filter(
+              d => !existingIds.has(d.id) && (!d.lessonId || !existingLessonIds.has(d.lessonId))
+            );
+            const fourthLesson = extraDemo.find(d => d.lessonId === 'cat-airport-tsa') || extraDemo[0];
+            if (fourthLesson) {
+              const supplemented = [...parsed, fourthLesson];
+              localStorage.setItem('voyager_demo_assignments_state', JSON.stringify(supplemented));
+              return {
+                assignments: supplemented,
+                source: 'demo',
+                isDemoMode: true
+              };
+            }
+          }
+          return {
+            assignments: parsed,
+            source: 'demo',
+            isDemoMode: true
+          };
+        }
+      }
+    } catch (e) {}
+  }
+
+  return {
+    assignments: DEMO_ASSIGNMENTS,
+    source: 'demo',
+    isDemoMode: true
+  };
+}
+
+export async function updateUnifiedAssignmentStatus(
+  assignment: UnifiedAssignment,
+  newStatus: UnifiedAssignment['status'],
+  progressPercentage?: number,
+  feedback?: string
+): Promise<boolean> {
+  const updatedPct = typeof progressPercentage === 'number'
+    ? progressPercentage
+    : (newStatus === 'COMPLETED' ? 100 : newStatus === 'IN_PROGRESS' ? 50 : 0);
+
+  // 1. Always update local storage state for instant UI reactivity and persistence across reloads
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem('voyager_demo_assignments_state');
+      const currentList: UnifiedAssignment[] = cached ? JSON.parse(cached) : [...DEMO_ASSIGNMENTS];
+      const updated = currentList.map(a => {
+        if (a.id === assignment.id || (a.lessonId && a.lessonId === assignment.lessonId)) {
+          return {
+            ...a,
+            status: newStatus,
+            progressPercentage: updatedPct,
+            feedback: feedback || a.feedback,
+            completedAt: newStatus === 'COMPLETED' ? new Date().toISOString() : a.completedAt
+          };
+        }
+        return a;
+      });
+      localStorage.setItem('voyager_demo_assignments_state', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to update local assignment state:', e);
+    }
+  }
+
+  // 2. Also update Firestore if available
+  if (db && !isFirestoreQuotaExceeded() && assignment.id && !assignment.id.startsWith('demo-')) {
+    try {
+      const docRef = doc(db, 'homework', assignment.id);
+      await updateDoc(docRef, {
+        status: newStatus,
+        progressPercentage: updatedPct,
+        ...(feedback ? { feedback } : {}),
+        ...(newStatus === 'COMPLETED' ? { completedAt: serverTimestamp() } : {}),
+        updatedAt: serverTimestamp()
+      });
+    } catch (err) {
+      handleFirestoreWriteError(err, 'update assignment status');
+    }
+  }
+
+  // 3. Dispatch global event so student and teacher views update immediately
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('voyager_assignments_updated'));
+  }
+
   return true;
 }

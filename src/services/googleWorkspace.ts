@@ -1,51 +1,120 @@
-import { google } from "googleapis";
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
-import * as path from "node:path";
 
-// Authentication Configuration
-const getGoogleAuth = () => {
+interface ServiceAccountCredentials {
+  clientEmail: string;
+  privateKey: string;
+}
+
+const WORKSPACE_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/drive.file"
+].join(" ");
+
+function loadServiceAccountCredentials(): ServiceAccountCredentials | null {
   try {
-    // 1. Check if Private Key & Client Email are defined directly in env
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
     if (clientEmail && privateKey) {
       console.log("Authenticating Google Workspace using Client Email and Private Key from environment.");
-      return new google.auth.JWT({
-        email: clientEmail,
-        key: privateKey,
-        scopes: [
-          "https://www.googleapis.com/auth/gmail.send",
-          "https://www.googleapis.com/auth/calendar"
-        ]
-      });
+      return { clientEmail, privateKey };
     }
 
-    // 2. Check if a credentials JSON file path is defined or exists locally
     const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || "google-credentials.json";
     if (fs.existsSync(credentialsPath)) {
-      console.log(`Authenticating Google Workspace using keyfile: ${credentialsPath}`);
-      return new google.auth.GoogleAuth({
-        keyFile: credentialsPath,
-        scopes: [
-          "https://www.googleapis.com/auth/gmail.send",
-          "https://www.googleapis.com/auth/calendar"
-        ]
-      });
+      const parsed = JSON.parse(fs.readFileSync(credentialsPath, "utf-8"));
+      if (parsed?.client_email && parsed?.private_key) {
+        console.log(`Authenticating Google Workspace using keyfile: ${credentialsPath}`);
+        return {
+          clientEmail: parsed.client_email,
+          privateKey: String(parsed.private_key).replace(/\\n/g, "\n")
+        };
+      }
     }
   } catch (error) {
     console.error("Failed to initialize Google Auth Client:", error);
   }
   return null;
-};
+}
 
-const auth = getGoogleAuth();
+const credentials = loadServiceAccountCredentials();
+let cachedAccessToken: { token: string; expiresAt: number } | null = null;
 
-// Expose API modules
-const sheets = auth ? google.sheets({ version: "v4", auth }) : null;
-const gmail = auth ? google.gmail({ version: "v1", auth }) : null;
-const calendar = auth ? google.calendar({ version: "v3", auth }) : null;
-const drive = auth ? google.drive({ version: "v3", auth }) : null;
+function base64UrlEncode(input: string | Buffer): string {
+  return Buffer.from(input).toString("base64url");
+}
+
+async function getAccessToken(): Promise<string | null> {
+  if (!credentials) return null;
+
+  const now = Date.now();
+  if (cachedAccessToken && cachedAccessToken.expiresAt > now + 60_000) {
+    return cachedAccessToken.token;
+  }
+
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = base64UrlEncode(
+    JSON.stringify({
+      iss: credentials.clientEmail,
+      scope: WORKSPACE_SCOPES,
+      aud: "https://oauth2.googleapis.com/token",
+      exp,
+      iat
+    })
+  );
+  const signingInput = `${header}.${payload}`;
+  const signer = crypto.createSign("RSA-SHA256");
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer.sign(credentials.privateKey).toString("base64url");
+  const assertion = `${signingInput}.${signature}`;
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion
+    })
+  });
+
+  if (!tokenRes.ok) {
+    const errText = await tokenRes.text();
+    throw new Error(`Google OAuth token exchange failed (${tokenRes.status}): ${errText}`);
+  }
+
+  const tokenData: any = await tokenRes.json();
+  cachedAccessToken = {
+    token: tokenData.access_token,
+    expiresAt: now + (Number(tokenData.expires_in) || 3600) * 1000
+  };
+  return cachedAccessToken.token;
+}
+
+async function appendSheetValues(spreadsheetId: string, range: string, values: string[][]) {
+  const token = await getAccessToken();
+  if (!token) throw new Error("Google Workspace credentials not configured.");
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ values })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Google Sheets API error (${res.status}): ${errText}`);
+  }
+  return res.json();
+}
 
 // Helpers & Export Functions
 export const googleWorkspace = {
@@ -54,7 +123,7 @@ export const googleWorkspace = {
    */
   async sheetsAppendLead(lead: { name: string; email: string; company?: string; phone?: string }) {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheets || !spreadsheetId) {
+    if (!credentials || !spreadsheetId) {
       console.warn("Google Sheets API is not configured. Logging lead locally:", lead);
       return { success: false, message: "Sheets credentials/Sheet ID not configured.", localData: lead };
     }
@@ -70,16 +139,9 @@ export const googleWorkspace = {
         ]
       ];
 
-      const response = await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: "Sheet1!A:E",
-        valueInputOption: "RAW",
-        insertDataOption: "INSERT_ROWS",
-        requestBody: { values }
-      });
-
-      console.log("Lead successfully written to Google Sheets:", response.data);
-      return { success: true, response: response.data };
+      const data = await appendSheetValues(spreadsheetId, "Sheet1!A:E", values);
+      console.log("Lead successfully written to Google Sheets:", data);
+      return { success: true, response: data };
     } catch (err: any) {
       console.error("Google Sheets append lead error:", err);
       throw err;
@@ -91,7 +153,7 @@ export const googleWorkspace = {
    */
   async sheetsAppendTranscript(chatId: string, messages: any[], rating?: number, reviewText?: string) {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheets || !spreadsheetId) {
+    if (!credentials || !spreadsheetId) {
       console.warn(`Google Sheets API is not configured. Conversation ${chatId} summary details:`, { rating, reviewText });
       return { success: false, message: "Sheets credentials not configured." };
     }
@@ -111,27 +173,13 @@ export const googleWorkspace = {
         ]
       ];
 
-      // Append to a separate 'Transcripts' sheet
-      const response = await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: "Transcripts!A:E",
-        valueInputOption: "RAW",
-        insertDataOption: "INSERT_ROWS",
-        requestBody: { values }
-      }).catch(async (err) => {
-        // If 'Transcripts' sheet doesn't exist, fall back to 'Sheet1!A:E' or try to write anyways
+      const data = await appendSheetValues(spreadsheetId, "Transcripts!A:E", values).catch(async (err) => {
         console.warn("Failed writing to Transcripts sheet, trying Sheet1:", err.message);
-        return sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: "Sheet1!A:E",
-          valueInputOption: "RAW",
-          insertDataOption: "INSERT_ROWS",
-          requestBody: { values }
-        });
+        return appendSheetValues(spreadsheetId, "Sheet1!A:E", values);
       });
 
       console.log("Conversation transcript successfully written to Google Sheets.");
-      return { success: true, response: response.data };
+      return { success: true, response: data };
     } catch (err: any) {
       console.error("Google Sheets append transcript error:", err);
       throw err;
@@ -139,17 +187,19 @@ export const googleWorkspace = {
   },
 
   /**
-   * Sends an email notification to the configure alert email
+   * Sends an email notification to the configured alert email
    */
   async gmailSendAlert(subject: string, textContent: string) {
     const targetEmail = process.env.NOTIFICATION_EMAIL;
-    if (!gmail || !targetEmail) {
+    if (!credentials || !targetEmail) {
       console.warn(`Gmail API is not configured. Email alert preview: [Subject: ${subject}] ${textContent}`);
       return { success: false, message: "Gmail credentials/Notification email not configured." };
     }
 
     try {
-      // Craft plain text MIME raw email body
+      const token = await getAccessToken();
+      if (!token) return { success: false, message: "Gmail credentials/Notification email not configured." };
+
       const emailLines = [
         `To: ${targetEmail}`,
         "Content-Type: text/plain; charset=utf-8",
@@ -158,19 +208,25 @@ export const googleWorkspace = {
         "",
         textContent
       ];
-      const emailContent = emailLines.join("\r\n");
-      const encodedMessage = Buffer.from(emailContent)
-        .toString("base64url"); // Gmail API requires base64url encoding
+      const encodedMessage = Buffer.from(emailLines.join("\r\n")).toString("base64url");
 
-      const response = await gmail.users.messages.send({
-        userId: "me",
-        requestBody: {
-          raw: encodedMessage
-        }
+      const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ raw: encodedMessage })
       });
 
-      console.log("Gmail alert sent successfully:", response.data);
-      return { success: true, response: response.data };
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Gmail API error (${res.status}): ${errText}`);
+      }
+
+      const data = await res.json();
+      console.log("Gmail alert sent successfully:", data);
+      return { success: true, response: data };
     } catch (err: any) {
       console.error("Gmail send alert error:", err);
       throw err;
@@ -181,13 +237,11 @@ export const googleWorkspace = {
    * Books a meeting/consultation event in Google Calendar
    */
   async calendarBookMeeting(title: string, startISO: string, durationMinutes: number = 30, attendeeEmail?: string) {
-    // Robust date parsing & fallbacks
     let startDateTime: Date | null = null;
 
     if (startISO) {
       let parsed = new Date(startISO);
       if (isNaN(parsed.getTime())) {
-        // Attempt fixing common string formats, e.g. "2026-08-05 14:00" -> "2026-08-05T14:00:00Z"
         let sanitized = startISO.trim();
         if (sanitized.includes(" ") && !sanitized.includes("T")) {
           sanitized = sanitized.replace(" ", "T");
@@ -202,7 +256,6 @@ export const googleWorkspace = {
       }
     }
 
-    // If startISO could not be parsed into a valid Date, default to 24 hours from now
     if (!startDateTime || isNaN(startDateTime.getTime())) {
       const fallback = new Date();
       fallback.setDate(fallback.getDate() + 1);
@@ -212,17 +265,18 @@ export const googleWorkspace = {
 
     const safeStartISO = startDateTime.toISOString();
 
-    if (!calendar) {
+    if (!credentials) {
       console.warn(`Google Calendar API is not configured. Appointment request: ${title} at ${safeStartISO}`);
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: `Meeting scheduled in system (Google Calendar API not connected): ${title} at ${safeStartISO}`,
         meetingInfo: { title, startISO: safeStartISO, durationMinutes, attendeeEmail }
       };
     }
 
     try {
-      const dur = typeof durationMinutes === 'number' && !isNaN(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
+      const token = await getAccessToken();
+      const dur = typeof durationMinutes === "number" && !isNaN(durationMinutes) && durationMinutes > 0 ? durationMinutes : 30;
       const endDateTime = new Date(startDateTime.getTime() + dur * 60000);
 
       const event = {
@@ -242,13 +296,23 @@ export const googleWorkspace = {
         }
       };
 
-      const response = await calendar.events.insert({
-        calendarId: "primary", // Uses primary calendar of the auth account
-        requestBody: event
+      const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(event)
       });
 
-      console.log("Calendar event scheduled successfully:", response.data.htmlLink);
-      return { success: true, htmlLink: response.data.htmlLink, response: response.data };
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Calendar API error (${res.status}): ${errText}`);
+      }
+
+      const data: any = await res.json();
+      console.log("Calendar event scheduled successfully:", data.htmlLink);
+      return { success: true, htmlLink: data.htmlLink, response: data };
     } catch (err: any) {
       console.error("Google Calendar book meeting error:", err?.message || err);
       return {
@@ -263,14 +327,15 @@ export const googleWorkspace = {
    * Compiles and uploads a comprehensive system manual about USA VOYAGER to Google Docs (Drive)
    */
   async driveCreateSystemManual() {
-    if (!drive) {
+    if (!credentials) {
       console.warn("Google Drive API is not configured. Skipping manual upload.");
       return { success: false, message: "Drive credentials not configured." };
     }
 
     try {
+      const token = await getAccessToken();
       const docTitle = `USA VOYAGER System Manual - ${new Date().toLocaleDateString()}`;
-      
+
       const manualContent = `USA VOYAGER VOICE AGENT - SYSTEM MANUAL & REFERENCE GUIDE
 =====================================================
 
@@ -297,19 +362,40 @@ A beautiful high-density HTML5 canvas visualizer that swirls 900 yellow-colored 
 Manual compiled on: ${new Date().toISOString()}
 `;
 
-      const response = await drive.files.create({
-        requestBody: {
-          name: docTitle,
-          mimeType: "application/vnd.google-apps.document" // Uploading as plain text and requesting conversion to Google Doc
+      const boundary = `voyager_boundary_${Date.now()}`;
+      const metadata = JSON.stringify({
+        name: docTitle,
+        mimeType: "application/vnd.google-apps.document"
+      });
+      const multipartBody = [
+        `--${boundary}`,
+        "Content-Type: application/json; charset=UTF-8",
+        "",
+        metadata,
+        `--${boundary}`,
+        "Content-Type: text/plain; charset=UTF-8",
+        "",
+        manualContent,
+        `--${boundary}--`
+      ].join("\r\n");
+
+      const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": `multipart/related; boundary=${boundary}`
         },
-        media: {
-          mimeType: "text/plain",
-          body: manualContent
-        }
+        body: multipartBody
       });
 
-      console.log(`System Manual Google Doc created successfully in Drive. File ID: ${response.data.id}`);
-      return { success: true, fileId: response.data.id, docTitle };
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Google Drive API error (${res.status}): ${errText}`);
+      }
+
+      const data: any = await res.json();
+      console.log(`System Manual Google Doc created successfully in Drive. File ID: ${data.id}`);
+      return { success: true, fileId: data.id, docTitle };
     } catch (err: any) {
       console.error("Google Drive create system manual error:", err);
       throw err;

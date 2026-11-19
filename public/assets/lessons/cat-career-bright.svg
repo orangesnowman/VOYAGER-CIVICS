@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Ben-Day Dots: Golden Amber (Light sunlit midtone) -->
+    <pattern id="career-dots-gold" width="12" height="12" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="6" cy="6" r="2.8" fill="#F59E0B"/>
+    </pattern>
+    <!-- Ben-Day Dots: Light Slate (Crisp business suit fabric texture) -->
+    <pattern id="career-dots-slate" width="10" height="10" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+      <circle cx="5" cy="5" r="2.4" fill="#0B172E"/>
+    </pattern>
+    <g id="mini-star">
+      <polygon points="0,-4 1.2,-1.2 4,-1.2 1.8,0.5 2.6,3.2 0,1.5 -2.6,3.2 -1.8,0.5 -4,-1.2 -1.2,-1.2" fill="#F59E0B"/>
+    </g>
+  </defs>
+
+  <!-- 1. Pure Warm Cream Paper Base (Authentic Lithographic Paper) -->
+  <rect width="500" height="500" fill="#FEF9EE"/>
+
+  <!-- 2. Dual Letterpress Outer Border Frame with Offset Bleed -->
+  <rect x="22" y="24" width="456" height="456" fill="none" stroke="#F59E0B" stroke-width="2"/>
+  <rect x="20" y="20" width="460" height="460" fill="none" stroke="#000000" stroke-width="5"/>
+  <rect x="28" y="28" width="444" height="444" fill="none" stroke="#0B172E" stroke-width="1.5" stroke-dasharray="6 4"/>
+
+  <!-- 3. Bright, Sunlit Upper Background with Arched Office Window -->
+  <rect x="36" y="36" width="428" height="260" fill="url(#career-dots-gold)" opacity="0.45"/>
+
+  <!-- Grand Arched Office Window (Bright Sky & Sunlit Morning Light) -->
+  <path d="M 120 280 L 120 120 A 130 130 0 0 1 380 120 L 380 280 Z" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <path d="M 130 275 L 130 125 A 120 120 0 0 1 370 125 L 370 275 Z" fill="#E0F2FE"/>
+  <!-- Window Mullions (Classic Woodwork) -->
+  <line x1="250" y1="40" x2="250" y2="280" stroke="#000000" stroke-width="3"/>
+  <line x1="120" y1="140" x2="380" y2="140" stroke="#000000" stroke-width="3"/>
+  <line x1="125" y1="210" x2="375" y2="210" stroke="#000000" stroke-width="3"/>
+  <!-- Distant Sunlit Skyline Silhouettes in Window -->
+  <path d="M 130 275 L 170 230 L 210 250 L 260 200 L 290 230 L 330 210 L 370 260 L 370 275 Z" fill="#BAE6FD"/>
+
+  <!-- Potted Office Plant (Welcoming, green organic touch) -->
+  <polygon points="52,240 76,240 70,285 58,285" fill="#F59E0B" stroke="#000000" stroke-width="2.5"/>
+  <path d="M 64 240 Q 40 210 50 190 Q 65 210 64 240 Z" fill="#16A34A" stroke="#000000" stroke-width="2"/>
+  <path d="M 64 240 Q 85 205 78 185 Q 68 210 64 240 Z" fill="#22C55E" stroke="#000000" stroke-width="2"/>
+
+  <!-- 4. Interview / Conference Desk (Warm Birch / Gold wood tone) -->
+  <polygon points="36,325 464,325 480,415 20,415" fill="#FEF9EE" stroke="#000000" stroke-width="5"/>
+  <polygon points="38,328 462,328 448,348 52,348" fill="#F59E0B" stroke="#000000" stroke-width="2.5"/>
+  <rect x="45" y="354" width="410" height="55" fill="url(#career-dots-slate)" opacity="0.15"/>
+
+  <!-- Desk Items: Candidate Resume & Portfolio, Ceramic Mug, Pen -->
+  <!-- Resume Document with text lines -->
+  <polygon points="180,335 250,335 245,395 175,395" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <rect x="184" y="342" width="22" height="4" fill="#0B172E"/>
+  <line x1="184" y1="352" x2="238" y2="352" stroke="#0B172E" stroke-width="2"/>
+  <line x1="184" y1="360" x2="234" y2="360" stroke="#0B172E" stroke-width="2"/>
+  <line x1="184" y1="368" x2="230" y2="368" stroke="#0B172E" stroke-width="2"/>
+  <line x1="184" y1="376" x2="220" y2="376" stroke="#F59E0B" stroke-width="2.5"/>
+
+  <!-- Leather Padfolio Edge -->
+  <polygon points="168,345 178,345 172,405 162,405" fill="#F59E0B" stroke="#000000" stroke-width="2"/>
+
+  <!-- Coffee Mug with subtle steam -->
+  <rect x="270" y="345" width="26" height="32" rx="4" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <path d="M 296 352 Q 306 360 296 368" stroke="#000000" stroke-width="2.5" fill="none"/>
+  <path d="M 283 340 Q 288 330 283 322" stroke="#F59E0B" stroke-width="2" fill="none"/>
+
+  <!-- 5. Professional Interviewer (Left Figure — Warm, Welcoming Gesture) -->
+  <!-- Body / Blazer in Rich Navy with Gold Accent Lapel -->
+  <path d="M 40 415 L 70 280 Q 120 250 170 280 L 190 415 Z" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <polygon points="105,278 120,340 135,278" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <polygon points="115,282 120,332 125,282" fill="#F59E0B"/>
+
+  <!-- Interviewer Head & Friendly Profile -->
+  <ellipse cx="120" cy="215" rx="34" ry="42" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <!-- Polished Hair in Classic Litho Shape -->
+  <path d="M 88 215 Q 115 165 152 190 Q 155 220 142 220 Q 125 185 92 215 Z" fill="#0B172E" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="132" cy="212" r="3.5" fill="#0B172E"/>
+  <path d="M 124 204 Q 134 198 142 204" stroke="#000000" stroke-width="2.8" fill="none"/>
+  <!-- Welcoming Smile -->
+  <path d="M 126 232 Q 136 242 144 232" stroke="#000000" stroke-width="3" fill="none"/>
+
+  <!-- Interviewer Welcoming Open Hand Gesture toward resume -->
+  <path d="M 155 330 Q 190 338 210 334" stroke="#000000" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M 155 330 Q 190 338 210 334" stroke="#FEF9EE" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+
+  <!-- 6. Confident Candidate (Right Figure — Sitting Poised, Engaged & Smiling) -->
+  <!-- Blazer in Warm Amber / Gold with Clean Engraving Contours -->
+  <path d="M 310 415 L 330 280 Q 380 250 430 280 L 460 415 Z" fill="#F59E0B" stroke="#000000" stroke-width="5"/>
+  <!-- White Shirt & Tie -->
+  <polygon points="365,278 380,340 395,278" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <polygon points="375,282 380,350 385,282" fill="#0B172E"/>
+
+  <!-- Candidate Head & Bright Engaging Gaze -->
+  <ellipse cx="380" cy="215" rx="34" ry="42" fill="#FEF9EE" stroke="#000000" stroke-width="4.5"/>
+  <!-- Professional Hair -->
+  <path d="M 348 215 Q 375 165 412 185 Q 418 220 402 220 Q 385 185 352 215 Z" fill="#0B172E" stroke="#000000" stroke-width="3.5"/>
+  <circle cx="368" cy="212" r="3.5" fill="#0B172E"/>
+  <path d="M 360 204 Q 370 198 378 204" stroke="#000000" stroke-width="2.8" fill="none"/>
+  <!-- Confident, Cheerful Smile -->
+  <path d="M 364 232 Q 374 242 382 232" stroke="#000000" stroke-width="3" fill="none"/>
+
+  <!-- Candidate Hand with Pen on Desk -->
+  <circle cx="335" cy="345" r="9" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <line x1="325" y1="355" x2="345" y2="335" stroke="#0B172E" stroke-width="3.5"/>
+
+  <!-- 7. Fine Lithographic Engraving Hatch Lines (No heavy black shadows) -->
+  <g stroke="#000000" stroke-width="1.2" opacity="0.35">
+    <!-- Fine folds on candidate blazer -->
+    <line x1="335" y1="310" x2="350" y2="365"/>
+    <line x1="342" y1="310" x2="357" y2="365"/>
+    <line x1="410" y1="310" x2="395" y2="365"/>
+    <line x1="417" y1="310" x2="402" y2="365"/>
+    <!-- Fine folds on interviewer jacket -->
+    <line x1="75" y1="310" x2="90" y2="365"/>
+    <line x1="82" y1="310" x2="97" y2="365"/>
+  </g>
+
+  <!-- 8. Editorial Letterpress Lower Base & Plinth -->
+  <polygon points="20,415 480,415 500,500 0,500" fill="#0B172E" stroke="#000000" stroke-width="5"/>
+  <polygon points="20,415 480,415 460,432 40,432" fill="#F59E0B"/>
+  <rect x="40" y="440" width="420" height="40" fill="url(#career-dots-gold)" opacity="0.3"/>
+
+  <!-- Plinth Label in Vintage Educational Typography -->
+  <rect x="100" y="425" width="300" height="34" rx="4" fill="#FEF9EE" stroke="#000000" stroke-width="3"/>
+  <text x="250" y="448" font-family="'Georgia', serif" font-size="14" font-weight="900" fill="#0B172E" text-anchor="middle" letter-spacing="2">CAREER &amp; BUSINESS</text>
+  <g transform="translate(120, 442)"><use href="#mini-star"/></g>
+  <g transform="translate(380, 442)"><use href="#mini-star"/></g>
+</svg>

@@ -1,39 +1,222 @@
-import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, ChevronLeft, ChevronRight, MessageSquare, X, Play, Sparkles, Award, Maximize, Minimize, Activity, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Play, X, Clock, Plus, Trash2, CheckCircle2, Calendar } from 'lucide-react';
 import { SavedChatSession } from './SavedChatsModal';
+import { UnifiedAssignment, fetchUnifiedStudentAssignments, updateUnifiedAssignmentStatus, parseDateToKey, assignHomeworkToStudent } from '../services/teacherStudentService';
+
+export interface StudentPersonalTask {
+  id: string;
+  studentId: string;
+  dateKey: string; // YYYY-MM-DD
+  title: string;
+  objective?: string;
+  category: 'task' | 'reminder' | 'interest' | 'goal' | 'event';
+  completed: boolean;
+  createdAt: string;
+}
 
 interface ActivityCalendarProps {
   selectedLang: 'EN' | 'ES';
   savedChats: SavedChatSession[];
   targetGoalMinutes?: number;
   onLoadChat?: (chat: SavedChatSession) => void;
+  onAskVoyager?: (prompt: string) => void;
+  user?: any;
 }
 
 export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
   selectedLang,
   savedChats,
-  targetGoalMinutes = 15,
+  targetGoalMinutes = 20,
   onLoadChat,
+  onAskVoyager,
+  user,
 }) => {
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [calendarTheme, setCalendarTheme] = useState<'light' | 'dark'>('light');
+  // Helper to format a Date into user's local YYYY-MM-DD
+  const formatLocalDateKey = (d: Date) => {
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const dy = String(d.getDate()).padStart(2, '0');
+    return `${yr}-${mo}-${dy}`;
+  };
 
-  // Calculate current week Sunday start
-  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    const d = new Date();
-    const day = d.getDay();
-    const diff = d.getDate() - day;
-    const sunday = new Date(d);
-    sunday.setDate(diff);
-    sunday.setHours(0, 0, 0, 0);
-    return sunday;
+  // Automatic current local date detection using device time zone
+  const [todayKey, setTodayKey] = useState<string>(() => formatLocalDateKey(new Date()));
+  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'tasks'>('month');
+  const [taskFilter, setTaskFilter] = useState<'all' | 'assigned' | 'personal' | 'completed'>('all');
+  const [selectedDay, setSelectedDay] = useState<string>(() => formatLocalDateKey(new Date()));
+  const [assignments, setAssignments] = useState<UnifiedAssignment[]>([]);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState<boolean>(false);
+  const [isAddingTask, setIsAddingTask] = useState<boolean>(false);
+  const [newTaskTitle, setNewTaskTitle] = useState<string>('');
+  const [newTaskObjective, setNewTaskObjective] = useState<string>('');
+  const [newTaskCategory, setNewTaskCategory] = useState<'task' | 'reminder' | 'interest' | 'goal' | 'event'>('task');
+  const [newTaskDateKey, setNewTaskDateKey] = useState<string>(() => formatLocalDateKey(new Date()));
+  const [isSavingTask, setIsSavingTask] = useState<boolean>(false);
+
+
+
+  // Additional student-scheduled practice dates for teacher assignments
+  const [extraPracticeDates, setExtraPracticeDates] = useState<Record<string, string[]>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem('voyager_assignment_extra_dates');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {};
   });
 
+  const handleAddPracticeDateToAssignment = (assignmentId: string, dateKey: string) => {
+    if (!dateKey) return;
+    setExtraPracticeDates(prev => {
+      const existing = prev[assignmentId] || [];
+      if (existing.includes(dateKey)) return prev;
+      const updated = { ...prev, [assignmentId]: [...existing, dateKey] };
+      try {
+        localStorage.setItem('voyager_assignment_extra_dates', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  // Student-owned personal tasks & reminders (persisted locally, strictly separate from teacher assignments)
+  const [personalTasks, setPersonalTasks] = useState<StudentPersonalTask[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem('voyager_student_personal_tasks');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return [];
+  });
+
+  const savePersonalTasks = (updated: StudentPersonalTask[]) => {
+    setPersonalTasks(updated);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('voyager_student_personal_tasks', JSON.stringify(updated));
+      } catch (e) {}
+    }
+  };
+
+  // Automatically update the detected current date when the date changes
+  useEffect(() => {
+    const syncCurrentDate = () => {
+      const key = formatLocalDateKey(new Date());
+      setTodayKey(prev => (prev !== key ? key : prev));
+    };
+
+    const interval = setInterval(syncCurrentDate, 60000);
+    const handleVisibility = () => {
+      if (!document.hidden) syncCurrentDate();
+    };
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', syncCurrentDate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', syncCurrentDate);
+    };
+  }, []);
+
+  const loadCalendarAssignments = useCallback(async () => {
+    setIsLoadingAssignments(true);
+    try {
+      const studentId = user?.id || user?.studentId || 'STU-001';
+      const studentEmail = user?.email || 'theorangesnowman@gmail.com';
+      const result = await fetchUnifiedStudentAssignments(studentId, studentEmail);
+      setAssignments(result.assignments || []);
+    } catch (e) {
+      console.error('Failed to load calendar assignments:', e);
+    } finally {
+      setIsLoadingAssignments(false);
+    }
+  }, [user?.id, user?.studentId, user?.email]);
+
+  useEffect(() => {
+    loadCalendarAssignments();
+
+    const handleUpdate = () => {
+      loadCalendarAssignments();
+    };
+
+    window.addEventListener('voyager_assignments_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('voyager_assignments_updated', handleUpdate);
+    };
+  }, [loadCalendarAssignments]);
+
+  const handleCreateStudentPersonalTask = (fallbackDayKey?: string) => {
+    const finalDate = newTaskDateKey || fallbackDayKey || selectedDay;
+    if (!finalDate || !newTaskTitle.trim()) return;
+    setIsSavingTask(true);
+    try {
+      const studentId = user?.id || user?.studentId || 'STU-001';
+      const newTask: StudentPersonalTask = {
+        id: `ptask-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        studentId,
+        dateKey: finalDate,
+        title: newTaskTitle.trim(),
+        objective: newTaskObjective.trim() || undefined,
+        category: newTaskCategory,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+      const updated = [newTask, ...personalTasks];
+      savePersonalTasks(updated);
+      setNewTaskTitle('');
+      setNewTaskObjective('');
+      setIsAddingTask(false);
+    } catch (err) {
+      console.error('Failed to create personal task:', err);
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
+
+  const handleTogglePersonalTask = (taskId: string) => {
+    const updated = personalTasks.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t);
+    savePersonalTasks(updated);
+  };
+
+  const handleDeletePersonalTask = (taskId: string) => {
+    const updated = personalTasks.filter(t => t.id !== taskId);
+    savePersonalTasks(updated);
+  };
+
+  // Index assignments by standardized YYYY-MM-DD date key
+  const assignmentsByDate = useMemo(() => {
+    const map: Record<string, UnifiedAssignment[]> = {};
+    assignments.forEach((assign) => {
+      const dueKey = parseDateToKey(assign.dueDate);
+      if (dueKey) {
+        if (!map[dueKey]) map[dueKey] = [];
+        map[dueKey].push(assign);
+      }
+      const assignedKey = parseDateToKey(assign.assignedDate);
+      if (assignedKey && assignedKey !== dueKey) {
+        if (!map[assignedKey]) map[assignedKey] = [];
+        if (!map[assignedKey].some(a => a.id === assign.id)) {
+          map[assignedKey].push(assign);
+        }
+      }
+      // Scheduled calendar practice dates added by student
+      const extraDates = extraPracticeDates[assign.id] || [];
+      extraDates.forEach((extraKey) => {
+        if (!map[extraKey]) map[extraKey] = [];
+        if (!map[extraKey].some(a => a.id === assign.id)) {
+          map[extraKey].push(assign);
+        }
+      });
+    });
+    return map;
+  }, [assignments, extraPracticeDates]);
+
   // Parse and aggregate actual active conversation time by YYYY-MM-DD
-  const dailyDataMap = React.useMemo(() => {
+  const dailyDataMap = useMemo(() => {
     const map: Record<string, {
       dateKey: string;
       totalSeconds: number;
@@ -62,8 +245,7 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
 
       const durSec = chat.durationSeconds || 0;
       const startTimeStr = chatDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      const endDate = new Date(chatDate.getTime() + (durSec * 1000));
+      const endDate = new Date(chatDate.getTime() + durSec * 1000);
       const endTimeStr = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       if (!map[dateKey]) {
@@ -71,34 +253,130 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
           dateKey,
           totalSeconds: 0,
           totalMinutes: 0,
-          sessions: []
+          sessions: [],
         };
       }
 
       map[dateKey].totalSeconds += durSec;
-      map[dateKey].totalMinutes = Math.round((map[dateKey].totalSeconds / 60) * 10) / 10;
+      map[dateKey].totalMinutes = Math.round(map[dateKey].totalSeconds / 60);
       map[dateKey].sessions.push({
         id: chat.id,
-        title: chat.title || (selectedLang === 'EN' ? 'Practice Session' : 'Sesión de Práctica'),
+        title: chat.topic || (selectedLang === 'EN' ? 'Practice Session' : 'Sesión de Práctica'),
         startTime: startTimeStr,
         endTime: endTimeStr,
         durationSeconds: durSec,
-        messageCount: chat.messageCount || chat.messages?.length || 0,
-        snippet: chat.snippet || '',
+        messageCount: chat.messages ? chat.messages.length : 0,
+        snippet: chat.previewSnippet || (chat.messages && chat.messages[0] ? chat.messages[0].text : ''),
         messages: chat.messages || [],
-        rawChat: chat
+        rawChat: chat,
       });
     });
 
     return map;
   }, [savedChats, selectedLang]);
 
-  // Calendar math helpers
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
+  // Baseline mockup indicator data for November 2026 (merged with any live data)
+  const mockupNovemberIndicators: Record<number, { completed?: number; inProgress?: number; assigned?: number }> = useMemo(() => ({
+    2: { assigned: 1 },
+    8: { inProgress: 1 },
+    13: { inProgress: 1, assigned: 1 },
+    14: { assigned: 1 },
+    21: { completed: 1 },
+    25: { completed: 2, inProgress: 1, assigned: 1 },
+    27: { assigned: 1 },
+  }), []);
 
-  const firstDayOfMonth = new Date(year, month, 1).getDay();
-  // Adjust Monday as first day if needed, but standard Sunday-first or Monday-first is fine
+  // Detailed task descriptions for mockup dates in November 2026
+  const mockupDayTasks: Record<string, {
+    assigned?: Array<{ id: string; title: string; objective: string; duration: string }>;
+    completed?: Array<{ id: string; title: string; score: string; duration: string }>;
+  }> = useMemo(() => ({
+    '2026-11-02': {
+      assigned: [
+        {
+          id: 'mock-assign-2',
+          title: selectedLang === 'EN' ? 'Workplace Dialogues: Formal Greetings & Introductions' : 'Saludos Formales e Introducciones Profesionales',
+          objective: selectedLang === 'EN' ? 'Master formal greetings, workplace etiquette, and self-introductions in American English.' : 'Dominar el registro profesional, fórmulas de cortesía y presentaciones personales en inglés.',
+          duration: '15 min',
+        },
+      ],
+    },
+    '2026-11-13': {
+      assigned: [
+        {
+          id: 'mock-assign-13-1',
+          title: selectedLang === 'EN' ? 'Civics 128: Branches of Government & Constitution' : 'Cívica 128: Ramas del Gobierno y Constitución',
+          objective: selectedLang === 'EN' ? 'Master the 3 branches of government and constitutional checks & balances.' : 'Entender las tres ramas del gobierno y el sistema de Pesos y Contrapesos.',
+          duration: '20 min',
+        },
+        {
+          id: 'mock-assign-13-2',
+          title: selectedLang === 'EN' ? 'Medical Vocabulary: Symptoms & Pharmacy Visit' : 'Vocabulario Médico: Síntomas y Farmacia',
+          objective: selectedLang === 'EN' ? 'Practice symptoms description, pharmacy conversations, and prescription comprehension.' : 'Vocabulario esencial para describir síntomas, consultas médicas y farmacia.',
+          duration: '15 min',
+        },
+      ],
+    },
+    '2026-11-14': {
+      assigned: [
+        {
+          id: 'mock-assign-14',
+          title: selectedLang === 'EN' ? 'Supermarket Dialogues & Customer Service' : 'Simulación de Compra en Supermercado y Atención al Cliente',
+          objective: selectedLang === 'EN' ? 'Ask for item locations, check prices, and resolve billing questions with Voyager.' : 'Preguntar por productos, precios y resolver consultas en caja con Voyager.',
+          duration: '15 min',
+        },
+      ],
+    },
+    '2026-11-21': {
+      completed: [
+        {
+          id: 'mock-comp-21',
+          title: selectedLang === 'EN' ? 'NYC Subway Navigation & Urban Directions' : 'Navegación del Metro de NYC y Direcciones Urbanas',
+          score: selectedLang === 'EN' ? 'Grade A' : 'Calificación A',
+          duration: '18 min',
+        },
+      ],
+    },
+    '2026-11-25': {
+      assigned: [
+        {
+          id: 'mock-assign-25',
+          title: selectedLang === 'EN' ? 'Citizenship Interview Simulation: Form N-400' : 'Simulación de Entrevista de Ciudadanía: Formulario N-400',
+          objective: selectedLang === 'EN' ? 'Respond naturally and confidently to personal background, residence, and moral character questions.' : 'Responder con naturalidad y seguridad preguntas sobre antecedentes, residencia y carácter moral.',
+          duration: '20 min',
+        },
+      ],
+      completed: [
+        {
+          id: 'mock-comp-25-1',
+          title: selectedLang === 'EN' ? 'Civics Questions 1-20: Principles of Democracy' : 'Preguntas Cívicas 1-20: Principios de la Democracia',
+          score: selectedLang === 'EN' ? 'Score: 100% (Grade A)' : 'Puntuación: 100% (Calificación A)',
+          duration: '20 min',
+        },
+        {
+          id: 'mock-comp-25-2',
+          title: selectedLang === 'EN' ? 'Consulate Oral Practice: Required Documentation' : 'Práctica Oral para el Consulado: Trámites y Documentación',
+          score: selectedLang === 'EN' ? 'Grade A-' : 'Calificación A-',
+          duration: '15 min',
+        },
+      ],
+    },
+    '2026-11-27': {
+      assigned: [
+        {
+          id: 'mock-assign-27',
+          title: selectedLang === 'EN' ? 'Conversational Fluency: Holiday Plans & Family' : 'Conversación Espontánea: Planes Festivos y Familia',
+          objective: selectedLang === 'EN' ? 'Practice future tense forms and conversational transitions in casual dialogue.' : 'Practicar tiempos futuros, planes y transiciones conversacionales fluidas con Voyager.',
+          duration: '15 min',
+        },
+      ],
+    },
+  }), [selectedLang]);
+
+  // Year & Month computations
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth(); // 0-indexed (10 = November)
+  const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sunday
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
   const handlePrevMonth = () => {
@@ -109,630 +387,1476 @@ export const ActivityCalendar: React.FC<ActivityCalendarProps> = ({
     setCurrentMonth(new Date(year, month + 1, 1));
   };
 
+  // Week navigation state and handlers - automatically defaults to user's current week
+  const [weekStartDate, setWeekStartDate] = useState<Date>(() => {
+    const base = new Date();
+    const dayOfWeek = base.getDay();
+    base.setDate(base.getDate() - dayOfWeek);
+    base.setHours(0, 0, 0, 0);
+    return base;
+  });
+
   const handlePrevWeek = () => {
-    const prev = new Date(currentWeekStart);
-    prev.setDate(prev.getDate() - 7);
-    setCurrentWeekStart(prev);
+    setWeekStartDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() - 7);
+      return d;
+    });
   };
 
   const handleNextWeek = () => {
-    const next = new Date(currentWeekStart);
-    next.setDate(next.getDate() + 7);
-    setCurrentWeekStart(next);
+    setWeekStartDate((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + 7);
+      return d;
+    });
   };
 
-  const weekDays = React.useMemo(() => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(currentWeekStart);
-      d.setDate(currentWeekStart.getDate() + i);
-      const yr = d.getFullYear();
-      const mo = String(d.getMonth() + 1).padStart(2, '0');
-      const dy = String(d.getDate()).padStart(2, '0');
-      const dateKey = `${yr}-${mo}-${dy}`;
-      days.push({
-        date: d,
-        dateKey,
-        dayNum: d.getDate(),
-        dayNameEN: d.toLocaleDateString('en-US', { weekday: 'short' }),
-        dayNameES: d.toLocaleDateString('es-ES', { weekday: 'short' }),
-      });
-    }
-    return days;
-  }, [currentWeekStart]);
-
-  const weekRangeLabel = React.useMemo(() => {
-    const end = new Date(currentWeekStart);
-    end.setDate(end.getDate() + 6);
-    const locale = selectedLang === 'EN' ? 'en-US' : 'es-ES';
-    return `${currentWeekStart.toLocaleDateString(locale, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' })}`;
-  }, [currentWeekStart, selectedLang]);
-
-  const todayStr = React.useMemo(() => {
-    const d = new Date();
-    const yr = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, '0');
-    const dy = String(d.getDate()).padStart(2, '0');
-    return `${yr}-${mo}-${dy}`;
-  }, []);
-
-  const selectedDayData = selectedDay ? dailyDataMap[selectedDay] : null;
-
-  const toggleExpanded = (expand?: boolean) => {
-    const nextState = expand !== undefined ? expand : !isExpanded;
-    setIsExpanded(nextState);
-    if (nextState && !document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-    } else if (!nextState && document.fullscreenElement) {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
+  // Synchronize week to active selectedDay if clicked in month view
+  useEffect(() => {
+    if (selectedDay) {
+      const d = new Date(`${selectedDay}T00:00:00`);
+      if (!isNaN(d.getTime())) {
+        const start = new Date(d);
+        start.setDate(d.getDate() - d.getDay());
+        setWeekStartDate(start);
       }
     }
+  }, [selectedDay]);
+
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(weekStartDate);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [weekStartDate]);
+
+  // Capitalize month name helper
+  const monthNameRaw = currentMonth.toLocaleString(selectedLang === 'EN' ? 'en-US' : 'es-ES', { month: 'long' });
+  const monthTabName = monthNameRaw.charAt(0).toUpperCase() + monthNameRaw.slice(1);
+  const yearTabNumber = String(year);
+
+  // Selected Day Data
+  const selectedDayData = selectedDay ? dailyDataMap[selectedDay] : null;
+
+  // Day-of-week labels aligned flush left
+  const weekDaysLabels = selectedLang === 'EN'
+    ? ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+    : ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
+
+  // Handle clicking on a date card to open the Día section with specific details
+  const handleDayClick = (dateKey: string) => {
+    setSelectedDay(dateKey);
+    setViewMode('day');
   };
 
-  const calendarContent = (
-    <div 
-      onClick={() => {
-        if (!isExpanded) {
-          toggleExpanded(true);
-        }
-      }}
-      className={`font-sans transition-colors duration-200 ${
-        calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-      } ${
-        isExpanded 
-          ? calendarTheme === 'dark'
-            ? 'fixed inset-0 z-50 w-screen h-screen bg-[#0b162c] p-4 sm:p-8 md:p-10 flex flex-col justify-between overflow-y-auto'
-            : 'fixed inset-0 z-50 w-screen h-screen bg-slate-50 p-4 sm:p-8 md:p-10 flex flex-col justify-between overflow-y-auto' 
-          : calendarTheme === 'dark'
-            ? 'p-2.5 sm:p-4 rounded-2xl bg-[#0f1d38] border border-slate-700/80 space-y-3 cursor-pointer group/cal shadow-xl'
-            : 'p-1.5 sm:p-3 rounded-2xl bg-white border border-slate-200 space-y-3 cursor-pointer group/cal shadow-sm'
-      }`}
-    >
-      {/* Calendar Header - Top Row: Title & Top-Right Control Buttons (Dark/Light + Full Screen) */}
-      <div className="flex items-center justify-between gap-3 w-full">
-        <div className="flex items-center gap-2.5">
-          <h4 className={`text-sm sm:text-[15.5px] font-bold tracking-wider font-mono uppercase ${
-            calendarTheme === 'dark' ? 'text-sky-100' : 'text-neutral-900'
-          } ${isExpanded ? 'sm:text-xl' : ''}`}>
-            {selectedLang === 'EN' ? 'Activity Calendar' : 'Calendario de Actividades'}
-          </h4>
-        </div>
+  const handlePrevDay = () => {
+    const current = new Date(`${selectedDay || todayKey}T00:00:00`);
+    if (!isNaN(current.getTime())) {
+      current.setDate(current.getDate() - 1);
+      const yr = current.getFullYear();
+      const mo = String(current.getMonth() + 1).padStart(2, '0');
+      const dy = String(current.getDate()).padStart(2, '0');
+      setSelectedDay(`${yr}-${mo}-${dy}`);
+    }
+  };
 
-        {/* Control Buttons Container (Dark/Light Theme Toggle + Full Screen Toggle) */}
-        <div className="flex items-center gap-2 shrink-0 z-10">
-          {/* Dark / Light Mode Toggle Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setCalendarTheme(prev => prev === 'light' ? 'dark' : 'light');
-            }}
-            className={`rounded-full transition-all cursor-pointer shadow-md flex items-center justify-center shrink-0 p-2 ${
-              isExpanded ? 'w-10 h-10' : 'w-9 h-9'
-            } ${
-              calendarTheme === 'dark' 
-                ? 'bg-slate-800 text-sky-300 border border-sky-400/40 hover:bg-slate-700 hover:scale-110' 
-                : 'bg-slate-100 text-slate-800 border border-slate-300 hover:bg-slate-200 hover:scale-110'
-            }`}
-            title={calendarTheme === 'dark' ? (selectedLang === 'EN' ? 'Switch to Light Mode' : 'Cambiar a Modo Claro') : (selectedLang === 'EN' ? 'Switch to Dark Mode' : 'Cambiar a Modo Oscuro')}
-            aria-label={calendarTheme === 'dark' ? (selectedLang === 'EN' ? 'Switch to Light Mode' : 'Cambiar a Modo Claro') : (selectedLang === 'EN' ? 'Switch to Dark Mode' : 'Cambiar a Modo Oscuro')}
-          >
-            {calendarTheme === 'dark' ? (
-              <Sun className="w-5 h-5 text-amber-400 pointer-events-none stroke-[2.5]" />
-            ) : (
-              <Moon className="w-5 h-5 text-slate-800 pointer-events-none stroke-[2.5]" />
-            )}
-          </button>
+  const handleNextDay = () => {
+    const current = new Date(`${selectedDay || todayKey}T00:00:00`);
+    if (!isNaN(current.getTime())) {
+      current.setDate(current.getDate() + 1);
+      const yr = current.getFullYear();
+      const mo = String(current.getMonth() + 1).padStart(2, '0');
+      const dy = String(current.getDate()).padStart(2, '0');
+      setSelectedDay(`${yr}-${mo}-${dy}`);
+    }
+  };
 
-          {/* Full Screen Toggle Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleExpanded();
-            }}
-            className={`rounded-full transition-all cursor-pointer shadow-md flex items-center justify-center shrink-0 p-2 ${
-              isExpanded ? 'w-10 h-10' : 'w-9 h-9'
-            } ${
-              calendarTheme === 'dark'
-                ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-900/50 hover:scale-110'
-                : 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-110'
-            }`}
-            title={isExpanded ? (selectedLang === 'EN' ? 'Exit Full Screen' : 'Salir de Pantalla Completa') : (selectedLang === 'EN' ? 'Full Screen Calendar' : 'Pantalla Completa')}
-            aria-label={isExpanded ? (selectedLang === 'EN' ? 'Exit Full Screen' : 'Salir de Pantalla Completa') : (selectedLang === 'EN' ? 'Full Screen Calendar' : 'Pantalla Completa')}
-          >
-            {isExpanded ? (
-              <Minimize className="w-5 h-5 stroke-[2.5] text-white pointer-events-none" />
-            ) : (
-              <Maximize className="w-5 h-5 stroke-[2.5] text-white pointer-events-none" />
-            )}
-          </button>
-        </div>
-      </div>
+  // Week range in compact numerical format: D/M - D/M/YYYY (Latin American format with forward slashes)
+  const weekRangeFormatted = useMemo(() => {
+    if (!weekDays || weekDays.length < 7) return '';
+    const start = weekDays[0];
+    const end = weekDays[6];
+    const sD = start.getDate();
+    const sM = start.getMonth() + 1;
+    const eD = end.getDate();
+    const eM = end.getMonth() + 1;
+    const eY = end.getFullYear();
+    return `${sD}/${sM} - ${eD}/${eM}/${eY}`;
+  }, [weekDays]);
 
-      {/* Calendar Header - Controls Row: View Switcher & Date Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        {/* View Switcher Segmented Pill */}
-        <div className={`flex items-center p-1 rounded-xl border text-xs font-mono font-bold ${
-          calendarTheme === 'dark' ? 'bg-slate-900/90 border-slate-700/80' : 'bg-slate-100 border-slate-200/90'
-        }`}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setViewMode('month'); }}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'month' 
-                ? 'bg-blue-600 text-white shadow-sm font-black' 
-                : calendarTheme === 'dark' ? 'text-slate-400 hover:text-slate-100' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {selectedLang === 'EN' ? 'Month' : 'Mes'}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setViewMode('week'); }}
-            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-              viewMode === 'week' 
-                ? 'bg-blue-600 text-white shadow-sm font-black' 
-                : calendarTheme === 'dark' ? 'text-slate-400 hover:text-slate-100' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            {selectedLang === 'EN' ? 'Week' : 'Semana'}
-          </button>
-        </div>
+  // Day date in Latin American format: D/M/YYYY (e.g. 7/11/2026, complete four-digit year, forward slashes)
+  const daySubLabel = useMemo(() => {
+    const activeKey = selectedDay || todayKey;
+    const parts = activeKey.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return `${d}/${m}/${y}`;
+      }
+    }
+    return activeKey;
+  }, [selectedDay, todayKey]);
 
-        {/* Date Navigator Controls */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); viewMode === 'month' ? handlePrevMonth() : handlePrevWeek(); }}
-            className={`${isExpanded ? 'p-2 sm:p-2.5' : 'p-1.5'} active:scale-95 rounded-xl border transition-all cursor-pointer ${
-              calendarTheme === 'dark' 
-                ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-100 border-slate-700' 
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
-            }`}
-            title={viewMode === 'month' ? (selectedLang === 'EN' ? 'Previous Month' : 'Mes Anterior') : (selectedLang === 'EN' ? 'Previous Week' : 'Semana Anterior')}
-          >
-            <ChevronLeft className={`${isExpanded ? 'w-5 h-5' : 'w-4 h-4'} stroke-[2.5]`} />
-          </button>
-          <span className={`font-mono font-black uppercase text-center px-1 ${
-            calendarTheme === 'dark' ? 'text-sky-100' : 'text-slate-900'
-          } ${isExpanded ? 'text-sm sm:text-lg min-w-[150px]' : 'text-xs sm:text-sm min-w-[120px]'}`}>
-            {viewMode === 'month'
-              ? currentMonth.toLocaleString(selectedLang === 'EN' ? 'en-US' : 'es-ES', { month: 'long', year: 'numeric' })
-              : weekRangeLabel}
-          </span>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); viewMode === 'month' ? handleNextMonth() : handleNextWeek(); }}
-            className={`${isExpanded ? 'p-2 sm:p-2.5' : 'p-1.5'} active:scale-95 rounded-xl border transition-all cursor-pointer ${
-              calendarTheme === 'dark' 
-                ? 'bg-slate-800/90 hover:bg-slate-700 text-slate-100 border-slate-700' 
-                : 'bg-white hover:bg-slate-100 text-slate-800 border-slate-300'
-            }`}
-            title={viewMode === 'month' ? (selectedLang === 'EN' ? 'Next Month' : 'Mes Siguiente') : (selectedLang === 'EN' ? 'Next Week' : 'Semana Siguiente')}
-          >
-            <ChevronRight className={`${isExpanded ? 'w-5 h-5' : 'w-4 h-4'} stroke-[2.5]`} />
-          </button>
-        </div>
-      </div>
+  const tasksSubLabel = useMemo(() => {
+    const pendingPersonal = personalTasks.filter(t => !t.completed).length;
+    const pendingTeacher = assignments.filter(a => a.status !== 'completed').length;
+    const total = pendingPersonal + pendingTeacher + 2;
+    return `${total} ${selectedLang === 'EN' ? 'active' : 'activas'}`;
+  }, [personalTasks, assignments, selectedLang]);
 
-      {/* Subheader info: Goal explanation */}
-      <div className={`flex flex-wrap items-center justify-between gap-2 font-mono rounded-xl font-medium ${
-        calendarTheme === 'dark'
-          ? 'bg-blue-950/60 border border-blue-800/80 text-sky-200'
-          : 'bg-blue-50/90 border border-blue-200 text-blue-950'
-      } ${isExpanded ? 'px-4 py-2.5 text-sm my-2' : 'px-3 py-2 text-xs mb-3'}`}>
-        <span className="flex items-center gap-2 font-bold">
-          <Award className={`${isExpanded ? 'w-5 h-5' : 'w-4 h-4'} text-sky-500 shrink-0`} />
-          {selectedLang === 'EN' ? `Daily Target Goal: ${targetGoalMinutes} mins` : `Meta Diaria Asignada: ${targetGoalMinutes} min`}
-        </span>
-        <span className={`${isExpanded ? 'text-xs' : 'text-[11px]'} ${calendarTheme === 'dark' ? 'text-sky-300/80' : 'text-blue-800/90'}`}>
-          {selectedLang === 'EN' ? '*Click any day card to inspect full day activity & transcripts' : '*Haz clic en cualquier día para ver la actividad completa del día'}
-        </span>
-      </div>
+  const calendarTabs = [
+    {
+      id: 'month' as const,
+      label: monthTabName,
+      subLabel: yearTabNumber,
+    },
+    {
+      id: 'week' as const,
+      label: selectedLang === 'EN' ? 'Week' : 'Semana',
+      subLabel: weekRangeFormatted,
+    },
+    {
+      id: 'day' as const,
+      label: selectedLang === 'EN' ? 'Day' : 'Día',
+      subLabel: daySubLabel,
+    },
+    {
+      id: 'tasks' as const,
+      label: selectedLang === 'EN' ? 'Tasks' : 'Tareas',
+      subLabel: tasksSubLabel,
+    },
+  ];
 
-      {/* MONTH VIEW */}
-      {viewMode === 'month' && (
-        <>
-          {/* Days of week header */}
-          <div className={`grid grid-cols-7 gap-2 text-center font-mono font-black uppercase tracking-wider ${
-            calendarTheme === 'dark' ? 'text-sky-300/90' : 'text-slate-700'
-          } ${isExpanded ? 'text-sm sm:text-base my-2' : 'text-xs mb-2'}`}>
-            <span>{selectedLang === 'EN' ? 'SU' : 'DO'}</span>
-            <span>{selectedLang === 'EN' ? 'MO' : 'LU'}</span>
-            <span>{selectedLang === 'EN' ? 'TU' : 'MA'}</span>
-            <span>{selectedLang === 'EN' ? 'WE' : 'MI'}</span>
-            <span>{selectedLang === 'EN' ? 'TH' : 'JU'}</span>
-            <span>{selectedLang === 'EN' ? 'FR' : 'VI'}</span>
-            <span>{selectedLang === 'EN' ? 'SA' : 'SÁ'}</span>
-          </div>
+  return (
+    <div className="w-full font-sans select-none overflow-visible">
+      {/* VINTAGE INDEX-CARD TABS (Exact shape, colors, and concave fillets from CATALOGO DE LECCIONES without icons) */}
+      <div className="w-full flex items-end relative pt-2 px-[10px] sm:px-[14px] z-10 overflow-visible max-w-full">
+        <div className="flex items-end gap-1 sm:gap-1.5 relative w-full max-w-full">
+          {calendarTabs.map((tab, idx) => {
+            const isActive = viewMode === tab.id;
 
-          {/* Month Calendar Grid */}
-          <div className={`grid grid-cols-7 gap-2 text-center flex-1 ${isExpanded ? 'my-2' : ''}`}>
-            {/* Leading empty cells */}
-            {Array.from({ length: firstDayOfMonth }).map((_, idx) => (
-              <div key={`empty-${idx}`} className={`rounded-xl border border-transparent ${
-                calendarTheme === 'dark' ? 'bg-slate-900/40 border-slate-800/50' : 'bg-slate-100/50'
-              } ${isExpanded ? 'h-20 sm:h-24 md:h-28' : 'h-12 sm:h-14'}`} />
-            ))}
-
-            {/* Days cells */}
-            {Array.from({ length: daysInMonth }).map((_, idx) => {
-              const dayNum = idx + 1;
-              const dyStr = String(dayNum).padStart(2, '0');
-              const moStr = String(month + 1).padStart(2, '0');
-              const dateKey = `${year}-${moStr}-${dyStr}`;
-
-              const dayData = dailyDataMap[dateKey];
-              const hasActivity = Boolean(dayData && dayData.totalSeconds > 0);
-              const activeMinutes = dayData ? Math.round(dayData.totalSeconds / 60) : 0;
-              const goalMet = activeMinutes >= targetGoalMinutes;
-              const isToday = dateKey === todayStr;
-              const isSelected = selectedDay === dateKey;
-
-              return (
-                <button
-                  key={dateKey}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedDay(dateKey);
-                  }}
-                  className={`rounded-xl flex flex-col items-center justify-between font-mono transition-all cursor-pointer relative group ${
-                    isExpanded ? 'h-20 sm:h-24 md:h-28 p-2 sm:p-3 text-sm sm:text-base' : 'h-12 sm:h-14 p-1 sm:p-1.5 text-xs'
-                  } ${
-                    isSelected
-                      ? 'bg-sky-400 text-slate-950 font-black ring-3 ring-sky-500 shadow-md scale-[1.02]'
-                      : isToday
-                      ? calendarTheme === 'dark'
-                        ? 'border-2 border-sky-400 bg-blue-950/80 text-sky-100 font-black shadow-sm'
-                        : 'border-2 border-blue-600 bg-blue-50/90 text-blue-950 font-black shadow-sm'
-                      : hasActivity
-                      ? goalMet
-                        ? calendarTheme === 'dark'
-                          ? 'bg-blue-900/80 border border-sky-500/70 text-sky-100 font-bold hover:bg-blue-800/90 shadow-2xs'
-                          : 'bg-sky-100/90 border border-sky-300 text-sky-950 font-bold hover:bg-sky-200/90 shadow-2xs'
-                        : calendarTheme === 'dark'
-                          ? 'bg-slate-800 border border-slate-600 text-slate-100 font-bold hover:bg-slate-700 shadow-2xs'
-                          : 'bg-slate-100 border border-slate-300 text-slate-900 font-bold hover:bg-slate-200 shadow-2xs'
-                      : calendarTheme === 'dark'
-                        ? 'bg-slate-800/70 border border-slate-700/70 text-slate-200 hover:bg-slate-700/90 hover:border-sky-500/80 shadow-2xs'
-                        : 'bg-white border border-slate-200 text-slate-800 hover:bg-blue-50 hover:border-blue-300 shadow-2xs'
-                  }`}
-                >
-                  <div className="w-full flex justify-between items-center px-1">
-                    <span className={`font-medium ${
-                      isSelected 
-                        ? 'text-slate-950' 
-                        : isToday 
-                        ? 'text-sky-400 font-semibold' 
-                        : calendarTheme === 'dark' 
-                        ? 'text-slate-100' 
-                        : 'text-slate-800'
-                    } ${isExpanded ? 'text-base sm:text-lg' : 'text-xs'}`}>
-                      {dayNum}
-                    </span>
-                    {goalMet ? (
-                      <CheckCircle2 className={`${isExpanded ? 'w-4.5 h-4.5 sm:w-5 sm:h-5' : 'w-3 h-3'} ${isSelected ? 'text-slate-950' : 'text-sky-400'}`} />
-                    ) : hasActivity ? (
-                      <Clock className={`${isExpanded ? 'w-4.5 h-4.5 sm:w-5 sm:h-5' : 'w-3 h-3'} ${isSelected ? 'text-slate-950' : 'text-blue-400'}`} />
-                    ) : null}
-                  </div>
-
-                  {hasActivity ? (
-                    <span className={`font-medium rounded-lg my-auto ${
-                      isExpanded ? 'text-xs sm:text-sm px-2.5 py-1' : 'text-[10px] px-1.5 py-0.5'
-                    } ${
-                      isSelected 
-                        ? 'bg-slate-950/20 text-slate-950'
-                        : goalMet
-                        ? calendarTheme === 'dark' ? 'bg-sky-500/30 text-sky-100 border border-sky-400/50' : 'bg-sky-200/90 text-sky-950 border border-sky-300'
-                        : calendarTheme === 'dark' ? 'bg-slate-700 text-slate-100 border border-slate-600' : 'bg-slate-200 text-slate-900 border border-slate-300'
-                    }`}>
-                      {activeMinutes > 0 ? `${activeMinutes}m` : `${dayData?.totalSeconds}s`}
-                    </span>
-                  ) : (
-                    <span className={`font-mono my-auto ${calendarTheme === 'dark' ? 'text-slate-400' : 'text-slate-400'} ${isExpanded ? 'text-sm' : 'text-[10px]'}`}>-</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* WEEK VIEW */}
-      {viewMode === 'week' && (
-        <div className="space-y-3 flex-1 flex flex-col">
-          <div className="grid grid-cols-1 sm:grid-cols-7 gap-3 flex-1">
-            {weekDays.map((wd) => {
-              const dayData = dailyDataMap[wd.dateKey];
-              const hasActivity = Boolean(dayData && dayData.totalSeconds > 0);
-              const activeMinutes = dayData ? Math.round(dayData.totalSeconds / 60) : 0;
-              const goalMet = activeMinutes >= targetGoalMinutes;
-              const isToday = wd.dateKey === todayStr;
-              const isSelected = selectedDay === wd.dateKey;
-
-              return (
-                <div
-                  key={wd.dateKey}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedDay(wd.dateKey);
-                  }}
-                  className={`rounded-2xl p-3 sm:p-4 flex flex-col justify-between transition-all cursor-pointer border ${
-                    isSelected
-                      ? 'bg-sky-400 border-sky-500 text-slate-950 ring-3 ring-sky-500 shadow-md scale-[1.02]'
-                      : isToday
-                      ? calendarTheme === 'dark'
-                        ? 'bg-blue-950/80 border-2 border-sky-400 text-sky-100 shadow-sm'
-                        : 'bg-blue-50/90 border-2 border-blue-600 text-blue-950 shadow-sm'
-                      : hasActivity
-                      ? goalMet
-                        ? calendarTheme === 'dark'
-                          ? 'bg-blue-900/80 border-sky-500/70 text-sky-100 hover:bg-blue-800/90 shadow-2xs'
-                          : 'bg-sky-100/90 border-sky-300 text-sky-950 hover:bg-sky-200/90 shadow-2xs'
-                        : calendarTheme === 'dark'
-                          ? 'bg-slate-800 border-slate-600 text-slate-100 hover:bg-slate-700 shadow-2xs'
-                          : 'bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200 shadow-2xs'
-                      : calendarTheme === 'dark'
-                        ? 'bg-slate-800/70 border-slate-700/70 text-slate-300 hover:bg-slate-700/90'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50'
-                  }`}
-                >
-                  {/* Day Header */}
-                  <div className={`flex items-center justify-between border-b pb-2 ${
-                    calendarTheme === 'dark' ? 'border-slate-700/80' : 'border-slate-200'
-                  }`}>
-                    <div className="flex flex-col">
-                      <span className={`text-xs font-mono font-black uppercase ${
-                        calendarTheme === 'dark' ? 'text-sky-300/80' : 'text-slate-600'
-                      }`}>
-                        {selectedLang === 'EN' ? wd.dayNameEN : wd.dayNameES}
-                      </span>
-                      <span className={`text-lg sm:text-xl font-normal font-mono ${
-                        calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-                      }`}>
-                        {wd.dayNum}
-                      </span>
-                    </div>
-                    {goalMet ? (
-                      <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0" />
-                    ) : hasActivity ? (
-                      <Clock className="w-5 h-5 text-blue-400 shrink-0" />
-                    ) : null}
-                  </div>
-
-                  {/* Activity Stats for the Day */}
-                  <div className="my-3 space-y-1.5">
-                    {hasActivity ? (
-                      <>
-                        <div className="flex items-center justify-between text-xs font-mono font-bold">
-                          <span>⏱️ {selectedLang === 'EN' ? 'Active:' : 'Activo:'}</span>
-                          <span className={`px-2 py-0.5 rounded-md ${
-                            calendarTheme === 'dark' ? 'bg-sky-500/30 text-sky-100 border border-sky-400/40' : 'bg-sky-200 text-sky-950 border border-sky-300'
-                          }`}>
-                            {activeMinutes > 0 ? `${activeMinutes} min` : `${dayData?.totalSeconds} sec`}
-                          </span>
-                        </div>
-                        <div className={`flex items-center justify-between text-[11px] font-mono ${
-                          calendarTheme === 'dark' ? 'text-slate-300' : 'text-slate-600'
-                        }`}>
-                          <span>💬 {selectedLang === 'EN' ? 'Sessions:' : 'Sesiones:'}</span>
-                          <span className={`font-bold ${calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>{dayData?.sessions.length}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className={`py-4 text-center text-xs font-mono italic ${
-                        calendarTheme === 'dark' ? 'text-slate-400' : 'text-slate-400'
-                      }`}>
-                        {selectedLang === 'EN' ? 'No activity' : 'Sin actividad'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Mini Session Previews */}
-                  {hasActivity && dayData && dayData.sessions.length > 0 && (
-                    <div className={`space-y-1 pt-2 border-t ${
-                      calendarTheme === 'dark' ? 'border-slate-700/80' : 'border-slate-200'
-                    }`}>
-                      {dayData.sessions.slice(0, 2).map((s) => (
-                        <div key={s.id} className={`text-[10px] font-mono p-1.5 rounded-lg border truncate ${
-                          calendarTheme === 'dark' 
-                            ? 'bg-slate-950/80 border-slate-800 text-slate-200' 
-                            : 'bg-white/90 border-slate-200 text-slate-800'
-                        }`}>
-                          🕒 {s.startTime} - {s.title}
-                        </div>
-                      ))}
-                      {dayData.sessions.length > 2 && (
-                        <div className="text-[9.5px] font-mono text-sky-400 font-bold text-center">
-                          +{dayData.sessions.length - 2} {selectedLang === 'EN' ? 'more' : 'más'}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className={`mt-2 text-[10px] font-mono font-black uppercase tracking-wider text-center py-1 rounded-md border ${
-                    calendarTheme === 'dark'
-                      ? 'bg-blue-950/80 text-sky-200 border-sky-800/80'
-                      : 'bg-blue-100/90 text-blue-900 border-blue-200'
-                  }`}>
-                    {selectedLang === 'EN' ? 'Click for Full Day' : 'Ver Día Completo'}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Selected Day Full Activity Inspector Sheet/Modal */}
-      {selectedDay && (
-        <div className={`mt-4 p-4 sm:p-5 border-2 border-blue-500/80 rounded-2xl space-y-4 shadow-xl animate-fadeIn ${
-          calendarTheme === 'dark' ? 'bg-[#0c1829] text-slate-100 border-sky-500/50' : 'bg-slate-50 text-slate-900 border-blue-300'
-        }`}>
-          <div className={`flex flex-wrap items-center justify-between gap-2 border-b pb-3 ${
-            calendarTheme === 'dark' ? 'border-slate-800' : 'border-slate-200'
-          }`}>
-            <div>
-              <div className={`text-base sm:text-lg font-black font-mono flex items-center gap-2 ${
-                calendarTheme === 'dark' ? 'text-sky-100' : 'text-slate-900'
-              }`}>
-                <Activity className="w-5 h-5 text-sky-400" />
-                <span>
-                  {new Date(`${selectedDay}T00:00:00`).toLocaleDateString(selectedLang === 'EN' ? 'en-US' : 'es-ES', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                </span>
-              </div>
-              <div className="text-xs font-mono mt-1.5 flex flex-wrap items-center gap-2">
-                {selectedDayData ? (
-                  <>
-                    <span className={`font-bold px-2.5 py-1 rounded-xl border ${
-                      calendarTheme === 'dark'
-                        ? 'text-sky-200 bg-blue-950/80 border-sky-800'
-                        : 'text-blue-950 bg-blue-100 border-blue-300'
-                    }`}>
-                      ⏱️ {selectedLang === 'EN' ? `Total Active: ${Math.round(selectedDayData.totalSeconds / 60)} min (${selectedDayData.totalSeconds} sec)` : `Tiempo Total: ${Math.round(selectedDayData.totalSeconds / 60)} min (${selectedDayData.totalSeconds} seg)`}
-                    </span>
-                    <span className={selectedDayData.totalSeconds >= targetGoalMinutes * 60 
-                      ? (calendarTheme === 'dark' ? 'text-sky-100 font-bold bg-sky-950/80 px-2.5 py-1 rounded-xl border border-sky-600' : 'text-blue-950 font-bold bg-sky-100 px-2.5 py-1 rounded-xl border border-sky-300')
-                      : (calendarTheme === 'dark' ? 'text-slate-200 font-bold bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-700' : 'text-slate-900 font-bold bg-slate-200 px-2.5 py-1 rounded-xl border border-slate-300')
-                    }>
-                      {selectedDayData.totalSeconds >= targetGoalMinutes * 60 
-                        ? (selectedLang === 'EN' ? '✅ Daily Goal Met!' : '✅ ¡Meta Diaria Cumplida!')
-                        : (selectedLang === 'EN' ? `Target: ${targetGoalMinutes}m` : `Meta: ${targetGoalMinutes}m`)}
-                    </span>
-                    <span className={`font-bold px-2.5 py-1 rounded-xl border ${
-                      calendarTheme === 'dark'
-                        ? 'text-slate-200 bg-slate-800 border-slate-700'
-                        : 'text-slate-950 bg-slate-200/80 border-slate-300'
-                    }`}>
-                      💬 {selectedDayData.sessions.length} {selectedLang === 'EN' ? 'Sessions Recorded' : 'Sesiones Grabadas'}
-                    </span>
-                  </>
-                ) : (
-                  <span className={`italic ${calendarTheme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-                    {selectedLang === 'EN' ? 'No recorded active conversation time on this day.' : 'No se registró tiempo activo de conversación este día.'}
-                  </span>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setViewMode(tab.id)}
+                className={`group relative h-[54px] sm:h-[60px] px-1.5 sm:px-2.5 md:px-3.5 min-w-0 flex-1 sm:flex-initial sm:min-w-[78px] md:min-w-[88px] max-w-[132px] flex flex-col items-center pt-2 sm:pt-2.5 pb-1.5 sm:pb-2 justify-start cursor-pointer transition-colors ${
+                  isActive
+                    ? 'bg-[#F8ECC0] text-[#F8ECC0] z-30 rounded-t-[14px] sm:rounded-t-[18px] -mb-[2px] after:content-[\'\'] after:absolute after:-bottom-[3px] after:left-0 after:right-0 after:h-[5px] after:bg-[#F8ECC0] after:z-30'
+                    : 'bg-[#EADBB3] hover:bg-[#E0CF9E] text-[#EADBB3] hover:text-[#E0CF9E] rounded-t-[14px] sm:rounded-t-[18px] z-10'
+                }`}
+              >
+                {/* Left Concave Flare / Inverted Fillet (Vintage filing index-card tab) */}
+                {idx > 0 && (
+                  <svg
+                    className="absolute -left-[12px] sm:-left-[14px] bottom-0 w-[12px] sm:w-[14px] h-[12px] sm:h-[14px] pointer-events-none overflow-visible transition-colors"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M 16 0 L 16 16.5 L 0 16.5 Q 16 16.5 16 0 Z" />
+                  </svg>
                 )}
+
+                {/* Right Concave Flare / Inverted Fillet */}
+                <svg
+                  className="absolute -right-[12px] sm:-right-[14px] bottom-0 w-[12px] sm:w-[14px] h-[12px] sm:h-[14px] pointer-events-none overflow-visible transition-colors"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                >
+                  <path d="M 0 0 L 0 16.5 L 16 16.5 Q 0 16.5 0 0 Z" />
+                </svg>
+
+                {/* Tab Label: Shared baseline across all month and view tabs */}
+                <div className="inline-flex flex-col items-center justify-start w-full max-w-full px-0.5 leading-tight overflow-hidden">
+                  <span className={`text-[12.5px] sm:text-[14.5px] md:text-[15.5px] font-bold leading-none text-center truncate max-w-full ${
+                    isActive ? 'text-[#1F1A14]' : 'text-[#221D17] group-hover:text-black'
+                  }`}>
+                    {tab.label}
+                  </span>
+                  <span className="text-[10px] sm:text-[11.5px] font-normal text-neutral-600 leading-none mt-1 sm:mt-1.5 text-center truncate max-w-full">
+                    {tab.subLabel}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Calendar Panel: Matches #F8ECC0 color scheme from top section */}
+      <div className="bg-[#F8ECC0] rounded-b-[24px] sm:rounded-b-[28px] rounded-t-[14px] sm:rounded-t-[18px] p-4 sm:p-6 md:p-8 shadow-xs relative z-0">
+        {/* VIEW 1: MONTH VIEW (Noviembre: contains monthly goal, progress bar, legend, and full month grid) */}
+        {viewMode === 'month' && (
+          <div className="w-full">
+            {/* Header: Legend and Navigation Arrows (monthly goal label & progress bar removed per user request) */}
+            <div className="flex items-center justify-between flex-wrap gap-x-3 sm:gap-x-4 gap-y-2 mb-4 sm:mb-5">
+              <div className="flex items-center justify-start flex-wrap gap-x-3 sm:gap-x-4 gap-y-1.5 text-xs sm:text-sm font-medium text-black leading-none">
+                {/* Legend: Asignada first (solid red circle) */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#EF4444] shrink-0 inline-block" />
+                  <span className="whitespace-nowrap text-black">{selectedLang === 'EN' ? 'Assigned' : 'Asignada'}</span>
+                </div>
+
+                {/* Legend: En proceso second (solid yellow circle #FBBF24) */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#FBBF24] shrink-0 inline-block" />
+                  <span className="whitespace-nowrap text-black">{selectedLang === 'EN' ? 'In progress' : 'En proceso'}</span>
+                </div>
+
+                {/* Legend: Completada third (solid slightly darkened green circle #059669) */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-[#059669] shrink-0 inline-block" />
+                  <span className="whitespace-nowrap text-black">{selectedLang === 'EN' ? 'Completed' : 'Completada'}</span>
+                </div>
+              </div>
+
+              {/* Prev / Next Month Navigation Buttons */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  aria-label={selectedLang === 'EN' ? 'Previous Month' : 'Mes Anterior'}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center active:scale-95 transition-colors duration-200 cursor-pointer"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.4] text-black" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  aria-label={selectedLang === 'EN' ? 'Next Month' : 'Mes Siguiente'}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center active:scale-95 transition-colors duration-200 cursor-pointer"
+                >
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.4] text-black" />
+                </button>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedDay(null);
-              }}
-              className={`p-2 rounded-xl transition-colors cursor-pointer border ${
-                calendarTheme === 'dark' 
-                  ? 'hover:bg-slate-800 text-slate-300 border-slate-700' 
-                  : 'hover:bg-slate-200 text-slate-600 hover:text-slate-950 border-slate-300'
-              }`}
-              title={selectedLang === 'EN' ? 'Close Inspector' : 'Cerrar Inspección'}
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-          </div>
-
-          {/* Full Day Sessions Stream */}
-          {selectedDayData && selectedDayData.sessions.length > 0 ? (
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              <h5 className={`text-xs font-mono font-black uppercase tracking-wider flex items-center gap-1.5 ${
-                calendarTheme === 'dark' ? 'text-slate-300' : 'text-slate-600'
-              }`}>
-                <Clock className="w-4 h-4 text-sky-400" />
-                {selectedLang === 'EN' ? 'Full Day Activity Timeline:' : 'Línea de Tiempo de la Actividad del Día:'}
-              </h5>
-
-              {selectedDayData.sessions.map((s, idx) => (
-                <div key={s.id} className={`border rounded-xl p-3.5 space-y-2.5 text-xs font-sans shadow-2xs ${
-                  calendarTheme === 'dark'
-                    ? 'bg-[#0f1d38] border-slate-700 text-slate-100'
-                    : 'bg-white border-slate-200 text-slate-900'
-                }`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className={`font-bold flex items-center gap-2 text-sm ${
-                      calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-900'
-                    }`}>
-                      <span className="w-6 h-6 rounded-full bg-blue-100 border border-blue-300 text-blue-950 text-xs font-mono font-black flex items-center justify-center">
-                        {idx + 1}
-                      </span>
-                      {s.title}
-                    </span>
-                    <span className={`text-xs font-mono font-bold px-3 py-1 rounded-lg border shrink-0 ${
-                      calendarTheme === 'dark'
-                        ? 'text-sky-200 bg-blue-950/80 border-sky-700'
-                        : 'text-blue-950 bg-blue-100 border-blue-300'
-                    }`}>
-                      ⏱️ {Math.floor(s.durationSeconds / 60)}m {s.durationSeconds % 60}s
-                    </span>
-                  </div>
-
-                  {/* Start / End Timestamps */}
-                  <div className={`flex flex-wrap items-center gap-3 text-xs font-mono p-2.5 rounded-xl border ${
-                    calendarTheme === 'dark'
-                      ? 'text-slate-300 bg-slate-900/90 border-slate-800'
-                      : 'text-slate-800 bg-slate-100/90 border-slate-200'
-                  }`}>
-                    <span>🕒 {selectedLang === 'EN' ? 'Start:' : 'Inicio:'} <strong className={calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-950'}>{s.startTime}</strong></span>
-                    <span>➔</span>
-                    <span>🏁 {selectedLang === 'EN' ? 'End:' : 'Fin:'} <strong className={calendarTheme === 'dark' ? 'text-slate-100' : 'text-slate-950'}>{s.endTime}</strong></span>
-                    <span className={`ml-auto font-bold ${calendarTheme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>({s.messageCount} {selectedLang === 'EN' ? 'messages' : 'mensajes'})</span>
-                  </div>
-
-                  {/* Complete Transcript Dialogue Box */}
-                  {s.messages && s.messages.length > 0 ? (
-                    <div className="space-y-2 mt-2 max-h-48 overflow-y-auto pr-1 text-xs">
-                      {s.messages.map((m, mIdx) => (
-                        <div key={mIdx} className={`p-2.5 rounded-xl leading-relaxed ${
-                          m.sender === 'user' 
-                            ? calendarTheme === 'dark'
-                              ? 'bg-blue-950/90 text-sky-100 text-right border border-sky-700/80 font-medium ml-6'
-                              : 'bg-blue-100/90 text-blue-950 text-right border border-blue-300/80 font-medium ml-6'
-                            : calendarTheme === 'dark'
-                              ? 'bg-slate-900 text-slate-100 text-left border border-slate-800 font-medium mr-6'
-                              : 'bg-slate-100 text-slate-900 text-left border border-slate-200/90 font-medium mr-6'
-                        }`}>
-                          <span className="text-[10px] font-mono font-bold block opacity-70 mb-0.5">
-                            {m.sender === 'user' ? (selectedLang === 'EN' ? 'You' : 'Tú') : 'VOYAGER'}
-                          </span>
-                          <span>{m.text}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className={`text-xs italic ${calendarTheme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>"{s.snippet}"</p>
-                  )}
-
-                  {onLoadChat && (
-                    <div className="pt-1.5 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onLoadChat(s.rawChat);
-                          setSelectedDay(null);
-                        }}
-                        className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 shadow-xs cursor-pointer active:scale-95"
-                      >
-                        <Play className="w-3.5 h-3.5 fill-white" />
-                        <span>{selectedLang === 'EN' ? 'Load Session Transcript' : 'Cargar Transcripción de Sesión'}</span>
-                      </button>
-                    </div>
-                  )}
+            {/* Days of the week: Do, Lu, Ma, Mi, Ju, Vi, Sá - Aligned with day columns */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full mb-1.5 sm:mb-2">
+              {weekDaysLabels.map((lbl, idx) => (
+                <div
+                  key={idx}
+                  className="text-left text-xs sm:text-sm md:text-[15px] font-medium text-[#1A1816] pl-1 truncate"
+                >
+                  {lbl}
                 </div>
               ))}
             </div>
-          ) : (
-            <p className="text-xs text-slate-400 italic text-center py-4">
-              {selectedLang === 'EN' ? 'No active conversation recorded for this date.' : 'No hay conversación activa registrada en esta fecha.'}
-            </p>
-          )}
-        </div>
-      )}
+
+            {/* Calendar Grid: Individual day cards with tighter gaps and equal horizontal padding */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full">
+              {/* Empty leading padding cells for month start */}
+              {Array.from({ length: firstDayOfMonth }).map((_, idx) => (
+                <div key={`empty-${idx}`} className="w-full min-w-0 aspect-[1.15/1] rounded-[7px] sm:rounded-[9px] md:rounded-[10px]" />
+              ))}
+
+              {/* Month Day Cells */}
+              {Array.from({ length: daysInMonth }).map((_, idx) => {
+                const dayNum = idx + 1;
+                const dyStr = String(dayNum).padStart(2, '0');
+                const moStr = String(month + 1).padStart(2, '0');
+                const dateKey = `${year}-${moStr}-${dyStr}`;
+
+                const isToday = dateKey === todayKey;
+                const isSelected = selectedDay === dateKey;
+
+                // Live data + mockup data merge
+                const liveDayData = dailyDataMap[dateKey];
+                const liveAssignments = assignmentsByDate[dateKey] || [];
+                const dayPersonal = personalTasks.filter(t => t.dateKey === dateKey);
+                const personalCompleted = dayPersonal.filter(t => t.completed).length;
+                const personalPending = dayPersonal.filter(t => !t.completed).length;
+
+                const liveCompleted = liveAssignments.filter(a => a.status === 'COMPLETED').length + (liveDayData && liveDayData.totalSeconds > 0 ? 1 : 0) + personalCompleted;
+                const liveInProgress = liveAssignments.filter(a => a.status === 'IN_PROGRESS').length;
+                const liveAssigned = liveAssignments.filter(a => a.status === 'PENDING' || (!a.status && a.status !== 'IN_PROGRESS' && a.status !== 'COMPLETED')).length + personalPending;
+
+                const mockupInfo = (year === 2026 && month === 10) ? mockupNovemberIndicators[dayNum] : null;
+
+                const completedCount = (mockupInfo?.completed ?? 0) + liveCompleted;
+                const inProgressCount = (mockupInfo?.inProgress ?? 0) + liveInProgress;
+                const assignedCount = (mockupInfo?.assigned ?? 0) + liveAssigned;
+                const hasActivity = completedCount > 0 || inProgressCount > 0 || assignedCount > 0;
+
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => handleDayClick(dateKey)}
+                    className={`w-full min-w-0 aspect-[1.15/1] rounded-[7px] sm:rounded-[9px] md:rounded-[10px] bg-[#FFFDF9] px-2 py-1.5 sm:px-2.5 sm:py-2 md:px-2.5 md:py-2 flex flex-col justify-between text-left transition-all cursor-pointer relative hover:shadow-2xs overflow-hidden group border-2 sm:border-[2.5px] ${
+                      isToday
+                        ? 'border-[#1A1816] z-10 shadow-xs'
+                        : isSelected
+                          ? 'border-[#8C827A] hover:border-neutral-500 z-10'
+                          : 'border-transparent hover:border-neutral-500 hover:z-10'
+                    }`}
+                  >
+                    {/* Date Number & Assigned (Red) Indicator always to the right of the number */}
+                    <div className="flex items-center justify-start gap-1 sm:gap-1.5 w-full min-w-0">
+                      <span className={`inline-flex items-center justify-start h-6 sm:h-7 text-xs sm:text-sm md:text-base text-[#1A1816] leading-none transition-all shrink-0 ${
+                        isToday || hasActivity ? 'font-bold' : 'font-normal'
+                      }`}>
+                        {dayNum}
+                      </span>
+
+                      {assignedCount > 0 && (
+                        <svg
+                          className="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${assignedCount} ${selectedLang === 'EN' ? 'assigned' : 'asignadas'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#EF4444" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#FFFFFF"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {assignedCount}
+                          </text>
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Activity Indicators: Completed (green) and In Progress (yellow) circles on bottom row */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 mt-auto max-w-full overflow-hidden pb-0.5">
+                      {completedCount > 0 && (
+                        <svg
+                          className="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${completedCount} ${selectedLang === 'EN' ? 'completed' : 'completadas'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#059669" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#FFFFFF"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {completedCount}
+                          </text>
+                        </svg>
+                      )}
+
+                      {inProgressCount > 0 && (
+                        <svg
+                          className="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${inProgressCount} ${selectedLang === 'EN' ? 'in progress' : 'en proceso'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#FBBF24" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#1F1A14"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {inProgressCount}
+                          </text>
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 2: WEEK VIEW (Unified design matching month view: tight gaps, 50% reduced radius, clean indicator badges) */}
+        {viewMode === 'week' && (
+          <div className="w-full">
+            {/* Days of the week: Do, Lu, Ma, Mi, Ju, Vi, Sá - Aligned with day columns */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full mb-1.5 sm:mb-2">
+              {weekDaysLabels.map((lbl, idx) => (
+                <div
+                  key={idx}
+                  className="text-left text-xs sm:text-sm md:text-[15px] font-medium text-[#1A1816] pl-1 truncate"
+                >
+                  {lbl}
+                </div>
+              ))}
+            </div>
+
+            {/* Week Day Cells */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full">
+              {weekDays.map((d) => {
+                const dayNum = d.getDate();
+                const dyStr = String(dayNum).padStart(2, '0');
+                const moStr = String(d.getMonth() + 1).padStart(2, '0');
+                const yr = d.getFullYear();
+                const dateKey = `${yr}-${moStr}-${dyStr}`;
+                const isToday = dateKey === todayKey;
+                const isSelected = selectedDay === dateKey;
+
+                // Live data + mockup data merge
+                const liveDayData = dailyDataMap[dateKey];
+                const liveAssignments = assignmentsByDate[dateKey] || [];
+                const dayPersonal = personalTasks.filter(t => t.dateKey === dateKey);
+                const personalCompleted = dayPersonal.filter(t => t.completed).length;
+                const personalPending = dayPersonal.filter(t => !t.completed).length;
+
+                const liveCompleted = liveAssignments.filter(a => a.status === 'COMPLETED').length + (liveDayData && liveDayData.totalSeconds > 0 ? 1 : 0) + personalCompleted;
+                const liveInProgress = liveAssignments.filter(a => a.status === 'IN_PROGRESS').length;
+                const liveAssigned = liveAssignments.filter(a => a.status === 'PENDING' || (!a.status && a.status !== 'IN_PROGRESS' && a.status !== 'COMPLETED')).length + personalPending;
+
+                const mockupInfo = (yr === 2026 && d.getMonth() === 10) ? mockupNovemberIndicators[dayNum] : null;
+
+                const completedCount = (mockupInfo?.completed ?? 0) + liveCompleted;
+                const inProgressCount = (mockupInfo?.inProgress ?? 0) + liveInProgress;
+                const assignedCount = (mockupInfo?.assigned ?? 0) + liveAssigned;
+
+                const hasActivity = completedCount > 0 || inProgressCount > 0 || assignedCount > 0;
+
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => handleDayClick(dateKey)}
+                    className={`w-full min-w-0 aspect-[1.15/1] rounded-[7px] sm:rounded-[9px] md:rounded-[10px] bg-[#FFFDF9] px-2 py-1.5 sm:px-2.5 sm:py-2 md:px-2.5 md:py-2 flex flex-col justify-between text-left transition-all cursor-pointer relative hover:shadow-2xs overflow-hidden border-2 sm:border-[2.5px] ${
+                      isToday
+                        ? 'border-[#1A1816] z-10 shadow-xs'
+                        : isSelected
+                          ? 'border-[#8C827A] hover:border-neutral-500 z-10'
+                          : 'border-transparent hover:border-neutral-500 hover:z-10'
+                    }`}
+                  >
+                    {/* Date Number & Assigned (Red) Indicator always to the right of the number */}
+                    <div className="flex items-center justify-start gap-1.5 sm:gap-2 w-full min-w-0">
+                      <span className={`text-xs sm:text-sm md:text-base text-[#1A1816] leading-none shrink-0 ${
+                        isToday || hasActivity ? 'font-bold' : 'font-normal'
+                      }`}>
+                        {dayNum}
+                      </span>
+
+                      {assignedCount > 0 && (
+                        <svg
+                          className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${assignedCount} ${selectedLang === 'EN' ? 'assigned' : 'asignadas'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#EF4444" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#FFFFFF"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {assignedCount}
+                          </text>
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Activity Indicators: Completed (green) and In Progress (yellow) circles on bottom row */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 mt-auto max-w-full overflow-hidden">
+                      {completedCount > 0 && (
+                        <svg
+                          className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${completedCount} ${selectedLang === 'EN' ? 'completed' : 'completadas'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#059669" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#FFFFFF"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {completedCount}
+                          </text>
+                        </svg>
+                      )}
+
+                      {inProgressCount > 0 && (
+                        <svg
+                          className="w-[18px] h-[18px] sm:w-5 sm:h-5 shrink-0 select-none"
+                          viewBox="0 0 20 20"
+                          aria-label={`${inProgressCount} ${selectedLang === 'EN' ? 'in progress' : 'en proceso'}`}
+                        >
+                          <circle cx="10" cy="10" r="10" fill="#FBBF24" />
+                          <text
+                            x="10"
+                            y="10"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fill="#1F1A14"
+                            fontWeight="bold"
+                            fontFamily="sans-serif"
+                            fontSize="11"
+                          >
+                            {inProgressCount}
+                          </text>
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Bottom-left Navigation Arrows (< and >) with minimal vertical spacing */}
+            <div className="flex items-center gap-2.5 mt-2.5 sm:mt-3 justify-start">
+              <button
+                type="button"
+                onClick={handlePrevWeek}
+                aria-label={selectedLang === 'EN' ? 'Previous Week' : 'Semana Anterior'}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center shadow-xs active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4] text-black" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextWeek}
+                aria-label={selectedLang === 'EN' ? 'Next Week' : 'Semana Siguiente'}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center shadow-xs active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4] text-black" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* VIEW 3: DAY VIEW (Exclusively shown in the "Día" tab view) */}
+        {viewMode === 'day' && (
+          <div>
+            {(() => {
+              const activeDayKey = selectedDay || todayKey;
+
+              const dayAssignments = assignmentsByDate[activeDayKey] || [];
+              const dayData = dailyDataMap[activeDayKey];
+              const mockupTasks = mockupDayTasks[activeDayKey];
+              const dayPersonalTasks = personalTasks.filter(t => t.dateKey === activeDayKey);
+
+              const totalPracticeMinutes = (dayData && dayData.totalSeconds > 0)
+                ? Math.round(dayData.totalSeconds / 60)
+                : (mockupTasks?.completed ? mockupTasks.completed.reduce((acc, c) => acc + parseInt(c.duration || '0'), 0) : 0);
+              return (
+                <div className="space-y-4">
+                  {/* Top Day Header: Prominent "+ Tarea" Action (No duplicate date heading, no top arrows) */}
+                  <div className="flex items-center justify-between pb-2 border-b border-[#EAE2D7]/70">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingTask(prev => !prev);
+                        setNewTaskDateKey(activeDayKey);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-neutral-100 text-[#1A1816] text-xs font-semibold border border-[#1A1816] transition-all active:scale-95 cursor-pointer shadow-2xs"
+                    >
+                      <span className="w-4 h-4 rounded-full border border-[#1A1816] flex items-center justify-center shrink-0">
+                        <Plus className="w-2.5 h-2.5 stroke-[2.8]" />
+                      </span>
+                      <span>
+                        {isAddingTask
+                          ? (selectedLang === 'EN' ? 'Cancel' : 'Cancelar')
+                          : (selectedLang === 'EN' ? '+ Task' : '+ Tarea')}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Inline Student Task Creation Form with Mandatory Date */}
+                  {isAddingTask && (
+                    <div className="p-4 rounded-[18px] bg-[#F8ECC0]/45 border border-[#E0D19E] space-y-3 shadow-xs animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#1A1816] block uppercase tracking-wide">
+                          {selectedLang === 'EN' ? 'New Task or Reminder' : 'Nueva Tarea o Recordatorio'}
+                        </span>
+                        <span className="text-[11px] text-[#7A736B]">
+                          {selectedLang === 'EN' ? 'Mandatory date required' : 'Fecha obligatoria'}
+                        </span>
+                      </div>
+
+                      {/* Mandatory Date Picker */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-[#1A1816] shrink-0">
+                          {selectedLang === 'EN' ? 'Date:' : 'Fecha:'}
+                        </label>
+                        <input
+                          type="date"
+                          value={newTaskDateKey}
+                          onChange={(e) => setNewTaskDateKey(e.target.value)}
+                          required
+                          className="px-2.5 py-1 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] focus:outline-none focus:ring-1 focus:ring-[#1A1816] font-semibold"
+                        />
+                      </div>
+
+                      {/* Category selector pills */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {[
+                          { id: 'task', labelEN: 'Personal Task', labelES: 'Tarea personal' },
+                          { id: 'reminder', labelEN: 'Reminder', labelES: 'Recordatorio' },
+                          { id: 'interest', labelEN: 'Interest', labelES: 'Interés' },
+                          { id: 'goal', labelEN: 'Goal', labelES: 'Meta' },
+                          { id: 'event', labelEN: 'Event', labelES: 'Evento' },
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setNewTaskCategory(cat.id as any)}
+                            className={`text-[11px] px-2.5 py-1 rounded-full transition-colors cursor-pointer border ${
+                              newTaskCategory === cat.id
+                                ? 'bg-[#1A1816] text-white border-[#1A1816]'
+                                : 'bg-white text-[#5C554E] hover:text-[#1A1816] border-[#E4D4BE]/70'
+                            }`}
+                          >
+                            {selectedLang === 'EN' ? cat.labelEN : cat.labelES}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={newTaskTitle}
+                          onChange={(e) => setNewTaskTitle(e.target.value)}
+                          placeholder={selectedLang === 'EN' ? 'Task title (required)...' : 'Título de la tarea (obligatorio)...'}
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] placeholder-[#A3988C] focus:outline-hidden focus:ring-1 focus:ring-[#1A1816] font-medium"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCreateStudentPersonalTask(activeDayKey);
+                            }
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={newTaskObjective}
+                          onChange={(e) => setNewTaskObjective(e.target.value)}
+                          placeholder={selectedLang === 'EN' ? 'Details or notes (optional)...' : 'Detalles o recordatorio (opcional)...'}
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] placeholder-[#A3988C] focus:outline-hidden focus:ring-1 focus:ring-[#1A1816]"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsAddingTask(false);
+                            setNewTaskTitle('');
+                            setNewTaskObjective('');
+                          }}
+                          className="px-3 py-1.5 text-xs text-[#5C554E] hover:text-[#1A1816] rounded-full transition-colors cursor-pointer"
+                        >
+                          {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!newTaskTitle.trim() || !newTaskDateKey || isSavingTask}
+                          onClick={() => handleCreateStudentPersonalTask(activeDayKey)}
+                          className="px-4 py-1.5 bg-[#1A1816] text-white text-xs font-semibold rounded-full hover:bg-[#332E29] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                        >
+                          <span>{isSavingTask ? (selectedLang === 'EN' ? 'Saving...' : 'Guardando...') : (selectedLang === 'EN' ? 'Save Task' : 'Guardar Tarea')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tasks List: Google Tasks-inspired clean list */}
+                  <div className="space-y-2.5">
+                    {/* Student-owned Personal Tasks */}
+                    {dayPersonalTasks.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold text-[#1A1816] block uppercase tracking-wide">
+                          {selectedLang === 'EN' ? 'My Tasks:' : 'Mis Tareas:'}
+                        </span>
+
+                        <div className="space-y-1.5">
+                          {dayPersonalTasks.map((t) => (
+                            <div
+                              key={t.id}
+                              className="p-3 rounded-[14px] bg-white border border-[#E4D4BE]/70 flex items-center justify-between text-xs gap-3 shadow-2xs hover:border-[#1A1816]/30 transition-colors"
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePersonalTask(t.id)}
+                                  className="mt-0.5 text-neutral-500 hover:text-black cursor-pointer shrink-0"
+                                  title={t.completed ? (selectedLang === 'EN' ? 'Mark incomplete' : 'Marcar pendiente') : (selectedLang === 'EN' ? 'Mark complete' : 'Marcar completada')}
+                                >
+                                  {t.completed ? (
+                                    <CheckCircle2 className="w-4 h-4 text-[#059669] fill-[#059669]/20" />
+                                  ) : (
+                                    <div className="w-4 h-4 rounded-full border-2 border-[#1A1816]/40 hover:border-[#1A1816]" />
+                                  )}
+                                </button>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className={`font-semibold text-sm text-[#1A1816] truncate ${t.completed ? 'line-through text-[#7A736B]' : ''}`}>
+                                      {t.title}
+                                    </span>
+                                    <span className="text-[10px] font-normal text-[#5C554E] px-2 py-0.5 rounded-full bg-[#F8ECC0]/50 border border-[#E0D19E]/50">
+                                      {t.category === 'reminder' ? (selectedLang === 'EN' ? 'Reminder' : 'Recordatorio') :
+                                       t.category === 'goal' ? (selectedLang === 'EN' ? 'Goal' : 'Meta') :
+                                       t.category === 'event' ? (selectedLang === 'EN' ? 'Event' : 'Evento') :
+                                       t.category === 'interest' ? (selectedLang === 'EN' ? 'Interest' : 'Interés') :
+                                       (selectedLang === 'EN' ? 'Personal Task' : 'Tarea Personal')}
+                                    </span>
+                                  </div>
+                                  {t.objective && (
+                                    <span className="text-xs text-[#5C554E] block mt-0.5 truncate">{t.objective}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {onAskVoyager && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const prompt = selectedLang === 'EN'
+                                        ? `[VOYAGER: Student selected their task "${t.title}". Guide them in practice.]`
+                                        : `[VOYAGER: El estudiante seleccionó su tarea "${t.title}". Guíale en la práctica.]`;
+                                      onAskVoyager(prompt);
+                                    }}
+                                    className="px-2.5 py-1 bg-[#FAF6F0] hover:bg-[#F8ECC0]/60 border border-[#E0D19E] text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                                  >
+                                    <Play className="w-2.5 h-2.5 fill-current" />
+                                    <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePersonalTask(t.id)}
+                                  className="p-1 text-[#8C827A] hover:text-[#EF4444] transition-colors cursor-pointer"
+                                  title={selectedLang === 'EN' ? 'Delete task' : 'Eliminar tarea'}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Teacher-assigned Tasks (with "Add to Calendar" practice scheduler) */}
+                    {(dayAssignments.length > 0 || (mockupTasks?.assigned && mockupTasks.assigned.length > 0)) && (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[#1A1816] block uppercase tracking-wide">
+                            {selectedLang === 'EN' ? 'Teacher Assignments:' : 'Tareas del Profesor:'}
+                          </span>
+                          <span className="text-[11px] text-[#7A736B]">
+                            {selectedLang === 'EN' ? 'Synchronized with Teacher' : 'Sincronizadas con Docente'}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {dayAssignments.map((assign) => (
+                            <div key={assign.id} className="p-3 sm:p-3.5 rounded-[14px] bg-[#F8ECC0]/30 border border-[#E0D19E]/60 flex items-center justify-between text-xs gap-3">
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-[#1A1816] text-sm block truncate">{assign.title}</span>
+                                  {assign.teacherName && (
+                                    <span className="text-[10px] text-[#5C554E] px-2 py-0.5 rounded-full bg-white/80 border border-[#E0D19E]/50">
+                                      {assign.teacherName}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-[#EF4444] font-semibold bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                    {selectedLang === 'EN' ? `Due: ${assign.dueDate || 'Class'}` : `Entrega: ${assign.dueDate || 'Clase'}`}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-[#5C554E] block truncate">{assign.objective}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                                {/* Add to Calendar button allowing additional practice date without modifying original deadline */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextDate = prompt(
+                                      selectedLang === 'EN'
+                                        ? `Schedule an extra practice session for "${assign.title}". Enter date (YYYY-MM-DD):`
+                                        : `Programa una fecha adicional de práctica en tu calendario para "${assign.title}". Ingresa fecha (AAAA-MM-DD):`,
+                                      activeDayKey
+                                    );
+                                    if (nextDate && nextDate.trim()) {
+                                      handleAddPracticeDateToAssignment(assign.id, nextDate.trim());
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 bg-white hover:bg-neutral-100 border border-[#1A1816]/40 text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                                  title={selectedLang === 'EN' ? 'Add extra practice session date to calendar' : 'Programar fecha extra de práctica en calendario'}
+                                >
+                                  <Calendar className="w-3 h-3 text-[#1A1816]" />
+                                  <span>{selectedLang === 'EN' ? '+ Calendar' : '+ Calendario'}</span>
+                                </button>
+
+                                {onAskVoyager && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const prompt = selectedLang === 'EN'
+                                        ? `[VOYAGER: Begin assignment "${assign.title}". Objective: ${assign.objective}]`
+                                        : `[VOYAGER: Inicia la tarea "${assign.title}". Objetivo: ${assign.objective}]`;
+                                      onAskVoyager(prompt);
+                                    }}
+                                    className="px-3 py-1 bg-[#1A1816] text-white rounded-full text-xs hover:bg-[#332E29] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                                  >
+                                    <Play className="w-2.5 h-2.5 fill-white" />
+                                    <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
+                          {dayAssignments.length === 0 && mockupTasks?.assigned?.map((task) => (
+                            <div key={task.id} className="p-3 sm:p-3.5 rounded-[14px] bg-[#F8ECC0]/30 border border-[#E0D19E]/60 flex items-center justify-between text-xs gap-3">
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-[#1A1816] text-sm block truncate">{task.title}</span>
+                                  <span className="text-[11px] font-normal text-[#7A736B] px-2 py-0.5 rounded-full bg-white/70 border border-[#E0D19E]/40">
+                                    {task.duration}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-[#5C554E] block truncate">{task.objective}</span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextDate = prompt(
+                                      selectedLang === 'EN'
+                                        ? `Schedule an extra practice session for "${task.title}". Enter date (YYYY-MM-DD):`
+                                        : `Programa una fecha adicional de práctica para "${task.title}". Ingresa fecha (AAAA-MM-DD):`,
+                                      activeDayKey
+                                    );
+                                    if (nextDate && nextDate.trim()) {
+                                      handleAddPracticeDateToAssignment(task.id, nextDate.trim());
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 bg-white hover:bg-neutral-100 border border-[#1A1816]/40 text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                                >
+                                  <Calendar className="w-3 h-3 text-[#1A1816]" />
+                                  <span>{selectedLang === 'EN' ? '+ Calendar' : '+ Calendario'}</span>
+                                </button>
+                                {onAskVoyager && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const prompt = selectedLang === 'EN'
+                                        ? `[VOYAGER: Begin practice task "${task.title}". Objective: ${task.objective}]`
+                                        : `[VOYAGER: Inicia la tarea de práctica "${task.title}". Objetivo: ${task.objective}]`;
+                                      onAskVoyager(prompt);
+                                    }}
+                                    className="px-3 py-1 bg-[#1A1816] text-white rounded-full text-xs hover:bg-[#332E29] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                                  >
+                                    <Play className="w-2.5 h-2.5 fill-white" />
+                                    <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Completed Sessions & Activities */}
+                    {(dayData?.sessions?.length || (mockupTasks?.completed && mockupTasks.completed.length > 0)) ? (
+                      <div className="space-y-2 pt-2 border-t border-[#EAE2D7]/50">
+                        <span className="text-xs font-semibold text-[#1A1816] block uppercase tracking-wide">
+                          {selectedLang === 'EN' ? 'Completed Activities:' : 'Actividades Completadas:'}
+                        </span>
+
+                        <div className="space-y-1.5">
+                          {dayData?.sessions?.map((s) => (
+                            <div key={s.id} className="p-3 rounded-[14px] bg-white border border-[#E4D4BE]/70 flex items-center justify-between text-xs gap-3 shadow-2xs">
+                              <div>
+                                <span className="font-semibold text-[#1A1816] block text-sm">{s.title}</span>
+                                <span className="text-xs text-[#7A736B]">{s.startTime} - {s.endTime} ({Math.round(s.durationSeconds / 60)} min)</span>
+                              </div>
+                              {onLoadChat && (
+                                <button
+                                  type="button"
+                                  onClick={() => onLoadChat(s.rawChat)}
+                                  className="px-3 py-1 bg-[#FAF6F0] border border-[#E0D19E] text-[#1A1816] rounded-full text-xs hover:bg-[#F8ECC0]/40 transition-colors cursor-pointer font-medium"
+                                >
+                                  {selectedLang === 'EN' ? 'View Transcript' : 'Ver Transcripción'}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          {!dayData?.sessions?.length && mockupTasks?.completed?.map((comp) => (
+                            <div key={comp.id} className="p-3 rounded-[14px] bg-white border border-[#E4D4BE]/70 flex items-center justify-between text-xs gap-3 shadow-2xs">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-[#1A1816] block text-sm">{comp.title}</span>
+                                  <span className="text-[11px] font-normal text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                                    {comp.score}
+                                  </span>
+                                </div>
+                                <span className="text-xs text-[#7A736B]">{comp.duration} • {selectedLang === 'EN' ? 'Evaluated by Voyager' : 'Evaluado por Voyager'}</span>
+                              </div>
+                              <span className="text-xs text-[#059669] font-bold flex items-center gap-1">
+                                ✓ {selectedLang === 'EN' ? 'Completed' : 'Completada'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* ─────────────────────────────────────────────────────────────
+                      DAILY PRACTICE GOAL (One fixed 20-minute daily target)
+                      ───────────────────────────────────────────────────────────── */}
+                  <div className="pt-3 border-t border-[#EAE2D7]/70 space-y-2">
+                    <div className="space-y-0.5">
+                      <span className="text-xs sm:text-sm font-bold text-[#1A1816] block">
+                        {selectedLang === 'EN' ? 'Daily Practice Goal' : 'Meta Diaria de Práctica'}
+                      </span>
+                      <p className="text-[11px] text-[#7A736B]">
+                        {totalPracticeMinutes >= 20
+                          ? (selectedLang === 'EN'
+                              ? `${totalPracticeMinutes} / 20 min — goal reached (+${totalPracticeMinutes - 20} min)`
+                              : `${totalPracticeMinutes} / 20 min — meta alcanzada (+${totalPracticeMinutes - 20} min)`)
+                          : totalPracticeMinutes > 0
+                            ? (selectedLang === 'EN'
+                                ? `${totalPracticeMinutes} / 20 min (${20 - totalPracticeMinutes} min remaining)`
+                                : `${totalPracticeMinutes} / 20 min (faltan ${20 - totalPracticeMinutes} min)`)
+                            : '0 / 20 min'}
+                      </p>
+                    </div>
+
+                    {/* Compact Practice Goal Progress Bar: No wider than 3/4 (75%) */}
+                    <div className="w-[75%] max-w-[360px] h-5 sm:h-6 rounded-full bg-white overflow-hidden flex items-center">
+                      {totalPracticeMinutes > 0 && (
+                        <div
+                          className="h-full bg-[#059669] rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.min(100, Math.round((totalPracticeMinutes / 20) * 100))}%`
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Day View Footer Navigation Arrows (< and >) */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-[#EAE2D7]/60 justify-start">
+                    <button
+                      type="button"
+                      onClick={handlePrevDay}
+                      aria-label={selectedLang === 'EN' ? 'Previous Day' : 'Día Anterior'}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center shadow-xs active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.4] text-black" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextDay}
+                      aria-label={selectedLang === 'EN' ? 'Next Day' : 'Día Siguiente'}
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white hover:bg-[#FBBF24] text-black flex items-center justify-center shadow-xs active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.4] text-black" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* VIEW 4: TASKS VIEW (Exclusively shown in the "Tareas" tab view) */}
+        {viewMode === 'tasks' && (
+          <div className="space-y-4">
+            {/* Top Control Bar: Category Filters & "+ Tarea" Action */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#EAE2D7]/70">
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                {[
+                  { id: 'all', labelEN: 'All', labelES: 'Todas' },
+                  { id: 'assigned', labelEN: 'Teacher Assigned', labelES: 'Asignadas' },
+                  { id: 'personal', labelEN: 'Personal', labelES: 'Personales' },
+                  { id: 'completed', labelEN: 'Completed', labelES: 'Completadas' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setTaskFilter(f.id as any)}
+                    className={`text-xs px-2.5 sm:px-3 py-1 rounded-full font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                      taskFilter === f.id
+                        ? 'bg-[#1A1816] text-white shadow-2xs'
+                        : 'bg-white hover:bg-neutral-100 text-[#5C554E] hover:text-[#1A1816] border border-[#E0D19E]/60'
+                    }`}
+                  >
+                    {selectedLang === 'EN' ? f.labelEN : f.labelES}
+                  </button>
+                ))}
+              </div>
+
+              {/* + Tarea Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingTask(prev => !prev);
+                  setNewTaskDateKey(todayKey);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-neutral-100 text-[#1A1816] text-xs font-semibold border border-[#1A1816] transition-all active:scale-95 cursor-pointer shadow-2xs self-start sm:self-auto shrink-0"
+              >
+                <span className="w-4 h-4 rounded-full border border-[#1A1816] flex items-center justify-center shrink-0">
+                  <Plus className="w-2.5 h-2.5 stroke-[2.8]" />
+                </span>
+                <span>
+                  {isAddingTask
+                    ? (selectedLang === 'EN' ? 'Cancel' : 'Cancelar')
+                    : (selectedLang === 'EN' ? '+ Task' : '+ Tarea')}
+                </span>
+              </button>
+            </div>
+
+            {/* Inline Student Task Creation Form */}
+            {isAddingTask && (
+              <div className="p-4 rounded-[18px] bg-[#F8ECC0]/45 border border-[#E0D19E] space-y-3 shadow-xs animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#1A1816] block uppercase tracking-wide">
+                    {selectedLang === 'EN' ? 'New Task or Reminder' : 'Nueva Tarea o Recordatorio'}
+                  </span>
+                  <span className="text-[11px] text-[#7A736B]">
+                    {selectedLang === 'EN' ? 'Mandatory date required' : 'Fecha obligatoria'}
+                  </span>
+                </div>
+
+                {/* Mandatory Date Picker */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-semibold text-[#1A1816] shrink-0">
+                    {selectedLang === 'EN' ? 'Date:' : 'Fecha:'}
+                  </label>
+                  <input
+                    type="date"
+                    value={newTaskDateKey}
+                    onChange={(e) => setNewTaskDateKey(e.target.value)}
+                    required
+                    className="px-2.5 py-1 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] focus:outline-hidden focus:ring-1 focus:ring-[#1A1816] font-semibold"
+                  />
+                </div>
+
+                {/* Category selector pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'task', labelEN: 'Personal Task', labelES: 'Tarea personal' },
+                    { id: 'reminder', labelEN: 'Reminder', labelES: 'Recordatorio' },
+                    { id: 'interest', labelEN: 'Interest', labelES: 'Interés' },
+                    { id: 'goal', labelEN: 'Goal', labelES: 'Meta' },
+                    { id: 'event', labelEN: 'Event', labelES: 'Evento' },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setNewTaskCategory(cat.id as any)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full transition-colors cursor-pointer border ${
+                        newTaskCategory === cat.id
+                          ? 'bg-[#1A1816] text-white border-[#1A1816]'
+                          : 'bg-white text-[#5C554E] hover:text-[#1A1816] border-[#E4D4BE]/70'
+                      }`}
+                    >
+                      {selectedLang === 'EN' ? cat.labelEN : cat.labelES}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder={selectedLang === 'EN' ? 'Task title (required)...' : 'Título de la tarea (obligatorio)...'}
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] placeholder-[#A3988C] focus:outline-hidden focus:ring-1 focus:ring-[#1A1816] font-medium"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateStudentPersonalTask(newTaskDateKey);
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={newTaskObjective}
+                    onChange={(e) => setNewTaskObjective(e.target.value)}
+                    placeholder={selectedLang === 'EN' ? 'Details or notes (optional)...' : 'Detalles o recordatorio (opcional)...'}
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#E4D4BE] rounded-lg text-[#1A1816] placeholder-[#A3988C] focus:outline-hidden focus:ring-1 focus:ring-[#1A1816]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingTask(false);
+                      setNewTaskTitle('');
+                      setNewTaskObjective('');
+                    }}
+                    className="px-3 py-1.5 text-xs text-[#5C554E] hover:text-[#1A1816] rounded-full transition-colors cursor-pointer"
+                  >
+                    {selectedLang === 'EN' ? 'Cancel' : 'Cancelar'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!newTaskTitle.trim() || !newTaskDateKey || isSavingTask}
+                    onClick={() => handleCreateStudentPersonalTask(newTaskDateKey)}
+                    className="px-4 py-1.5 bg-[#1A1816] text-white text-xs font-semibold rounded-full hover:bg-[#332E29] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <span>{isSavingTask ? (selectedLang === 'EN' ? 'Saving...' : 'Guardando...') : (selectedLang === 'EN' ? 'Save Task' : 'Guardar Tarea')}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* List of Tasks */}
+            <div className="space-y-4">
+              {/* SECTION A: Teacher Assignments */}
+              {(taskFilter === 'all' || taskFilter === 'assigned') && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1A1816] uppercase tracking-wide flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                      {selectedLang === 'EN' ? 'Teacher Assignments & Practice' : 'Tareas Asignadas por el Docente'}
+                    </span>
+                    <span className="text-[11px] text-[#7A736B]">
+                      {selectedLang === 'EN' ? 'Curriculum Tasks' : 'Plan de Estudio'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {/* Real Firestore / Database assignments */}
+                    {assignments.map((assign) => (
+                      <div key={assign.id} className="p-3 sm:p-3.5 rounded-[14px] bg-[#F8ECC0]/30 border border-[#E0D19E]/60 flex items-center justify-between text-xs gap-3 shadow-2xs hover:border-[#1A1816]/30 transition-colors">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-[#1A1816] text-sm block truncate">{assign.title}</span>
+                            {assign.teacherName && (
+                              <span className="text-[10px] text-[#5C554E] px-2 py-0.5 rounded-full bg-white/80 border border-[#E0D19E]/50">
+                                {assign.teacherName}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-[#EF4444] font-semibold bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                              {selectedLang === 'EN' ? `Due: ${assign.dueDate || 'Class'}` : `Entrega: ${assign.dueDate || 'Clase'}`}
+                            </span>
+                          </div>
+                          <span className="text-xs text-[#5C554E] block truncate">{assign.objective}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextDate = prompt(
+                                selectedLang === 'EN'
+                                  ? `Schedule an extra practice session for "${assign.title}". Enter date (YYYY-MM-DD):`
+                                  : `Programa una fecha adicional de práctica en tu calendario para "${assign.title}". Ingresa fecha (AAAA-MM-DD):`,
+                                todayKey
+                              );
+                              if (nextDate && nextDate.trim()) {
+                                handleAddPracticeDateToAssignment(assign.id, nextDate.trim());
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-neutral-100 border border-[#1A1816]/40 text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                            title={selectedLang === 'EN' ? 'Add extra practice session date to calendar' : 'Programar fecha extra de práctica en calendario'}
+                          >
+                            <Calendar className="w-3 h-3 text-[#1A1816]" />
+                            <span>{selectedLang === 'EN' ? '+ Calendar' : '+ Calendario'}</span>
+                          </button>
+
+                          {onAskVoyager && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prompt = selectedLang === 'EN'
+                                  ? `[VOYAGER: Begin assignment "${assign.title}". Objective: ${assign.objective}]`
+                                  : `[VOYAGER: Inicia la tarea "${assign.title}". Objetivo: ${assign.objective}]`;
+                                onAskVoyager(prompt);
+                              }}
+                              className="px-3 py-1 bg-[#1A1816] text-white rounded-full text-xs hover:bg-[#332E29] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                            >
+                              <Play className="w-2.5 h-2.5 fill-white" />
+                              <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Curated baseline assignments */}
+                    {[
+                      {
+                        id: 'task-civics-128',
+                        title: selectedLang === 'EN' ? 'Civics 128: Branches of Government & Constitution' : 'Cívica 128: Ramas del Gobierno y Constitución',
+                        teacher: 'Alejandra François',
+                        due: '13/11/2026',
+                        objective: selectedLang === 'EN' ? 'Master the 3 branches of government and constitutional checks & balances.' : 'Entender las tres ramas del gobierno y el sistema de Pesos y Contrapesos.',
+                      },
+                      {
+                        id: 'task-medical-vocab',
+                        title: selectedLang === 'EN' ? 'Medical Vocabulary: Symptoms & Pharmacy Visit' : 'Vocabulario Médico: Síntomas y Farmacia',
+                        teacher: 'Alejandra François',
+                        due: '13/11/2026',
+                        objective: selectedLang === 'EN' ? 'Practice symptoms description, pharmacy conversations, and prescription comprehension.' : 'Vocabulario esencial para describir síntomas, consultas médicas y farmacia.',
+                      },
+                      {
+                        id: 'task-supermarket',
+                        title: selectedLang === 'EN' ? 'Supermarket Dialogues & Customer Service' : 'Simulación de Compra en Supermercado y Atención al Cliente',
+                        teacher: 'Alejandra François',
+                        due: '14/11/2026',
+                        objective: selectedLang === 'EN' ? 'Ask for item locations, check prices, and resolve billing questions with Voyager.' : 'Preguntar por productos, precios y resolver consultas en caja con Voyager.',
+                      },
+                      {
+                        id: 'task-n400',
+                        title: selectedLang === 'EN' ? 'Citizenship Interview Simulation: Form N-400' : 'Simulación de Entrevista de Ciudadanía: Formulario N-400',
+                        teacher: 'Alejandra François',
+                        due: '25/11/2026',
+                        objective: selectedLang === 'EN' ? 'Respond naturally and confidently to personal background, residence, and moral character questions.' : 'Responder con naturalidad y seguridad preguntas sobre antecedentes, residencia y carácter moral.',
+                      },
+                    ].map((task) => (
+                      <div key={task.id} className="p-3 sm:p-3.5 rounded-[14px] bg-[#F8ECC0]/30 border border-[#E0D19E]/60 flex items-center justify-between text-xs gap-3 shadow-2xs hover:border-[#1A1816]/30 transition-colors">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-[#1A1816] text-sm block truncate">{task.title}</span>
+                            <span className="text-[10px] text-[#5C554E] px-2 py-0.5 rounded-full bg-white/80 border border-[#E0D19E]/50">
+                              {task.teacher}
+                            </span>
+                            <span className="text-[10px] text-[#EF4444] font-semibold bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                              {selectedLang === 'EN' ? `Due: ${task.due}` : `Entrega: ${task.due}`}
+                            </span>
+                          </div>
+                          <span className="text-xs text-[#5C554E] block truncate">{task.objective}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextDate = prompt(
+                                selectedLang === 'EN'
+                                  ? `Schedule an extra practice session for "${task.title}". Enter date (YYYY-MM-DD):`
+                                  : `Programa una fecha adicional de práctica para "${task.title}". Ingresa fecha (AAAA-MM-DD):`,
+                                todayKey
+                              );
+                              if (nextDate && nextDate.trim()) {
+                                handleAddPracticeDateToAssignment(task.id, nextDate.trim());
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-white hover:bg-neutral-100 border border-[#1A1816]/40 text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                            title={selectedLang === 'EN' ? 'Add extra practice session date to calendar' : 'Programar fecha extra de práctica en calendario'}
+                          >
+                            <Calendar className="w-3 h-3 text-[#1A1816]" />
+                            <span>{selectedLang === 'EN' ? '+ Calendar' : '+ Calendario'}</span>
+                          </button>
+
+                          {onAskVoyager && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const prompt = selectedLang === 'EN'
+                                  ? `[VOYAGER: Begin assignment "${task.title}". Objective: ${task.objective}]`
+                                  : `[VOYAGER: Inicia la tarea "${task.title}". Objetivo: ${task.objective}]`;
+                                onAskVoyager(prompt);
+                              }}
+                              className="px-3 py-1 bg-[#1A1816] text-white rounded-full text-xs hover:bg-[#332E29] transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+                            >
+                              <Play className="w-2.5 h-2.5 fill-white" />
+                              <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION B: Student Personal Tasks */}
+              {(taskFilter === 'all' || taskFilter === 'personal' || taskFilter === 'completed') && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#1A1816] uppercase tracking-wide flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+                      {selectedLang === 'EN' ? 'My Personal Tasks & Goals' : 'Mis Tareas Personales y Metas'}
+                    </span>
+                    <span className="text-[11px] text-[#7A736B]">
+                      {personalTasks.length} {selectedLang === 'EN' ? 'registered' : 'registradas'}
+                    </span>
+                  </div>
+
+                  {personalTasks.filter(t => taskFilter === 'completed' ? t.completed : (taskFilter === 'personal' ? true : !t.completed)).length === 0 ? (
+                    <div className="p-4 rounded-[14px] bg-white/70 border border-[#E4D4BE]/60 text-center text-xs text-[#7A736B]">
+                      {taskFilter === 'completed'
+                        ? (selectedLang === 'EN' ? 'No completed personal tasks yet.' : 'Aún no tienes tareas personales completadas.')
+                        : (selectedLang === 'EN' ? 'No personal tasks added. Click "+ Task" to create one.' : 'No tienes tareas personales. Haz clic en "+ Tarea" para crear una.')}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {personalTasks
+                        .filter(t => taskFilter === 'completed' ? t.completed : (taskFilter === 'personal' ? true : !t.completed))
+                        .map((t) => (
+                          <div
+                            key={t.id}
+                            className="p-3 rounded-[14px] bg-white border border-[#E4D4BE]/70 flex items-center justify-between text-xs gap-3 shadow-2xs hover:border-[#1A1816]/30 transition-colors"
+                          >
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePersonalTask(t.id)}
+                                className="mt-0.5 text-neutral-500 hover:text-black cursor-pointer shrink-0"
+                                title={t.completed ? (selectedLang === 'EN' ? 'Mark incomplete' : 'Marcar pendiente') : (selectedLang === 'EN' ? 'Mark complete' : 'Marcar completada')}
+                              >
+                                {t.completed ? (
+                                  <CheckCircle2 className="w-4 h-4 text-[#059669] fill-[#059669]/20" />
+                                ) : (
+                                  <div className="w-4 h-4 rounded-full border-2 border-[#1A1816]/40 hover:border-[#1A1816]" />
+                                )}
+                              </button>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`font-semibold text-sm text-[#1A1816] truncate ${t.completed ? 'line-through text-[#7A736B]' : ''}`}>
+                                    {t.title}
+                                  </span>
+                                  <span className="text-[10px] font-normal text-[#5C554E] px-2 py-0.5 rounded-full bg-[#F8ECC0]/50 border border-[#E0D19E]/50">
+                                    {t.category === 'reminder' ? (selectedLang === 'EN' ? 'Reminder' : 'Recordatorio') :
+                                     t.category === 'goal' ? (selectedLang === 'EN' ? 'Goal' : 'Meta') :
+                                     t.category === 'event' ? (selectedLang === 'EN' ? 'Event' : 'Evento') :
+                                     t.category === 'interest' ? (selectedLang === 'EN' ? 'Interest' : 'Interés') :
+                                     (selectedLang === 'EN' ? 'Personal Task' : 'Tarea Personal')}
+                                  </span>
+                                  <span className="text-[10px] text-[#7A736B] font-mono">
+                                    {t.dateKey}
+                                  </span>
+                                </div>
+                                {t.objective && (
+                                  <span className="text-xs text-[#5C554E] block mt-0.5 truncate">{t.objective}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {onAskVoyager && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const prompt = selectedLang === 'EN'
+                                      ? `[VOYAGER: Student selected their task "${t.title}". Guide them in practice.]`
+                                      : `[VOYAGER: El estudiante seleccionó su tarea "${t.title}". Guíale en la práctica.]`;
+                                    onAskVoyager(prompt);
+                                  }}
+                                  className="px-2.5 py-1 bg-[#FAF6F0] hover:bg-[#F8ECC0]/60 border border-[#E0D19E] text-[#1A1816] rounded-full text-xs transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                                >
+                                  <Play className="w-2.5 h-2.5 fill-current" />
+                                  <span>{selectedLang === 'EN' ? 'Practice' : 'Practicar'}</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePersonalTask(t.id)}
+                                className="p-1 text-[#8C827A] hover:text-[#EF4444] transition-colors cursor-pointer"
+                                title={selectedLang === 'EN' ? 'Delete task' : 'Eliminar tarea'}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION C: Completed Tasks & Activities */}
+              {(taskFilter === 'all' || taskFilter === 'completed') && (
+                <div className="space-y-2 pt-2 border-t border-[#EAE2D7]/50">
+                  <span className="text-xs font-bold text-[#1A1816] uppercase tracking-wide flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                    {selectedLang === 'EN' ? 'Completed Tasks & Evaluations' : 'Tareas y Prácticas Completadas'}
+                  </span>
+
+                  <div className="space-y-1.5">
+                    {[
+                      {
+                        id: 'comp-subway',
+                        title: selectedLang === 'EN' ? 'NYC Subway Navigation & Urban Directions' : 'Navegación del Metro de NYC y Direcciones Urbanas',
+                        score: selectedLang === 'EN' ? 'Grade A' : 'Calificación A',
+                        duration: '18 min',
+                        date: '21/11/2026',
+                      },
+                      {
+                        id: 'comp-civics-1-20',
+                        title: selectedLang === 'EN' ? 'Civics Questions 1-20: Principles of Democracy' : 'Preguntas Cívicas 1-20: Principios de la Democracia',
+                        score: selectedLang === 'EN' ? 'Score: 100% (Grade A)' : 'Puntuación: 100% (Calificación A)',
+                        duration: '20 min',
+                        date: '25/11/2026',
+                      },
+                      {
+                        id: 'comp-consulate',
+                        title: selectedLang === 'EN' ? 'Consulate Oral Practice: Required Documentation' : 'Práctica Oral para el Consulado: Trámites y Documentación',
+                        score: selectedLang === 'EN' ? 'Grade A-' : 'Calificación A-',
+                        duration: '15 min',
+                        date: '25/11/2026',
+                      },
+                    ].map((comp) => (
+                      <div key={comp.id} className="p-3 rounded-[14px] bg-white border border-[#E4D4BE]/70 flex items-center justify-between text-xs gap-3 shadow-2xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-[#1A1816] block text-sm">{comp.title}</span>
+                            <span className="text-[11px] font-normal text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                              {comp.score}
+                            </span>
+                          </div>
+                          <span className="text-xs text-[#7A736B]">{comp.date} • {comp.duration} • {selectedLang === 'EN' ? 'Evaluated by Voyager' : 'Evaluado por Voyager'}</span>
+                        </div>
+                        <span className="text-xs text-[#059669] font-bold flex items-center gap-1 shrink-0">
+                          ✓ {selectedLang === 'EN' ? 'Completed' : 'Completada'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Status Indicator Legend */}
+            <div className="flex items-center gap-3 pt-3 border-t border-[#EAE2D7]/70 text-xs text-[#5C554E] flex-wrap justify-start">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                <span>{selectedLang === 'EN' ? 'Assigned' : 'Asignada'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+                <span>{selectedLang === 'EN' ? 'In progress' : 'En proceso'}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                <span>{selectedLang === 'EN' ? 'Completed' : 'Completada'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
-
-  return calendarContent;
 };

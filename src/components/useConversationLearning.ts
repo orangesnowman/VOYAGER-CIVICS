@@ -57,7 +57,11 @@ export function useConversationLearning() {
     profile.addAccentPatterns(result.updatedPatterns);
 
     // Sync back to local component states
-    setScores(result.updatedScores);
+    setScores({
+      ...result.updatedScores,
+      fluency: (result.updatedScores as any).fluency ?? result.updatedScores.naturalness ?? 74,
+      vocabulary: (result.updatedScores as any).vocabulary ?? result.updatedScores.grammar ?? 86
+    });
     setLearnedWords(profile.getLearnedWords());
     setAccentPatterns(profile.getAccentPatterns());
   }, [scores, learnedWords, accentPatterns, pronunciationEvents, handleNewCoachingEvent, profile]);

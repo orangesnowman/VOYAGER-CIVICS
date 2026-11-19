@@ -53,7 +53,23 @@ export const translations = {
     pauseTooltip: "Pause",
     resumeTooltip: "Resume",
     myGroup: "My Group",
-    tasks: "Tasks"
+    tasks: "Tasks",
+    personalInfo: "Personal Information",
+    myConversations: "My Conversations",
+    myLessons: "My Lessons",
+    exploreLessons: "Explore Lessons",
+    newConversation: "New conversation",
+    searchPlaceholder: "Search...",
+    noConversations: "No saved conversations",
+    noLessons: "No active lessons",
+    rename: "Rename",
+    delete: "Delete",
+    back: "Back",
+    deleteConfirm: "Delete conversation?",
+    confirmDelete: "Delete",
+    cancel: "Cancel",
+    inProgress: "In progress",
+    completed: "Completed"
   },
   ES: {
     standby: "EN ESPERA",
@@ -107,7 +123,23 @@ export const translations = {
     pauseTooltip: "Pausar",
     resumeTooltip: "Reanudar",
     myGroup: "Mi Grupo",
-    tasks: "Tareas"
+    tasks: "Tareas",
+    personalInfo: "Información Personal",
+    myConversations: "Mis conversaciones",
+    myLessons: "Mis lecciones",
+    exploreLessons: "Explorar lecciones",
+    newConversation: "Nueva conversación",
+    searchPlaceholder: "Buscar...",
+    noConversations: "Sin conversaciones guardadas",
+    noLessons: "Sin lecciones activas",
+    rename: "Renombrar",
+    delete: "Eliminar",
+    back: "Volver",
+    deleteConfirm: "¿Eliminar conversación?",
+    confirmDelete: "Eliminar",
+    cancel: "Cancelar",
+    inProgress: "En curso",
+    completed: "Completada"
   }
 };
 

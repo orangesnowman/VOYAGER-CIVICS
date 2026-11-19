@@ -1,12 +1,52 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, ChevronLeft, ChevronRight, ArrowRight, X, Volume2, BookOpen, CheckCircle2, Clock, Trash2, Share2, ExternalLink, Copy, Check, FileText, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  ArrowRight, 
+  X, 
+  BookOpen, 
+  CheckCircle2, 
+  Clock, 
+  Trash2, 
+  ExternalLink, 
+  Copy, 
+  Check, 
+  FileText, 
+  Loader2, 
+  GraduationCap, 
+  Sparkles, 
+  Compass, 
+  Bookmark, 
+  BookmarkCheck,
+  AlertCircle,
+  MessageSquareQuote,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Square,
+  CheckSquare,
+  Play,
+  Info
+} from 'lucide-react';
 import { createGoogleDoc } from '../services/googleDocsService';
+import { VoyagerFundamentalsCard } from './VoyagerFundamentalsCard';
+import { VoyagerFundamentalsModal } from './VoyagerFundamentalsModal';
+import { VOYAGER_FUNDAMENTALS_LESSONS, FundamentalsLesson } from '../data/voyagerFundamentalsData';
+import { getMasterLessons } from '../data/masterLessonsData';
+import { 
+  UnifiedAssignment, 
+  fetchUnifiedStudentAssignments, 
+  updateUnifiedAssignmentStatus,
+  FetchAssignmentsResult
+} from '../services/teacherStudentService';
 
 export interface UserProfile {
+  id?: string;
+  uid?: string;
   name?: string;
   firstName?: string;
   lastName?: string;
+  email?: string;
   englishLevel?: string;
+  cefrLevel?: string;
   learningGoal?: string;
   interests?: string;
   completedDays?: number[];
@@ -19,7 +59,6 @@ export interface ActiveLesson {
   title: string;
   subtitle: string;
   category: string;
-  imageUrl: string;
   level: string;
   estimatedMinutes: number;
   objective: string;
@@ -42,6 +81,8 @@ interface RecommendedProLessonsCarouselProps {
   civicsScore?: number;
   selectedLang: string;
   onAskVoyager?: (text: string) => void;
+  onStartLesson?: (lesson: any, assignment?: any) => void;
+  hideHeader?: boolean;
 }
 
 export interface ProLesson {
@@ -49,14 +90,16 @@ export interface ProLesson {
   title: string;
   subtitle: string;
   category: string;
-  imageUrl: string; // Square scenario image
   skillImproved: string;
-  objective: string; // Pedagogical objective
+  objective: string;
   whatItIs: string;
-  perfectMatchReason: string;
-  keyOutcomes: string[];
-  level: string;
+  perfectMatchReason?: string;
+  keyOutcomes?: string[];
+  level: string; // Genuine CEFR level
   estimatedMinutes: number;
+  tags?: string[];
+  imageUrl?: string;
+  instructions?: string;
 }
 
 export const RecommendedProLessonsCarousel: React.FC<RecommendedProLessonsCarouselProps> = ({
@@ -66,64 +109,42 @@ export const RecommendedProLessonsCarousel: React.FC<RecommendedProLessonsCarous
   civicsScore,
   selectedLang,
   onAskVoyager,
+  onStartLesson,
+  hideHeader = false,
 }) => {
+  // ───────────────────────────────────────────────────────────────────────────
+  // STATE MANAGEMENT
+  // ───────────────────────────────────────────────────────────────────────────
   const [selectedLesson, setSelectedLesson] = useState<ProLesson | null>(null);
+  const [selectedFundamentalsLesson, setSelectedFundamentalsLesson] = useState<FundamentalsLesson | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [playingLessonId, setPlayingLessonId] = useState<string | null>(null);
 
-  const handlePlayLessonAudio = (e: React.MouseEvent, lesson: ProLesson) => {
-    e.stopPropagation();
-    if (playingLessonId === lesson.id) {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-      setPlayingLessonId(null);
-      return;
-    }
+  // Unified Assignments State
+  const [assignmentData, setAssignmentData] = useState<FetchAssignmentsResult>({
+    assignments: [],
+    source: 'empty',
+    isDemoMode: false
+  });
+  const [isAssignmentsLoading, setIsAssignmentsLoading] = useState(true);
+  const [selectedAssignment, setSelectedAssignment] = useState<UnifiedAssignment | null>(null);
 
-    setPlayingLessonId(lesson.id);
-
-    // Cancel any browser speech synthesis completely so the robotic browser voice NEVER speaks
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch (err) {}
-    }
-
-    // Clear active pulse animation after Voyager begins explanation
-    setTimeout(() => {
-      setPlayingLessonId(null);
-    }, 7000);
-
-    if (typeof onAskVoyager === 'function') {
-      const prompt = selectedLang === 'EN'
-        ? `[AUTO_SYSTEM: MANDATORY VOYAGER VOICE INSTRUCTION]
-As USA Voyager, speak directly to the student in your warm, encouraging voice.
-Explain this lesson scenario in 2-3 engaging, clear sentences: "${lesson.title} - ${lesson.subtitle}".
-Explain why mastering this practical situational skill is essential for real communication in the United States, and invite them warmly to click "Practice Scenario" to begin.
-MANDATORY: Speak aloud in your official Voyager voice only.`
-        : `[AUTO_SYSTEM: INSTRUCCIÓN MANDATORIA DE VOZ DE VOYAGER]
-Como USA Voyager, habla directamente al estudiante con tu voz oficial cálida y motivadora en español.
-Explica este escenario de lección en 2 o 3 oraciones claras y atractivas: "${lesson.title} - ${lesson.subtitle}".
-Explícale por qué dominar esta habilidad práctica situacional es fundamental para su comunicación real en Estados Unidos, y anímalo amablemente a hacer clic en "Practicar Escenario" cuando esté listo.
-MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
-      onAskVoyager(prompt);
-    }
-  };
-  
+  // Scenario Selector inside modal
   const [selectedScenarioOption, setSelectedScenarioOption] = useState<string>('default');
   const [customScenarioText, setCustomScenarioText] = useState<string>('');
 
-  // Catalog Filter State: 'all' | 'saved' | 'in_progress' | 'completed' | 'create_custom'
-  type CatalogFilter = 'all' | 'saved' | 'in_progress' | 'completed' | 'create_custom';
-  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('all');
-  const [customTitle, setCustomTitle] = useState('');
-  const [customDesc, setCustomDesc] = useState('');
-  const [customCategory, setCustomCategory] = useState(selectedLang === 'EN' ? 'Custom Practice' : 'Práctica Personalizada');
+  // Catalog Tab State & Pagination (3 tabs: Asignadas, Por completar, Completadas)
+  type CatalogTabType = 'assigned' | 'to_complete' | 'completed';
+  const [activeTab, setActiveTab] = useState<CatalogTabType>('assigned');
+  const [catalogPage, setCatalogPage] = useState<number>(1);
+  const [detailedItemIndex, setDetailedItemIndex] = useState<number | null>(null);
+  const itemsPerPage = 8;
+  const [selectedLessonRelevance, setSelectedLessonRelevance] = useState<{ score: number; reasonEN: string; reasonES: string } | null>(null);
 
-  // Active / Saved Lessons State ("Mis Lecciones")
+  // Explore Filter Category: 'all' | 'career' | 'civics' | 'daily' | 'travel' | 'health' | 'saved'
+  const [exploreCategory, setExploreCategory] = useState<string>('all');
+
+  // Active / Saved Lessons in LocalStorage
   const [myLessons, setMyLessons] = useState<ActiveLesson[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -143,61 +164,47 @@ MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
     }
   };
 
-  const handleAddToCollection = (lesson: ProLesson) => {
-    const exists = myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
-    if (exists) {
-      setToastMessage(selectedLang === 'EN' ? 'Already saved in your catalog!' : '¡Ya está guardada en tu catálogo!');
-      setTimeout(() => setToastMessage(null), 3000);
-      return;
+  // Google NotebookLM & Google Doc states
+  const [copiedNotebookSource, setCopiedNotebookSource] = useState(false);
+  const [isExportingGoogleDoc, setIsExportingGoogleDoc] = useState(false);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // LOAD TEACHER ASSIGNMENTS (Unified Data-Provider Architecture)
+  // ───────────────────────────────────────────────────────────────────────────
+  const loadAssignments = async () => {
+    setIsAssignmentsLoading(true);
+    try {
+      const studentId = user?.id || user?.uid || 'STU-001';
+      const studentEmail = user?.email || 'theorangesnowman@gmail.com';
+      const result = await fetchUnifiedStudentAssignments(studentId, studentEmail);
+      setAssignmentData(result);
+    } catch (err) {
+      console.error('Failed to load unified assignments:', err);
+      setAssignmentData({
+        assignments: [],
+        source: 'empty',
+        isDemoMode: false,
+        error: 'Error loading assignments'
+      });
+    } finally {
+      setIsAssignmentsLoading(false);
     }
-
-    const newActiveLesson: ActiveLesson = {
-      id: `user-active-${Date.now()}`,
-      lessonId: lesson.id,
-      title: lesson.title,
-      subtitle: lesson.subtitle,
-      category: lesson.category,
-      imageUrl: lesson.imageUrl,
-      level: lesson.level,
-      estimatedMinutes: lesson.estimatedMinutes,
-      objective: lesson.objective,
-      scenario: lesson.category,
-      status: 'in_progress',
-      progressPercentage: 25,
-      startedAt: new Date().toISOString()
-    };
-
-    const updated = [newActiveLesson, ...myLessons];
-    saveMyLessonsToStorage(updated);
-    setToastMessage(selectedLang === 'EN' ? 'Saved to Lesson Catalog!' : '¡Guardado en el Catálogo de Lecciones!');
-    setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleCreateCustomScenario = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customTitle.trim()) return;
+  useEffect(() => {
+    loadAssignments();
 
-    const newLesson: ProLesson = {
-      id: `custom-scen-${Date.now()}`,
-      title: customTitle.trim(),
-      subtitle: customDesc.trim() || (selectedLang === 'EN' ? 'Custom scenario created by learner.' : 'Escenario personalizado creado por el estudiante.'),
-      category: customCategory.trim() || (selectedLang === 'EN' ? 'Custom Practice' : 'Práctica Libre'),
-      imageUrl: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=600&q=80',
-      skillImproved: 'Custom Practice',
-      objective: customDesc.trim() || customTitle.trim(),
-      whatItIs: customTitle.trim(),
-      perfectMatchReason: 'Custom scenario created by learner.',
-      keyOutcomes: ['Tailored practice', 'Personalized vocabulary'],
-      level: user?.englishLevel || 'B2',
-      estimatedMinutes: 15
+    const handleAssignmentsUpdated = () => {
+      loadAssignments();
     };
 
-    handleAddToCollection(newLesson);
-    setCustomTitle('');
-    setCustomDesc('');
-    setCatalogFilter('saved');
-  };
+    window.addEventListener('voyager_assignments_updated', handleAssignmentsUpdated);
+    return () => {
+      window.removeEventListener('voyager_assignments_updated', handleAssignmentsUpdated);
+    };
+  }, [user?.id, user?.uid, user?.email]);
 
+  // Sync active lessons
   useEffect(() => {
     const syncActiveLessons = () => {
       if (typeof window !== 'undefined') {
@@ -215,518 +222,304 @@ MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
     };
   }, []);
 
-  const [copiedNotebookSource, setCopiedNotebookSource] = useState(false);
-  const [showNotebookModal, setShowNotebookModal] = useState(false);
-
-  const generateNotebookLMText = (lesson: ProLesson, scenarioText: string) => {
-    const studentName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Estudiante Voyager');
-    const level = lesson.level || user?.englishLevel || 'Intermedio';
-    return `# 📓 USA Voyager Lesson Plan: ${lesson.title}
-
-## 👤 Learner Profile
-- **Student**: ${studentName}
-- **English Level**: ${level}
-- **Category**: ${lesson.category}
-- **Scenario Context**: ${scenarioText}
-- **Target Skill**: ${lesson.skillImproved}
-- **Estimated Duration**: ${lesson.estimatedMinutes} minutes
-
-## 🎯 Pedagogical Objective
-${lesson.objective}
-
-## 💡 Why Recommended by Voyager AI
-${lesson.perfectMatchReason}
-
-## 🗣️ Audio & Speech Practice Guidelines
-1. **Scenario Setup**: Practice real-world spoken interactions in the "${scenarioText}" context.
-2. **Focus**: Eliminate hesitation gaps, master natural transition connectors, and improve vocal confidence.
-3. **Voice Tutor**: USA Voyager AI Voice Coach.
-
-## 📝 Google NotebookLM Study Instructions
-- Import this source into your Google NotebookLM notebook (https://notebooklm.google.com).
-- Use NotebookLM to create Audio Overviews, generate practice quizzes, summarize key vocabulary, and create flashcards tailored to this lesson plan!
-`;
-  };
-
-  const handleCopyNotebookLM = (lesson: ProLesson, scenarioText: string) => {
-    const content = generateNotebookLMText(lesson, scenarioText);
-    navigator.clipboard.writeText(content);
-    setCopiedNotebookSource(true);
-    setToastMessage(selectedLang === 'EN' ? 'Copied Lesson Plan for Google NotebookLM!' : '¡Plan de Lección copiado para Google NotebookLM!');
-    setTimeout(() => setCopiedNotebookSource(false), 3000);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-  const [isExportingGoogleDoc, setIsExportingGoogleDoc] = useState(false);
-
-  const handleExportGoogleDoc = async (lesson: ProLesson, scenarioText: string) => {
-    try {
-      setIsExportingGoogleDoc(true);
-      const content = generateNotebookLMText(lesson, scenarioText);
-      const docTitle = `USA Voyager - ${lesson.title}`;
-      const result = await createGoogleDoc(docTitle, content);
-      setToastMessage(selectedLang === 'EN' ? 'Google Doc created in your Drive!' : '¡Documento de Google creado en tu Google Drive!');
-      window.open(result.documentUrl, '_blank');
-    } catch (err: any) {
-      console.error('Google Doc creation error:', err);
-      setToastMessage(err?.message || 'Failed to create Google Doc');
-    } finally {
-      setIsExportingGoogleDoc(false);
-      setTimeout(() => setToastMessage(null), 5000);
-    }
-  };
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  // Clean speech synthesis cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, []);
-
-  // Helper to extract clean percentages
+  // ───────────────────────────────────────────────────────────────────────────
+  // SCORES & PROFILE METRICS
+  // ───────────────────────────────────────────────────────────────────────────
   const getPct = (val?: number, fallback: number = 80) => {
     if (val === undefined || val === null || val <= 0) return fallback;
     if (val <= 5) return Math.min(100, Math.round(val * 20));
     return Math.min(100, Math.round(val));
   };
 
-  // Helpers for In Progress completion percentage indicator without bars or boxes
-  const getLessonProgress = (item: ActiveLesson): number => {
-    if (item.status === 'completed') return 100;
-    if (typeof item.progressPercentage === 'number' && item.progressPercentage > 0) {
-      return Math.min(99, Math.max(10, Math.round(item.progressPercentage)));
-    }
-    let hash = 0;
-    const key = item.id || item.title || 'lesson';
-    for (let i = 0; i < key.length; i++) {
-      hash = (hash << 5) - hash + key.charCodeAt(i);
-      hash |= 0;
-    }
-    return 30 + (Math.abs(hash) % 51);
-  };
-
-  // Subtle text color progression reflecting completion percentage
-  const getProgressColor = (pct: number): string => {
-    if (pct >= 80) return 'text-emerald-700';
-    if (pct >= 60) return 'text-amber-800';
-    if (pct >= 40) return 'text-amber-700';
-    if (pct >= 20) return 'text-amber-600';
-    return 'text-neutral-500';
-  };
-
-  // Subtle font weight progression reflecting completion percentage
-  const getProgressWeight = (pct: number): string => {
-    if (pct >= 80) return 'font-bold';
-    if (pct >= 60) return 'font-semibold';
-    if (pct >= 40) return 'font-medium';
-    return 'font-normal';
-  };
-
   const pronunciation = getPct(scores?.pronunciation || pronunciationScore, 82);
   const fluency = getPct(scores?.fluency, 74);
   const vocabulary = getPct(scores?.vocabulary, 88);
   const confidence = getPct(scores?.confidence, 68);
-  const civics = getPct(civicsScore, 11);
-  const level = user?.englishLevel || 'B2';
-  const goal = user?.learningGoal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Viajes y Conversación Diaria');
-  const interests = user?.interests || (selectedLang === 'EN' ? 'Travel, technology, music' : 'Viajes, tecnología, música');
+  const civics = getPct(civicsScore, 15);
+  const currentLevel = user?.englishLevel || user?.cefrLevel || 'B2';
+  const learningGoal = user?.learningGoal || (selectedLang === 'EN' ? 'Travel & Daily Conversation' : 'Viajes y Conversación Diaria');
+  const interests = user?.interests || (selectedLang === 'EN' ? 'Travel, technology, business' : 'Viajes, tecnología, negocios');
 
-  // Build catalog scenarios for student self-selection
-  const catalogScenarios: ProLesson[] = [
-    {
-      id: 'cat-job-interview',
-      title: selectedLang === 'EN' ? 'Job Interview & Career Pitch' : 'Entrevista de Trabajo y Carrera',
-      subtitle: selectedLang === 'EN' 
-        ? 'Practice answering tough behavioral questions in US business interviews.' 
-        : 'Practica responder preguntas situacionales en entrevistas laborales de EE.UU.',
-      category: selectedLang === 'EN' ? 'Career & Business' : 'Negocios y Carrera',
-      imageUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Professional Pitch (+15%)' : 'Discurso Profesional (+15%)',
-      objective: selectedLang === 'EN'
-        ? 'Master the STAR method (Situation, Task, Action, Result) for job interviews in English.'
-        : 'Domina el método STAR (Situación, Tarea, Acción, Resultado) para entrevistas de trabajo en inglés.',
-      whatItIs: selectedLang === 'EN' ? 'US Business Interview Simulation' : 'Simulación de Entrevista de Trabajo en EE.UU.',
-      perfectMatchReason: 'Self-chosen scenario for professional career advancement.',
-      keyOutcomes: ['Behavioral interview mastery', 'Salary discussion confidence', 'STAR response framework'],
-      level: 'B2',
-      estimatedMinutes: 20
-    },
-    {
-      id: 'cat-airport-tsa',
-      title: selectedLang === 'EN' ? 'Airport, TSA & Customs Clearance' : 'Aeropuerto, Aduanas y Conexiones',
-      subtitle: selectedLang === 'EN' 
-        ? 'Navigate TSA security, customs declarations, and airline gate changes smoothly.' 
-        : 'Navega seguridad de TSA, aduanas y cambios de puerta de embarque con fluidez.',
-      category: selectedLang === 'EN' ? 'Travel & Transit' : 'Viajes y Tránsito',
-      imageUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Travel Confidence (+18%)' : 'Confianza en Viajes (+18%)',
-      objective: selectedLang === 'EN'
-        ? 'Respond quickly and clearly to US border officers and airport personnel.'
-        : 'Responde de forma rápida y clara a oficiales de inmigración y personal aeroportuario.',
-      whatItIs: selectedLang === 'EN' ? 'US Airport Navigation & Immigration' : 'Navegación Aeroportuaria e Inmigración en EE.UU.',
-      perfectMatchReason: 'Self-chosen scenario for travel & daily mobility.',
-      keyOutcomes: ['TSA checkpoint phrasing', 'Customs declaration speech', 'Flight rebooking fluency'],
-      level: 'A2-B1',
-      estimatedMinutes: 15
-    },
-    {
-      id: 'cat-doctor-pharmacy',
-      title: selectedLang === 'EN' ? 'Doctor Visit & Prescription Pharmacy' : 'Consulta Médica y Farmacia',
-      subtitle: selectedLang === 'EN' 
-        ? 'Describe symptoms, medical history, and medication dosage clearly to US doctors.' 
-        : 'Describe síntomas, historial médico y dosis de medicamentos claramente a médicos en EE.UU.',
-      category: selectedLang === 'EN' ? 'Health & Living' : 'Salud y Bienestar',
-      imageUrl: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Medical Vocabulary (+20%)' : 'Vocabulario Médico (+20%)',
-      objective: selectedLang === 'EN'
-        ? 'Communicate symptoms accurately and understand doctor instructions for prescriptions.'
-        : 'Comunica síntomas con precisión y comprende las indicaciones médicas para recetas.',
-      whatItIs: selectedLang === 'EN' ? 'US Healthcare System Communication' : 'Comunicación en el Sistema de Salud de EE.UU.',
-      perfectMatchReason: 'Self-chosen scenario for health & essential living.',
-      keyOutcomes: ['Symptom description fluency', 'Pharmacy refill requests', 'Emergency communication'],
-      level: 'B1',
-      estimatedMinutes: 15
-    },
-    {
-      id: 'cat-civics-128',
-      title: selectedLang === 'EN' ? 'US Citizenship & USCIS Interview' : 'Cívica y Entrevista de Ciudadanía',
-      subtitle: selectedLang === 'EN' 
-        ? 'Practice the official USCIS 128 civics questions and naturalization interview.' 
-        : 'Practica las 128 preguntas oficiales de cívica y la entrevista de naturalización de USCIS.',
-      category: selectedLang === 'EN' ? 'Civics & Rights' : 'Cívica y Derechos',
-      imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Citizenship Test Readiness (+25%)' : 'Preparación de Ciudadanía (+25%)',
-      objective: selectedLang === 'EN'
-        ? 'Answer officer questions about US history, government, and personal N-400 application.'
-        : 'Responde preguntas del oficial sobre historia, gobierno y tu solicitud N-400.',
-      whatItIs: selectedLang === 'EN' ? 'USCIS Naturalization Oral Test' : 'Examen Oral de Naturalización USCIS',
-      perfectMatchReason: 'Self-chosen scenario for US citizenship preparation.',
-      keyOutcomes: ['USCIS officer dialogue', '128 Civics question mastery', 'N-400 personal history review'],
-      level: 'B1-B2',
-      estimatedMinutes: 20
-    },
-    {
-      id: 'cat-restaurant-dining',
-      title: selectedLang === 'EN' ? 'Restaurant Ordering & Coffee Shop' : 'Restaurante, Cafetería y Pedidos',
-      subtitle: selectedLang === 'EN' 
-        ? 'Order food, ask for dietary customizations, and split bills effortlessly.' 
-        : 'Pide comida, solicita modificaciones y divide la cuenta sin dudar.',
-      category: selectedLang === 'EN' ? 'Social & Dining' : 'Vida Social y Comida',
-      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Spoken Speed (+14%)' : 'Velocidad al Hablar (+14%)',
-      objective: selectedLang === 'EN'
-        ? 'Speak naturally with waitstaff in fast-paced American dining environments.'
-        : 'Habla con naturalidad con camareros en restaurantes y cafeterías de EE.UU.',
-      whatItIs: selectedLang === 'EN' ? 'Everyday Social Dining Interaction' : 'Interacción Social Diaria en Restaurantes',
-      perfectMatchReason: 'Self-chosen scenario for social confidence.',
-      keyOutcomes: ['Dietary restriction phrasing', 'Tipping and payment protocol', 'Polite order modifications'],
-      level: 'A2-B1',
-      estimatedMinutes: 10
-    },
-    {
-      id: 'cat-apartment-lease',
-      title: selectedLang === 'EN' ? 'Apartment Rental & Landlord Terms' : 'Alquiler de Vivienda y Contrato',
-      subtitle: selectedLang === 'EN' 
-        ? 'Discuss lease terms, security deposits, utilities, and maintenance requests.' 
-        : 'Discute términos del contrato, depósitos, servicios públicos y solicitudes de mantenimiento.',
-      category: selectedLang === 'EN' ? 'Housing & Living' : 'Vivienda y Hogar',
-      imageUrl: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Contract Vocabulary (+16%)' : 'Vocabulario de Contratos (+16%)',
-      objective: selectedLang === 'EN'
-        ? 'Negotiate lease details and report apartment maintenance issues clearly.'
-        : 'Negocia detalles de alquiler y reporta problemas de mantenimiento con claridad.',
-      whatItIs: selectedLang === 'EN' ? 'US Real Estate & Housing Negotiation' : 'Negociación Inmobiliaria y Vivienda en EE.UU.',
-      perfectMatchReason: 'Self-chosen scenario for living in the US.',
-      keyOutcomes: ['Lease agreement terms', 'Maintenance ticket requests', 'Utility setup conversations'],
-      level: 'B1-B2',
-      estimatedMinutes: 15
+  // ───────────────────────────────────────────────────────────────────────────
+  // MASTER LESSON CATALOG (Authentic CEFR levels, relevant images & pedagogy)
+  // ───────────────────────────────────────────────────────────────────────────
+  const allMasterLessons: ProLesson[] = getMasterLessons(selectedLang as any) as ProLesson[];
+
+  const getLessonImageUrl = (lessonId: string, category?: string): string => {
+    const match = allMasterLessons.find(l => l.id === lessonId);
+    if (match?.imageUrl) return match.imageUrl;
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('civic') || cat.includes('cívic')) {
+      return '/assets/lessons/cat-american-flag.svg';
     }
-  ];
-  const lessons: ProLesson[] = [
-    {
-      id: 'pro-fluency-1',
-      title: selectedLang === 'EN' 
-        ? 'Native Connector Mastery & Speech Rhythm' 
-        : 'Dominio de Conectores Nativos y Ritmo de Habla',
-      subtitle: selectedLang === 'EN'
-        ? 'Learn to link sentences effortlessly and eliminate hesitation gaps.'
-        : 'Aprende a enlazar oraciones naturalmente y eliminar muletillas al hablar.',
-      category: selectedLang === 'EN' ? 'Speech Flow' : 'Fluidez Verbal',
-      imageUrl: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Fluency (+12%)' : 'Fluidez (+12%)',
-      objective: selectedLang === 'EN'
-        ? 'Master native transition connectors to bridge ideas seamlessly without pauses.'
-        : 'Dominar conectores de transición para enlazar ideas con fluidez y sin pausas.',
-      whatItIs: selectedLang === 'EN'
-        ? 'An intensive AI speech-flow workshop.'
-        : 'Un taller intensivo de habla para conectar ideas.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Your current Fluency is ${fluency}%. Voyager detected brief hesitation pauses during multi-clause sentences.`
-        : `Tu fluidez actual es del ${fluency}%. Voyager detectó pausas breves al formar oraciones compuestas.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 15,
-    },
-    {
-      id: 'pro-confidence-2',
-      title: selectedLang === 'EN'
-        ? 'Spontaneous Impromptu & Assertiveness Workshop'
-        : 'Técnicas de Improvisación y Conversación Espontánea',
-      subtitle: selectedLang === 'EN'
-        ? 'Overcome fear of mistakes and speak assertively with native speakers.'
-        : 'Supera el temor al error y habla con seguridad ante hablantes nativos.',
-      category: selectedLang === 'EN' ? 'Confidence' : 'Confianza',
-      imageUrl: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Confidence (+15%)' : 'Confianza (+15%)',
-      objective: selectedLang === 'EN'
-        ? 'Develop rapid response drills and vocal projection to speak assertively.'
-        : 'Desarrollar reflejos de respuesta rápida y proyección vocal para hablar con seguridad.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Spontaneous response drills for confidence.'
-        : 'Ejercicios de respuesta rápida para ganar seguridad.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Your Confidence score is at ${confidence}%, making it your highest growth area.`
-        : `Tu nivel de Confianza está en ${confidence}%, siendo tu mayor oportunidad de avance.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 20,
-    },
-    {
-      id: 'pro-pronunciation-3',
-      title: selectedLang === 'EN'
-        ? 'Difficult Phonemes: /th/, /v/ & Short Vowels'
-        : 'Taller de Sonidos /th/, /v/ y Vocales Cortas',
-      subtitle: selectedLang === 'EN'
-        ? 'Fine-tune mouth muscle placement for clear, accent-free speech.'
-        : 'Ajusta la colocación muscular de la boca para lograr un acento claro.',
-      category: selectedLang === 'EN' ? 'Pronunciation' : 'Pronunciación',
-      imageUrl: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Pronunciation (+8%)' : 'Pronunciación (+8%)',
-      objective: selectedLang === 'EN'
-        ? 'Train physical tongue positioning for /th/ phonemes and schwa vowel reduction.'
-        : 'Entrenar la colocación de la lengua en el sonido /th/ y la reducción vocálica schwa.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Phonetics masterclass for tricky sounds.'
-        : 'Clase de fonética para sonidos difíciles.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `With ${pronunciation}% Pronunciation, audio analysis identified micro-slips on 'th' sounds.`
-        : `Con ${pronunciation}% en Pronunciación, se detectaron deslices en el sonido 'th'.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 12,
-    },
-    {
-      id: 'pro-civics-4',
-      title: selectedLang === 'EN'
-        ? 'US Citizenship N-400 Oral Interview Simulator'
-        : 'Simulador Oral N-400: Rama Ejecutiva y Gobierno',
-      subtitle: selectedLang === 'EN'
-        ? 'Simulate real oral questions and official answers for naturalization.'
-        : 'Ensayos reales de preguntas y respuestas oficiales para el examen de naturalización.',
-      category: selectedLang === 'EN' ? 'Civics' : 'Educación Cívica',
-      imageUrl: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Civics (+20%)' : 'Educación Cívica (+20%)',
-      objective: selectedLang === 'EN'
-        ? 'Practice official USCIS civics questions and N-400 application vocabulary.'
-        : 'Practicar preguntas oficiales de USCIS y vocabulario de la solicitud N-400.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Realistic oral citizenship interview.'
-        : 'Simulacro oral de la entrevista de ciudadanía.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `You have mastered ${civics}% of civics questions so far.`
-        : `Has dominado el ${civics}% de las preguntas cívicas.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 25,
-    },
-    {
-      id: 'pro-travel-5',
-      title: selectedLang === 'EN'
-        ? 'Advanced Airport, Customs & Rebooking Crisis'
-        : 'Negociación en Aeropuertos, Aduanas y Vuelos',
-      subtitle: selectedLang === 'EN'
-        ? 'Handle unexpected travel incidents with precise English phrases.'
-        : 'Afronta imprevistos en viajes internacionales con vocabulario preciso.',
-      category: selectedLang === 'EN' ? 'Travel' : 'Viajes',
-      imageUrl: 'https://images.unsplash.com/photo-1530521954074-e64f6810b32d?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Travel (+10%)' : 'Viajes (+10%)',
-      objective: selectedLang === 'EN'
-        ? 'Apply polite negotiation techniques to resolve airport and travel incidents.'
-        : 'Aplicar técnicas de negociación educada para resolver imprevistos de viaje.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Travel scenarios and flight incident handling.'
-        : 'Escenarios de viajes e imprevistos de vuelos.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Your primary goal explicitly includes '${goal}'.`
-        : `Tu meta principal incluye '${goal}'.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 18,
-    },
-    {
-      id: 'pro-tech-6',
-      title: selectedLang === 'EN'
-        ? 'AI & Tech Debate: Silicon Valley Phrasal Verbs'
-        : 'Debates Tecnológicos, IA y Jerga de Silicio',
-      subtitle: selectedLang === 'EN'
-        ? 'Express sophisticated opinions on innovation and tech topics.'
-        : 'Expresa opiniones sofisticadas sobre tecnología, ciencia e innovación.',
-      category: selectedLang === 'EN' ? 'Technology' : 'Tecnología',
-      imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Tech (+12%)' : 'Tecnología (+12%)',
-      objective: selectedLang === 'EN'
-        ? 'Incorporate technical phrasal verbs to structure arguments in tech discussions.'
-        : 'Incorporar verbos compuestos técnicos para estructurar argumentos en debates.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Debate module on technology and AI.'
-        : 'Debates sobre tecnología e innovación.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Tailored to your interest in '${interests}'.`
-        : `Diseñado para tu interés en '${interests}'.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 20,
-    },
-    {
-      id: 'pro-music-7',
-      title: selectedLang === 'EN'
-        ? 'Pop Culture Idioms & Everyday Metaphors'
-        : 'Modismos Americanos en la Cultura Pop y Música',
-      subtitle: selectedLang === 'EN'
-        ? 'Decode double meanings, slang, and cultural references in media.'
-        : 'Comprende metáforas, doble sentido e indirectas de la cultura estadounidense.',
-      category: selectedLang === 'EN' ? 'Culture' : 'Cultura y Música',
-      imageUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Culture (+10%)' : 'Cultura (+10%)',
-      objective: selectedLang === 'EN'
-        ? 'Understand widespread American idioms and humor nuances.'
-        : 'Comprender modismos americanos frecuentes y sutilezas de humor.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Immersion into media idioms and metaphors.'
-        : 'Inmersión en modismos de medios y metáforas.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Matches your interest in '${interests}' with ${vocabulary}% vocabulary.`
-        : `Coincide con tu interés en '${interests}' y tu ${vocabulary}% de vocabulario.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 15,
-    },
-    {
-      id: 'pro-daily-8',
-      title: selectedLang === 'EN'
-        ? 'Complex Medical, Pharmacy & Banking Encounter'
-        : 'Consultas Médicas, Farmacia y Trámites Bancarios',
-      subtitle: selectedLang === 'EN'
-        ? 'Communicate symptoms and financial inquiries with pinpoint accuracy.'
-        : 'Comunica síntomas de salud y gestiona cuentas con total precisión.',
-      category: selectedLang === 'EN' ? 'Daily Life' : 'Vida Diaria',
-      imageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
-      skillImproved: selectedLang === 'EN' ? 'Daily Life (+14%)' : 'Vida Diaria (+14%)',
-      objective: selectedLang === 'EN'
-        ? 'Describe symptoms accurately to doctors and handle banking/pharmacy transactions.'
-        : 'Describir síntomas con precisión al médico y realizar gestiones bancarias.',
-      whatItIs: selectedLang === 'EN'
-        ? 'Practical safety module for healthcare and banking.'
-        : 'Módulo práctico para consultas médicas y trámites.',
-      perfectMatchReason: selectedLang === 'EN'
-        ? `Advanced ${level} module for daily life accuracy.`
-        : `Módulo avanzado nivel ${level} para precisión cotidiana.`,
-      keyOutcomes: [],
-      level: level,
-      estimatedMinutes: 22,
-    },
-  ];
-
-  // Dynamic suggested scenario list
-  const scenarioOptions = [
-    { id: 'default', label: selectedLang === 'EN' ? 'Default Recommended Scenario' : 'Escenario Predeterminado' },
-    { id: 'airport', label: selectedLang === 'EN' ? '✈️ Airport & Immigration' : '✈️ Aeropuerto y Aduanas' },
-    { id: 'job_interview', label: selectedLang === 'EN' ? '💼 Job Interview' : '💼 Entrevista de Trabajo' },
-    { id: 'medical', label: selectedLang === 'EN' ? '🩺 Medical Consultation' : '🩺 Consulta Médica' },
-    { id: 'restaurant', label: selectedLang === 'EN' ? '🍽️ Restaurant & Dining' : '🍽️ Restaurante' },
-    { id: 'tech', label: selectedLang === 'EN' ? '🤖 Tech AI Debate' : '🤖 Debate de Tecnología e IA' },
-    { id: 'civics_n400', label: selectedLang === 'EN' ? '🏛️ Citizenship N-400' : '🏛️ Examen N-400 Ciudadanía' },
-    { id: 'banking', label: selectedLang === 'EN' ? '🏦 Banking Transactions' : '🏦 Trámites Bancarios' },
-    { id: 'custom_free', label: selectedLang === 'EN' ? '✍️ Other... (Custom Situation)' : '✍️ Otro... (Escribir situación libre)' },
-  ];
-
-  const getActiveScenarioText = (lesson: ProLesson) => {
-    if (selectedScenarioOption === 'default') return lesson.category;
-    if (selectedScenarioOption === 'custom_free') return customScenarioText.trim() || (selectedLang === 'EN' ? 'Custom Situation' : 'Situación Libre');
-    const found = scenarioOptions.find(o => o.id === selectedScenarioOption);
-    return found ? found.label : lesson.category;
+    if (cat.includes('career') || cat.includes('negocio')) {
+      return '/assets/lessons/cat-career-bright.svg';
+    }
+    if (cat.includes('travel') || cat.includes('viaje')) {
+      return '/assets/lessons/cat-airport-tsa.svg';
+    }
+    if (cat.includes('health') || cat.includes('salud')) {
+      return '/assets/lessons/cat-doctor-pharmacy.svg';
+    }
+    return '/assets/lessons/cat-career-bright.svg';
   };
 
-  // Voyager Single Voice Presentation - Uses the primary Voyager conversation stream
-  const speakLessonPresentation = (lesson: ProLesson, scenarioText: string) => {
-    setIsSpeaking(true);
-    setIsPaused(false);
+  // Maps any lesson category to its authentic Spanish lowercase topic name
+  const getTopicInSpanish = (category: string): string => {
+    const c = (category || '').trim().toLowerCase();
+    if (c.includes('civic') || c.includes('cívic') || c.includes('right') || c.includes('derecho') || c.includes('government') || c.includes('gobierno') || c.includes('constitu')) {
+      return 'cívica y derechos';
+    }
+    if (c.includes('career') || c.includes('carrera') || c.includes('business') || c.includes('negocio') || c.includes('trabajo') || c.includes('interview')) {
+      return 'negocios y carrera';
+    }
+    if (c.includes('health') || c.includes('salud') || c.includes('medical') || c.includes('médic')) {
+      return 'salud y bienestar';
+    }
+    if (c.includes('travel') || c.includes('viaje') || c.includes('transit') || c.includes('tránsito') || c.includes('airport')) {
+      return 'viajes y tránsito';
+    }
+    if (c.includes('daily') || c.includes('vida diaria') || c.includes('living') || c.includes('rutina')) {
+      return 'vida diaria';
+    }
+    if (c.includes('finance') || c.includes('finanza') || c.includes('bank') || c.includes('banca') || c.includes('dinero')) {
+      return 'finanzas y banca';
+    }
+    if (c.includes('fluency') || c.includes('fluidez') || c.includes('pronun')) {
+      return 'fluidez y pronunciación';
+    }
+    if (c.includes('tech') || c.includes('tecnolog')) {
+      return 'tecnología';
+    }
+    if (c.includes('music') || c.includes('música')) {
+      return 'música';
+    }
+    return c;
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // GENUINE PERSONALIZED RECOMMENDATION ENGINE
+  // Ranks lessons based on student deficits, CEFR proximity, and goals.
+  // ───────────────────────────────────────────────────────────────────────────
+  const calculateRelevance = (lesson: ProLesson): { score: number; reasonEN: string; reasonES: string } => {
+    let score = 50;
+    let reasonEN = 'Recommended for your current level';
+    let reasonES = 'Recomendada para tu nivel actual';
+
+    // 1. Skill Deficit Ranking (Identify the student's weakest area)
+    const deficits = [
+      { skill: 'confidence', val: confidence, gap: 100 - confidence },
+      { skill: 'fluency', val: fluency, gap: 100 - fluency },
+      { skill: 'pronunciation', val: pronunciation, gap: 100 - pronunciation },
+      { skill: 'vocabulary', val: vocabulary, gap: 100 - vocabulary },
+      { skill: 'civics', val: civics, gap: 100 - civics },
+    ].sort((a, b) => b.gap - a.gap);
+
+    const primaryDeficit = deficits[0];
+
+    const catLower = lesson.category.toLowerCase();
+    const idLower = lesson.id.toLowerCase();
+    const tags = lesson.tags || [];
+
+    if (idLower === 'cat-confidence-drills' && primaryDeficit.skill === 'confidence') {
+      score += 45;
+      reasonEN = `Targeted for Speaking Confidence (${confidence}%)`;
+      reasonES = `Priorizada para tu Confianza al Hablar (${confidence}%)`;
+    } else if ((idLower === 'cat-connectors-flow' || tags.includes('flow')) && primaryDeficit.skill === 'fluency') {
+      score += 45;
+      reasonEN = `Targeted for Spoken Fluency (${fluency}%)`;
+      reasonES = `Priorizada para mejorar tu Fluidez (${fluency}%)`;
+    } else if ((idLower === 'cat-phonetics-th-v' || tags.includes('pronunciation')) && primaryDeficit.skill === 'pronunciation') {
+      score += 45;
+      reasonEN = `Targeted for Acoustic Pronunciation (${pronunciation}%)`;
+      reasonES = `Priorizada para tu Pronunciación (${pronunciation}%)`;
+    } else if (tags.includes('civics') && (learningGoal.toLowerCase().includes('citizen') || learningGoal.toLowerCase().includes('cívic') || civics < 60)) {
+      score += 42;
+      reasonEN = `Essential for US Citizenship Goal (${civics}% civics)`;
+      reasonES = `Clave para tu meta de Ciudadanía (${civics}% cívica)`;
+    }
+
+    // 2. CEFR Proximity
+    const getCefrRank = (lvl: string): number => {
+      const l = lvl.toUpperCase();
+      if (l.includes('C2')) return 6;
+      if (l.includes('C1')) return 5;
+      if (l.includes('B2')) return 4;
+      if (l.includes('B1')) return 3;
+      if (l.includes('A2')) return 2;
+      if (l.includes('A1')) return 1;
+      return 4;
+    };
+
+    const userRank = getCefrRank(currentLevel);
+    const lessonRank = getCefrRank(lesson.level);
+    const cefrDiff = Math.abs(userRank - lessonRank);
+    if (cefrDiff === 0) {
+      score += 24;
+    } else if (cefrDiff === 1) {
+      score += 14;
+    } else {
+      score -= cefrDiff * 10;
+    }
+
+    // 3. Learning Goal and Interests
+    const goalLower = learningGoal.toLowerCase();
+    const intLower = interests.toLowerCase();
+
+    if (goalLower.includes('career') || goalLower.includes('trabajo') || goalLower.includes('interview')) {
+      if (tags.includes('career') || tags.includes('business')) {
+        score += 26;
+        if (!reasonEN.includes('Targeted')) {
+          reasonEN = `Aligned with your Career goal`;
+          reasonES = `Alineada con tu meta de Carrera`;
+        }
+      }
+    }
+
+    if (goalLower.includes('travel') || goalLower.includes('viaje') || intLower.includes('travel') || intLower.includes('viaje')) {
+      if (tags.includes('travel') || tags.includes('transit')) {
+        score += 24;
+        if (!reasonEN.includes('Targeted')) {
+          reasonEN = `Aligned with your Travel goal`;
+          reasonES = `Alineada con tu meta de Viajes`;
+        }
+      }
+    }
+
+    return { score, reasonEN, reasonES };
+  };
+
+  // Top 4 Recommended Lessons (Sorted strictly by relevance score)
+  const recommendedLessons = [...allMasterLessons]
+    .map(lesson => ({
+      lesson,
+      relevance: calculateRelevance(lesson)
+    }))
+    .sort((a, b) => b.relevance.score - a.relevance.score)
+    .slice(0, 4);
+
+  // Filtered list for "Explore Lessons" section
+  const filteredExploreLessons = allMasterLessons.filter(lesson => {
+    if (exploreCategory === 'all') return true;
+    if (exploreCategory === 'career') return lesson.tags?.includes('career') || lesson.tags?.includes('business');
+    if (exploreCategory === 'civics') return lesson.tags?.includes('civics');
+    if (exploreCategory === 'health') return lesson.tags?.includes('health');
+    if (exploreCategory === 'travel') return lesson.tags?.includes('travel') || lesson.tags?.includes('transit');
+    if (exploreCategory === 'daily') return lesson.tags?.includes('daily');
+    if (exploreCategory === 'saved') return myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
+    return true;
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ACTIONS: Audio Preview, Save, Start & Complete Lesson
+  // ───────────────────────────────────────────────────────────────────────────
+  const handlePlayLessonAudio = (e: React.MouseEvent, lesson: ProLesson) => {
+    e.stopPropagation();
+    if (playingLessonId === lesson.id) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingLessonId(null);
+      return;
+    }
+
+    setPlayingLessonId(lesson.id);
+
+    // Cancel browser synthesis to prevent robotic speech
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (err) {}
+    }
+
+    setTimeout(() => {
+      setPlayingLessonId(null);
+    }, 6000);
 
     if (typeof onAskVoyager === 'function') {
       const prompt = selectedLang === 'EN'
-        ? `[AUTO_SYSTEM: VOYAGER VOICE INSTRUCTION: Speak aloud in your voice to the student. Present this lesson: "${lesson.title}". Objective: "${lesson.objective}". Why recommended for this student: "${lesson.perfectMatchReason}". Current scenario: "${scenarioText}". Remind the student they can change the scenario in the selector, and end with "When you're ready, let's begin!"]`
-        : `[AUTO_SYSTEM: INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. Presenta la lección: "${lesson.title}". Objetivo pedagógico: "${lesson.objective}". Por qué se recomienda según los datos reales del estudiante: "${lesson.perfectMatchReason}". Escenario actual: "${scenarioText}". Recuerda al estudiante que puede cambiar el escenario en el selector, y finaliza diciendo "Cuando estés listo, comenzamos."]`;
+        ? `[AUTO_SYSTEM: MANDATORY VOYAGER VOICE INSTRUCTION]
+As USA Voyager, speak directly to the student in your warm, encouraging voice.
+Explain this lesson scenario in 2-3 engaging, clear sentences: "${lesson.title} - ${lesson.subtitle}".
+Explain why mastering this practical situational skill is essential for real communication in the United States, and invite them warmly to click "Practice Scenario" to begin.
+MANDATORY: Speak aloud in your official Voyager voice only.`
+        : `[AUTO_SYSTEM: INSTRUCCIÓN MANDATORIA DE VOZ DE VOYAGER]
+Como USA Voyager, habla directamente al estudiante con tu voz oficial cálida y motivadora en español.
+Explica este escenario de lección en 2 o 3 oraciones claras y motivadoras: "${lesson.title} - ${lesson.subtitle}".
+Explícale por qué dominar esta habilidad práctica situacional es fundamental para su comunicación real en Estados Unidos, y anímalo amablemente a hacer clic en "Practicar Escenario" cuando esté listo.
+MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
       onAskVoyager(prompt);
     }
   };
 
-  const handleSelectLesson = (lesson: ProLesson) => {
-    setSelectedLesson(lesson);
-    setSelectedScenarioOption('default');
-    setCustomScenarioText('');
-    speakLessonPresentation(lesson, lesson.category);
+  const handleToggleSaveLesson = (e: React.MouseEvent, lesson: ProLesson) => {
+    e.stopPropagation();
+    const exists = myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
+    if (exists) {
+      const updated = myLessons.filter(l => l.lessonId !== lesson.id && l.id !== lesson.id);
+      saveMyLessonsToStorage(updated);
+      setToastMessage(selectedLang === 'EN' ? 'Lesson removed from saved.' : 'Lección quitada de guardadas.');
+    } else {
+      const newActiveLesson: ActiveLesson = {
+        id: `user-saved-${Date.now()}`,
+        lessonId: lesson.id,
+        title: lesson.title,
+        subtitle: lesson.subtitle,
+        category: lesson.category,
+        level: lesson.level,
+        estimatedMinutes: lesson.estimatedMinutes,
+        objective: lesson.objective,
+        scenario: lesson.category,
+        status: 'in_progress',
+        progressPercentage: 20,
+        startedAt: new Date().toISOString()
+      };
+      saveMyLessonsToStorage([newActiveLesson, ...myLessons]);
+      setToastMessage(selectedLang === 'EN' ? 'Saved to your Lesson Catalog!' : '¡Guardada en tu Catálogo de Lecciones!');
+    }
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleScenarioChange = (newOption: string) => {
-    setSelectedScenarioOption(newOption);
-    if (!selectedLesson) return;
-
-    let scenarioText = selectedLesson.category;
-    if (newOption === 'custom_free') {
-      scenarioText = customScenarioText.trim() || (selectedLang === 'EN' ? 'Custom Situation' : 'Situación Libre');
-    } else if (newOption !== 'default') {
-      const found = scenarioOptions.find(o => o.id === newOption);
-      if (found) scenarioText = found.label;
+  const handlePlayAssignmentAudio = (e: React.MouseEvent, assign: UnifiedAssignment) => {
+    e.stopPropagation();
+    if (playingLessonId === assign.id) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setPlayingLessonId(null);
+      return;
     }
+
+    setPlayingLessonId(assign.id);
+    setTimeout(() => {
+      setPlayingLessonId(null);
+    }, 6000);
 
     if (typeof onAskVoyager === 'function') {
-      const adjustmentScript = selectedLang === 'EN'
-        ? `[AUTO_SYSTEM: VOYAGER VOICE INSTRUCTION: Speak aloud in your voice. The student updated the scenario to "${scenarioText}" for lesson "${selectedLesson.title}". Acknowledge this scenario change while keeping the pedagogical objective: "${selectedLesson.objective}". Say "When you're ready, let's begin!"]`
-        : `[AUTO_SYSTEM: INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante. El estudiante adaptó el escenario a "${scenarioText}" para la lección "${selectedLesson.title}". Confirma el cambio manteniendo el objetivo pedagógico: "${selectedLesson.objective}". Dile "Cuando estés listo, comenzamos."]`;
-      onAskVoyager(adjustmentScript);
+      const prompt = selectedLang === 'EN'
+        ? `[AUTO_SYSTEM: MANDATORY VOYAGER VOICE INSTRUCTION]
+As USA Voyager, speak directly to the student in your warm, encouraging voice.
+Introduce this assignment given by teacher ${assign.teacherName}: "${assign.title}".
+Review the learning goal: "${assign.objective}".
+Encourage the student to begin oral practice with you now.
+MANDATORY: Speak aloud in your official Voyager voice only.`
+        : `[AUTO_SYSTEM: INSTRUCCIÓN MANDATORIA DE VOZ DE VOYAGER]
+Como USA Voyager, habla directamente al estudiante con tu voz oficial cálida y motivadora en español.
+Presenta esta tarea asignada por tu docente ${assign.teacherName}: "${assign.title}".
+Repasa el objetivo de aprendizaje: "${assign.objective}".
+Anima al estudiante a iniciar la práctica oral contigo ahora.
+MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
+      onAskVoyager(prompt);
     }
   };
 
-  const handleCustomTextChange = (text: string) => {
-    setCustomScenarioText(text);
+  const handleStartLessonDirect = (lesson: ProLesson) => {
+    setSelectedLesson(lesson);
   };
 
-  const handleCloseModal = () => {
-    setIsSpeaking(false);
-    setIsPaused(false);
-    setSelectedLesson(null);
-  };
-
-  const scrollLeft = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: -320, behavior: 'smooth' });
-    }
-  };
-
-  const scrollRight = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' });
-    }
-  };
-
-  const handleStartLesson = () => {
+  const handleLaunchScenarioWithVoyager = () => {
     if (!selectedLesson) return;
 
-    const scenarioLabel = getActiveScenarioText(selectedLesson);
     const now = new Date();
     const nowIso = now.toISOString();
 
@@ -736,126 +529,513 @@ ${lesson.perfectMatchReason}
       title: selectedLesson.title,
       subtitle: selectedLesson.subtitle,
       category: selectedLesson.category,
-      imageUrl: selectedLesson.imageUrl,
       level: selectedLesson.level,
       estimatedMinutes: selectedLesson.estimatedMinutes,
       objective: selectedLesson.objective,
-      scenario: scenarioLabel,
+      scenario: selectedScenarioOption === 'custom_free' && customScenarioText.trim()
+        ? customScenarioText.trim()
+        : selectedLesson.category,
       status: 'in_progress',
-      progressPercentage: 40,
+      progressPercentage: 35,
       startedAt: nowIso,
     };
 
-    // Prepend new active lesson
     const filtered = myLessons.filter(l => l.lessonId !== selectedLesson.id);
-    const updatedList = [newActiveLesson, ...filtered];
-    saveMyLessonsToStorage(updatedList);
+    saveMyLessonsToStorage([newActiveLesson, ...filtered]);
 
-    // Speak via single Voyager voice conversation
+    if (typeof onStartLesson === 'function') {
+      onStartLesson({
+        ...selectedLesson,
+        scenario: selectedScenarioOption === 'custom_free' && customScenarioText.trim()
+          ? customScenarioText.trim()
+          : undefined
+      });
+      setSelectedLesson(null);
+      setToastMessage(selectedLang === 'EN' ? 'Lesson started with Voyager!' : '¡Lección iniciada con Voyager!');
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+
     if (typeof onAskVoyager === 'function') {
       const startPrompt = selectedLang === 'EN'
-        ? `[VOYAGER VOICE INSTRUCTION: Speak aloud in your voice to launch lesson "${selectedLesson.title}" in scenario "${scenarioLabel}". Welcome the student warmly and begin the first interactive oral exercise.]`
-        : `[INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante para iniciar la lección "${selectedLesson.title}" en el escenario "${scenarioLabel}". Dales la bienvenida e inicia el primer ejercicio oral interactivo.]`;
+        ? `[VOYAGER VOICE INSTRUCTION: Speak aloud in your voice to launch lesson "${selectedLesson.title}". Welcome the student warmly and begin the first interactive oral exercise.]`
+        : `[INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz al estudiante para iniciar la lección "${selectedLesson.title}". Dales la bienvenida e inicia el primer ejercicio oral interactivo.]`;
       onAskVoyager(startPrompt);
     }
 
-    // Save chat session for today's calendar activity log
-    if (typeof window !== 'undefined') {
-      try {
-        const savedChatsRaw = localStorage.getItem('voyager_saved_chats');
-        const chats = savedChatsRaw ? JSON.parse(savedChatsRaw) : [];
-        const newChatSession = {
-          id: `lesson-chat-${selectedLesson.id}-${Date.now()}`,
-          title: `[Lección] ${selectedLesson.title}`,
-          date: nowIso,
-          durationSeconds: selectedLesson.estimatedMinutes * 60,
-          messageCount: 1,
-          snippet: `Escenario: ${scenarioLabel} • Objetivo: ${selectedLesson.objective}`,
-          messages: [
-            { sender: 'Voyager', text: `¡Bienvenido a la lección '${selectedLesson.title}' en el escenario '${scenarioLabel}'!`, timestamp: nowIso }
-          ]
-        };
-        chats.unshift(newChatSession);
-        localStorage.setItem('voyager_saved_chats', JSON.stringify(chats));
-        window.dispatchEvent(new Event('voyager_chat_saved'));
-      } catch (e) {}
-
-      // Register activity in completedDays
-      try {
-        const savedAcc = localStorage.getItem('voyager_user_account');
-        if (savedAcc) {
-          const parsed = JSON.parse(savedAcc);
-          const todayDayNum = now.getDate();
-          const currentDays: number[] = Array.isArray(parsed.completedDays) ? parsed.completedDays : [1];
-          if (!currentDays.includes(todayDayNum)) {
-            parsed.completedDays = [...currentDays, todayDayNum];
-            localStorage.setItem('voyager_user_account', JSON.stringify(parsed));
-            window.dispatchEvent(new Event('voyager_profile_updated'));
-          }
-        }
-      } catch (e) {}
-    }
-
-    const msg = selectedLang === 'EN'
-      ? `Lesson '${selectedLesson.title}' is now ACTIVE and saved in My Lessons and today's calendar!`
-      : `¡Lección '${selectedLesson.title}' activada en Mis lecciones y guardada en el calendario de hoy!`;
-
-    setToastMessage(msg);
+    setToastMessage(selectedLang === 'EN' ? 'Lesson started with Voyager!' : '¡Lección iniciada con Voyager!');
     setSelectedLesson(null);
-    setTimeout(() => setToastMessage(null), 4500);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleCompleteLesson = (lessonIdToComplete: string) => {
-    const now = new Date();
-    const updated = myLessons.map(item => {
-      if (item.id === lessonIdToComplete || item.lessonId === lessonIdToComplete) {
-        return {
-          ...item,
-          status: 'completed' as const,
-          progressPercentage: 100,
-          completedAt: now.toISOString(),
-        };
-      }
-      return item;
-    });
-    saveMyLessonsToStorage(updated);
-
-    // Update profile completedDays
-    if (typeof window !== 'undefined') {
-      try {
-        const savedAcc = localStorage.getItem('voyager_user_account');
-        if (savedAcc) {
-          const parsed = JSON.parse(savedAcc);
-          const todayDayNum = now.getDate();
-          const currentDays: number[] = Array.isArray(parsed.completedDays) ? parsed.completedDays : [1];
-          if (!currentDays.includes(todayDayNum)) {
-            parsed.completedDays = [...currentDays, todayDayNum];
-            localStorage.setItem('voyager_user_account', JSON.stringify(parsed));
-            window.dispatchEvent(new Event('voyager_profile_updated'));
-          }
-        }
-      } catch (e) {}
+  // Launch assignment scenario
+  const handleStartAssignment = async (assignment: UnifiedAssignment) => {
+    if (typeof onAskVoyager === 'function') {
+      const prompt = selectedLang === 'EN'
+        ? `[VOYAGER VOICE INSTRUCTION: Speak aloud in your warm voice to begin teacher assignment "${assignment.title}" assigned by ${assignment.teacherName}. Review the pedagogical objective: "${assignment.objective}", explain the task: "${assignment.instructions}", and prompt the student with the opening question.]`
+        : `[INSTRUCCIÓN DE VOZ VOYAGER: Habla en tu voz cálida al estudiante para comenzar la tarea escolar "${assignment.title}" asignada por ${assignment.teacherName}. Repasa el objetivo pedagógico: "${assignment.objective}", explica las instrucciones: "${assignment.instructions}", e inicia el primer ejercicio.]`;
+      onAskVoyager(prompt);
     }
 
-    const msg = selectedLang === 'EN'
-      ? 'Lesson marked as COMPLETED! Great job!'
-      : '¡Lección marcada como COMPLETADA! ¡Excelente trabajo!';
+    if (assignment.status === 'PENDING') {
+      await updateUnifiedAssignmentStatus(assignment, 'IN_PROGRESS', 35);
+      loadAssignments();
+    }
 
-    setToastMessage(msg);
+    setToastMessage(
+      selectedLang === 'EN' 
+        ? `Started assignment: ${assignment.title}` 
+        : `Iniciada la tarea: ${assignment.title}`
+    );
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleCompleteAssignment = async (assignment: UnifiedAssignment) => {
+    await updateUnifiedAssignmentStatus(
+      assignment, 
+      'COMPLETED', 
+      100, 
+      assignment.feedback || (selectedLang === 'EN' ? 'Great progress! Practice verified.' : '¡Excelente progreso! Práctica verificada.')
+    );
+    loadAssignments();
+    setToastMessage(
+      selectedLang === 'EN'
+        ? `Assignment marked as COMPLETED!`
+        : `¡Tarea marcada como COMPLETADA!`
+    );
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Google NotebookLM generator
+  const generateNotebookLMText = (lesson: ProLesson) => {
+    const studentName = user?.name || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Estudiante Voyager');
+    return `# 📓 USA Voyager Lesson Plan: ${lesson.title}
+
+## 👤 Learner Profile
+- **Student**: ${studentName}
+- **CEFR Level**: ${lesson.level}
+- **Category**: ${lesson.category}
+- **Target Skill**: ${lesson.skillImproved}
+- **Estimated Duration**: ${lesson.estimatedMinutes} minutes
+
+## 🎯 Pedagogical Objective
+${lesson.objective}
+
+## 🗣️ Audio & Speech Practice Guidelines
+1. Practice real-world spoken interactions in the "${lesson.category}" context.
+2. Eliminate hesitation gaps, master natural transition connectors, and improve vocal confidence.
+3. Voice Tutor: USA Voyager AI Voice Coach.
+
+## 📝 Google NotebookLM Study Instructions
+- Import this source into your Google NotebookLM notebook (https://notebooklm.google.com).
+- Use NotebookLM to create Audio Overviews, generate practice quizzes, and summarize key vocabulary!
+`;
+  };
+
+  const handleCopyNotebookLM = (lesson: ProLesson) => {
+    const content = generateNotebookLMText(lesson);
+    navigator.clipboard.writeText(content);
+    setCopiedNotebookSource(true);
+    setToastMessage(selectedLang === 'EN' ? 'Copied Lesson Plan for NotebookLM!' : '¡Plan de Lección copiado para NotebookLM!');
+    setTimeout(() => setCopiedNotebookSource(false), 3000);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleRemoveLesson = (lessonIdToRemove: string) => {
-    const updated = myLessons.filter(item => item.id !== lessonIdToRemove && item.lessonId !== lessonIdToRemove);
-    saveMyLessonsToStorage(updated);
+  const handleExportGoogleDoc = async (lesson: ProLesson) => {
+    try {
+      setIsExportingGoogleDoc(true);
+      const content = generateNotebookLMText(lesson);
+      const docTitle = `USA Voyager - ${lesson.title}`;
+      const result = await createGoogleDoc(docTitle, content);
+      setToastMessage(selectedLang === 'EN' ? 'Google Doc created in your Drive!' : '¡Documento creado en tu Google Drive!');
+      window.open(result.documentUrl, '_blank');
+    } catch (err: any) {
+      console.error('Google Doc creation error:', err);
+      setToastMessage(err?.message || 'Failed to create Google Doc');
+    } finally {
+      setIsExportingGoogleDoc(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // UNIFIED CATALOG ITEMS & FILTERED TABS
+  // Filtered views without duplicating lessons. 9 lessons per page with pagination.
+  // ───────────────────────────────────────────────────────────────────────────
+  interface CatalogItem {
+    id: string;
+    sourceType: 'assignment' | 'lesson';
+    originalAssignment?: UnifiedAssignment;
+    originalLesson?: ProLesson;
+    title: string;
+    category: string;
+    level: string;
+    estimatedMinutes: number;
+    imageUrl: string;
+    description: string;
+    progressPercentage?: number;
+    isCompleted?: boolean;
+    isInProgress?: boolean;
+    isSaved?: boolean;
+    teacherName?: string;
+    dueDate?: string;
+    feedback?: string;
+    relevance?: { score: number; reasonEN: string; reasonES: string };
+  }
+
+  // 1. Assigned by My Teacher
+  const assignedItems: CatalogItem[] = assignmentData.assignments.map(assign => {
+    const isCompleted = assign.status === 'COMPLETED' || assign.status === 'GRADED' || (assign.progressPercentage !== undefined && assign.progressPercentage >= 100);
+    const isInProgress = assign.status === 'IN_PROGRESS' && !isCompleted;
+    const isSaved = myLessons.some(l => l.lessonId === assign.lessonId);
+    return {
+      id: assign.id,
+      sourceType: 'assignment',
+      originalAssignment: assign,
+      title: assign.title,
+      category: assign.category,
+      level: assign.level,
+      estimatedMinutes: assign.estimatedMinutes,
+      imageUrl: getLessonImageUrl(assign.lessonId, assign.category),
+      description: assign.instructions || assign.objective,
+      progressPercentage: isCompleted ? 100 : (isInProgress ? (assign.progressPercentage || 0) : 0),
+      isCompleted,
+      isInProgress,
+      isSaved,
+      teacherName: assign.teacherName,
+      dueDate: assign.dueDate,
+      feedback: assign.feedback,
+    };
+  });
+
+  // 2. Intereses (Curated recommendations aligned with student interests, level, and goals)
+  const interestsItems: CatalogItem[] = allMasterLessons
+    .map(lesson => {
+      const isSaved = myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
+      const active = myLessons.find(l => l.lessonId === lesson.id || l.id === lesson.id);
+      const isCompleted = active?.status === 'completed' || (active?.progressPercentage !== undefined && active.progressPercentage >= 100);
+      const isInProgress = active?.status === 'in_progress' && !isCompleted;
+      const relevance = calculateRelevance(lesson);
+      return {
+        id: lesson.id,
+        sourceType: 'lesson' as const,
+        originalLesson: lesson,
+        title: lesson.title,
+        category: lesson.category,
+        level: lesson.level,
+        estimatedMinutes: lesson.estimatedMinutes,
+        imageUrl: lesson.imageUrl || getLessonImageUrl(lesson.id, lesson.category),
+        description: lesson.subtitle,
+        progressPercentage: isCompleted ? 100 : (isInProgress ? (active?.progressPercentage || 30) : 0),
+        isCompleted,
+        isInProgress,
+        isSaved,
+        relevance,
+      };
+    })
+    .sort((a, b) => (b.relevance?.score || 0) - (a.relevance?.score || 0));
+
+  // 3. En proceso (Only lessons that are in progress / to complete, STRICTLY excluding 100% completed)
+  const toCompleteItems: CatalogItem[] = (() => {
+    const list: CatalogItem[] = [];
+    const seenIds = new Set<string>();
+
+    const isItemFinished = (item: CatalogItem) => {
+      return item.isCompleted === true || (item.progressPercentage !== undefined && item.progressPercentage >= 100);
+    };
+
+    // 1. Pending/in-progress assignments (strictly NOT completed)
+    assignedItems
+      .filter(item => !isItemFinished(item))
+      .forEach(item => {
+        seenIds.add(item.id);
+        if (item.originalAssignment?.lessonId) {
+          seenIds.add(item.originalAssignment.lessonId);
+        }
+        list.push(item);
+      });
+
+    // 2. In-progress active lessons from myLessons (strictly NOT completed)
+    allMasterLessons
+      .filter(lesson => {
+        const active = myLessons.find(l => l.lessonId === lesson.id || l.id === lesson.id);
+        const isDone = active && (active.status === 'completed' || (active?.progressPercentage !== undefined && active.progressPercentage >= 100));
+        return active && active.status === 'in_progress' && !isDone && !seenIds.has(lesson.id);
+      })
+      .forEach(lesson => {
+        const active = myLessons.find(l => l.lessonId === lesson.id || l.id === lesson.id);
+        const relevance = calculateRelevance(lesson);
+        seenIds.add(lesson.id);
+        list.push({
+          id: lesson.id,
+          sourceType: 'lesson' as const,
+          originalLesson: lesson,
+          title: lesson.title,
+          category: lesson.category,
+          level: lesson.level,
+          estimatedMinutes: lesson.estimatedMinutes,
+          imageUrl: lesson.imageUrl || getLessonImageUrl(lesson.id, lesson.category),
+          description: lesson.subtitle,
+          progressPercentage: Math.min(99, active?.progressPercentage || 35),
+          isCompleted: false,
+          isInProgress: true,
+          isSaved: true,
+          relevance,
+        });
+      });
+
+    // 3. Interest-based lessons (strictly NOT completed)
+    interestsItems
+      .filter(item => !isItemFinished(item))
+      .forEach(item => {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id);
+          list.push({
+            ...item,
+            isCompleted: false,
+            progressPercentage: (item.progressPercentage !== undefined && item.progressPercentage < 100) ? item.progressPercentage : 0,
+          });
+        }
+      });
+
+    // Strict guarantee: No item with 100% or isCompleted can ever be in En proceso
+    return list.filter(item => !isItemFinished(item));
+  })();
+
+  // 4. Completadas (All completed lessons: completed assignments + completed active/interest lessons)
+  const completedItems: CatalogItem[] = (() => {
+    const list: CatalogItem[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Completed teacher assignments
+    assignedItems
+      .filter(item => item.isCompleted || (item.progressPercentage !== undefined && item.progressPercentage >= 100))
+      .forEach(item => {
+        seenIds.add(item.id);
+        if (item.originalAssignment?.lessonId) {
+          seenIds.add(item.originalAssignment.lessonId);
+        }
+        list.push({
+          ...item,
+          isCompleted: true,
+          progressPercentage: 100,
+        });
+      });
+
+    // 2. Completed active lessons from allMasterLessons / myLessons
+    allMasterLessons
+      .filter(lesson => {
+        const active = myLessons.find(l => l.lessonId === lesson.id || l.id === lesson.id);
+        const isDone = active && (active.status === 'completed' || (active?.progressPercentage !== undefined && active.progressPercentage >= 100));
+        return isDone && !seenIds.has(lesson.id);
+      })
+      .forEach(lesson => {
+        seenIds.add(lesson.id);
+        const relevance = calculateRelevance(lesson);
+        list.push({
+          id: lesson.id,
+          sourceType: 'lesson' as const,
+          originalLesson: lesson,
+          title: lesson.title,
+          category: lesson.category,
+          level: lesson.level,
+          estimatedMinutes: lesson.estimatedMinutes,
+          imageUrl: lesson.imageUrl || getLessonImageUrl(lesson.id, lesson.category),
+          description: lesson.subtitle,
+          progressPercentage: 100,
+          isCompleted: true,
+          isInProgress: false,
+          isSaved: true,
+          relevance,
+        });
+      });
+
+    // 3. Completed interest items
+    interestsItems
+      .filter(item => (item.isCompleted || (item.progressPercentage !== undefined && item.progressPercentage >= 100)) && !seenIds.has(item.id))
+      .forEach(item => {
+        seenIds.add(item.id);
+        list.push({
+          ...item,
+          isCompleted: true,
+          progressPercentage: 100,
+        });
+      });
+
+    return list;
+  })();
+
+  // 5. All Lessons (Sorted by personal relevance)
+  const allCatalogItems: CatalogItem[] = [...allMasterLessons]
+    .map(lesson => {
+      const isSaved = myLessons.some(l => l.lessonId === lesson.id || l.id === lesson.id);
+      const active = myLessons.find(l => l.lessonId === lesson.id || l.id === lesson.id);
+      const isCompleted = active?.status === 'completed' || (active?.progressPercentage !== undefined && active.progressPercentage >= 100);
+      const isInProgress = active?.status === 'in_progress';
+      const relevance = calculateRelevance(lesson);
+      return {
+        id: lesson.id,
+        sourceType: 'lesson' as const,
+        originalLesson: lesson,
+        title: lesson.title,
+        category: lesson.category,
+        level: lesson.level,
+        estimatedMinutes: lesson.estimatedMinutes,
+        imageUrl: lesson.imageUrl || getLessonImageUrl(lesson.id, lesson.category),
+        description: lesson.subtitle,
+        progressPercentage: isCompleted ? 100 : (isInProgress ? (active?.progressPercentage || 30) : 0),
+        isCompleted,
+        isInProgress,
+        isSaved,
+        relevance,
+      };
+    })
+    .sort((a, b) => (b.relevance?.score || 0) - (a.relevance?.score || 0));
+
+  const currentTabItems: CatalogItem[] = 
+    activeTab === 'assigned' ? assignedItems :
+    activeTab === 'to_complete' ? toCompleteItems :
+    completedItems;
+
+  const totalTabItems = currentTabItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalTabItems / itemsPerPage));
+  const pageStartIndex = (catalogPage - 1) * itemsPerPage;
+  const paginatedItems = currentTabItems.slice(pageStartIndex, pageStartIndex + itemsPerPage);
+
+  const totalAssignedLessonsCount = assignmentData.assignments.length > 0 
+    ? assignmentData.assignments.length 
+    : (assignedItems.length > 0 ? assignedItems.length : 12);
+
+  const catalogTabs = [
+    {
+      id: 'assigned' as const,
+      labelEN: 'Assigned',
+      labelES: 'Asignadas',
+      color: 'bg-[#EF4444]',
+      count: totalAssignedLessonsCount,
+    },
+    {
+      id: 'to_complete' as const,
+      labelEN: 'In Progress',
+      labelES: 'En proceso',
+      color: 'bg-[#FBBF24]',
+      count: toCompleteItems.length,
+    },
+    {
+      id: 'completed' as const,
+      labelEN: 'Completed',
+      labelES: 'Completadas',
+      color: 'bg-[#00E676]',
+      count: completedItems.length,
+    },
+  ];
+
+  const handleToggleBookmarkItem = (e: React.MouseEvent, item: CatalogItem) => {
+    e.stopPropagation();
+    if (item.originalLesson) {
+      handleToggleSaveLesson(e, item.originalLesson);
+    } else if (item.originalAssignment) {
+      const match = allMasterLessons.find(l => l.id === item.originalAssignment?.lessonId);
+      if (match) {
+        handleToggleSaveLesson(e, match);
+      } else {
+        const exists = myLessons.some(l => l.lessonId === item.id || l.id === item.id);
+        if (exists) {
+          saveMyLessonsToStorage(myLessons.filter(l => l.lessonId !== item.id && l.id !== item.id));
+          setToastMessage(selectedLang === 'EN' ? 'Lesson removed from saved.' : 'Lección quitada de guardadas.');
+        } else {
+          const newActive: ActiveLesson = {
+            id: `user-saved-${Date.now()}`,
+            lessonId: item.id,
+            title: item.title,
+            subtitle: item.description,
+            category: item.category,
+            level: item.level,
+            estimatedMinutes: item.estimatedMinutes,
+            objective: item.description,
+            scenario: item.category,
+            status: 'in_progress',
+            progressPercentage: 20,
+            startedAt: new Date().toISOString()
+          };
+          saveMyLessonsToStorage([newActive, ...myLessons]);
+          setToastMessage(selectedLang === 'EN' ? 'Saved to your Lesson Catalog!' : '¡Guardada en tu Catálogo de Lecciones!');
+        }
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+    }
+  };
+
+  const handlePlayItemAudio = (e: React.MouseEvent, item: CatalogItem) => {
+    e.stopPropagation();
+    if (item.originalAssignment) {
+      handlePlayAssignmentAudio(e, item.originalAssignment);
+    } else if (item.originalLesson) {
+      handlePlayLessonAudio(e, item.originalLesson);
+    }
+  };
+
+  const handleOpenDetailedView = (item: CatalogItem) => {
+    const idx = currentTabItems.findIndex(i => i.id === item.id);
+    if (idx !== -1) {
+      setDetailedItemIndex(idx);
+    } else {
+      setDetailedItemIndex(0);
+    }
+  };
+
+  const handleItemCardClick = (item: CatalogItem) => {
+    handleOpenDetailedView(item);
+  };
+
+  const handleItemActionClick = (e: React.MouseEvent, item: CatalogItem) => {
+    e.stopPropagation();
+    if (item.sourceType === 'assignment' && item.originalAssignment) {
+      if (typeof onStartLesson === 'function') {
+        onStartLesson(item.originalAssignment, item.originalAssignment);
+      } else {
+        handleStartAssignment(item.originalAssignment);
+      }
+    } else if (item.originalLesson) {
+      if (typeof onStartLesson === 'function') {
+        onStartLesson(item.originalLesson);
+      } else {
+        setSelectedLesson(item.originalLesson);
+        setSelectedLessonRelevance(item.relevance || null);
+      }
+    }
+  };
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ───────────────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full my-4 animate-fade-in text-left">
+    <div className={`w-full ${hideHeader ? 'p-0 m-0' : 'pt-2 pb-3 my-2'} animate-fade-in text-left font-sans overflow-visible`}>
+      {/* Dark Gold (#8F6305) + White (#FFFFFF) Duotone SVG Filter */}
+      <svg aria-hidden="true" className="w-0 h-0 absolute overflow-hidden pointer-events-none">
+        <defs>
+          <filter id="voyager-duotone-gold-white" colorInterpolationFilters="sRGB">
+            <feColorMatrix
+              type="matrix"
+              values="0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0.2126 0.7152 0.0722 0 0  0 0 0 1 0"
+            />
+            <feComponentTransfer>
+              <feFuncR type="linear" slope="1.15" intercept="-0.075" />
+              <feFuncG type="linear" slope="1.15" intercept="-0.075" />
+              <feFuncB type="linear" slope="1.15" intercept="-0.075" />
+            </feComponentTransfer>
+            <feComponentTransfer>
+              <feFuncR type="table" tableValues="0.56 1" />
+              <feFuncG type="table" tableValues="0.39 1" />
+              <feFuncB type="table" tableValues="0.02 1" />
+            </feComponentTransfer>
+          </filter>
+        </defs>
+      </svg>
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 max-w-md bg-neutral-900 text-amber-300 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-amber-400">
-          <span className="text-xs sm:text-sm font-medium font-mono">{toastMessage}</span>
+          <span className="text-sm font-medium">{toastMessage}</span>
           <button 
             type="button"
             onClick={() => setToastMessage(null)}
@@ -866,603 +1046,671 @@ ${lesson.perfectMatchReason}
         </div>
       )}
 
-      {/* ────── SECTION 1: Recommended Lessons (Lecciones Recomendadas) ────── */}
-      <div className="mb-4 px-1 flex flex-col gap-2">
-        <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase">
-          {selectedLang === 'EN' ? 'Recommended Lessons' : 'Lecciones Recomendadas'}
-        </h4>
-
-        {/* Carousel Navigation Arrows directly below title */}
-        <div className="flex items-center gap-1.5">
+      {/* ────── MAIN HEADER (Hotlink with Voyager Voice Explanation) ────── */}
+      {!hideHeader && (
+        <div className="mb-6 px-1 pt-4 sm:pt-5 pb-1 text-left overflow-visible">
           <button
             type="button"
-            onClick={scrollLeft}
-            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-amber-400 text-black transition-colors shadow-xs cursor-pointer"
-            title={selectedLang === 'EN' ? 'Scroll left' : 'Desplazar a la izquierda'}
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.speechSynthesis) {
+                try { window.speechSynthesis.cancel(); } catch (err) {}
+              }
+              if (typeof onAskVoyager === 'function') {
+                const prompt = selectedLang === 'EN'
+                  ? `[AUTO_SYSTEM: MANDATORY VOYAGER VOICE INSTRUCTION]
+As USA Voyager, speak directly to the student in your warm, encouraging voice.
+Explain this Lesson Catalog section in 2-3 engaging, clear sentences:
+Tell the student that here they can explore teacher assignments, selected lessons, active practice modules, and completed achievements organized into focused tabs.
+MANDATORY: Speak aloud in your official Voyager voice only.`
+                  : `[AUTO_SYSTEM: INSTRUCCIÓN MANDATORIA DE VOZ DE VOYAGER]
+Como USA Voyager, habla directamente al estudiante con tu voz oficial cálida y motivadora en español.
+Explica esta sección del Catálogo de Lecciones en 2 o 3 oraciones claras y motivadoras:
+Dile al estudiante que aquí encontrará las tareas de su profesor, sus lecciones seleccionadas, módulos por completar y lecciones completadas organizadas en pestañas claras.
+MANDATORIO: Habla en voz alta con tu voz oficial de Voyager únicamente.`;
+                onAskVoyager(prompt);
+              }
+            }}
+            title={
+              selectedLang === 'EN'
+                ? 'Click to hear Voyager explain this section'
+                : 'Haz clic para escuchar la explicación de Voyager'
+            }
+            className="inline-block pt-2 pb-1 text-base sm:text-lg font-bold tracking-normal leading-relaxed text-neutral-900 uppercase cursor-pointer hover:text-[#0D224A] hover:underline underline-offset-4 transition-colors overflow-visible"
           >
-            <ChevronLeft className="w-4 h-4 text-black" strokeWidth={3} />
-          </button>
-          <button
-            type="button"
-            onClick={scrollRight}
-            className="p-1.5 rounded-lg border border-neutral-300 hover:border-amber-400 bg-white hover:bg-amber-400 text-black transition-colors shadow-xs cursor-pointer"
-            title={selectedLang === 'EN' ? 'Scroll right' : 'Desplazar a la derecha'}
-          >
-            <ChevronRight className="w-4 h-4 text-black" strokeWidth={3} />
-          </button>
-        </div>
-      </div>
-
-      {/* Horizontal Carousel (EXACTLY TWO CARDS VISIBLE PER VIEW) */}
-      <div
-        ref={scrollContainerRef}
-        className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-3 pt-1 px-1 scrollbar-thin scrollbar-thumb-neutral-300 hover:scrollbar-thumb-neutral-400"
-      >
-        {lessons.map((lesson) => (
-          <div
-            key={lesson.id}
-            onClick={() => handleSelectLesson(lesson)}
-            className="snap-start shrink-0 w-[calc(50%-8px)] min-w-[260px] bg-transparent p-0 transition-all duration-200 cursor-pointer group flex flex-col justify-start relative overflow-hidden"
-          >
-            {/* Top Header Row: Audio Icon + Category Badge + Level & Duration (Flush Left) */}
-            <div className="flex items-center gap-2 mb-2">
-              {/* Clickable Audio Icon (Black circle default, yellow on hover with black icon) */}
-              <button
-                type="button"
-                onClick={(e) => handlePlayLessonAudio(e, lesson)}
-                title={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
-                aria-label={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
-                className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
-              >
-                <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === lesson.id ? 'animate-pulse' : ''}`} />
-              </button>
-
-              {/* Category (Clean text, no pill background) */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSelectLesson(lesson);
-                }}
-                className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-neutral-950 hover:text-amber-600 font-mono transition-colors cursor-pointer"
-              >
-                {lesson.category}
-              </button>
-
-              <span className="text-[10px] text-neutral-400 font-mono">·</span>
-
-              {/* Simple Black Text Level & Duration (Flush left, no pill/container) */}
-              <span className="text-[11px] font-mono font-bold text-black">
-                {lesson.level} · {lesson.estimatedMinutes} min
-              </span>
-            </div>
-
-            {/* Title & Subtitle (Grouped at top directly under top row) */}
-            <div className="mb-2">
-              <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-tight group-hover:text-amber-600 transition-colors line-clamp-2">
-                {lesson.title}
-              </h5>
-              <p className="text-[12.1px] text-neutral-600 line-clamp-2 leading-relaxed mt-0.5 font-sans">
-                {lesson.subtitle}
-              </p>
-            </div>
-
-            {/* Square Thumbnail Image (Strictly Square Aspect Ratio, No Border) */}
-            <div className="w-full aspect-square rounded-xl overflow-hidden relative bg-neutral-100">
-              <img
-                src={lesson.imageUrl}
-                alt={lesson.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ────── SECTION 2: Lesson Catalog (Catálogo de Lecciones) ────── */}
-      <div className="pt-8 pb-4 border-t border-neutral-200/80 mt-6">
-        {/* Header */}
-        <div className="mb-4 px-1 text-left">
-          <h4 className="text-sm sm:text-[15.5px] font-bold tracking-wider text-neutral-900 font-mono uppercase">
             {selectedLang === 'EN' ? 'Lesson Catalog' : 'Catálogo de Lecciones'}
-          </h4>
-          <p className="text-xs text-neutral-600 font-sans mt-0.5 leading-relaxed">
+          </button>
+          <p className="text-sm sm:text-base text-neutral-600 mt-1 leading-relaxed">
             {selectedLang === 'EN'
-              ? 'Browse all available scenarios, active lessons, and your saved practice library.'
-              : 'Explora todos los escenarios disponibles, lecciones activas y tu biblioteca de práctica guardada.'}
+              ? 'Connected educational ecosystem: teacher assignments, personalized practice modules, and progress tracking.'
+              : 'Ecosistema educativo conectado: tareas asignadas por profesores, módulos prácticos personalizados y seguimiento.'}
           </p>
 
-          {/* Minimalist Tab Filters - No Pills, No Heavy Containers */}
-          <div className="flex items-center gap-6 mt-3 border-b border-neutral-200 text-xs font-mono overflow-x-auto scrollbar-none pb-0">
-            <button
-              type="button"
-              onClick={() => setCatalogFilter('all')}
-              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
-                catalogFilter === 'all'
-                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
-                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
-              }`}
-            >
-              {selectedLang === 'EN' ? 'All' : 'Todos'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCatalogFilter('saved')}
-              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
-                catalogFilter === 'saved'
-                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
-                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
-              }`}
-            >
-              {selectedLang === 'EN' ? 'Saved' : 'Guardadas'} ({myLessons.length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCatalogFilter('in_progress')}
-              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
-                catalogFilter === 'in_progress'
-                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
-                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
-              }`}
-            >
-              {selectedLang === 'EN' ? 'In Progress' : 'En Curso'} ({myLessons.filter(l => l.status === 'in_progress').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCatalogFilter('completed')}
-              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
-                catalogFilter === 'completed'
-                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
-                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
-              }`}
-            >
-              {selectedLang === 'EN' ? 'Completed' : 'Completadas'} ({myLessons.filter(l => l.status === 'completed').length})
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCatalogFilter('create_custom')}
-              className={`pb-2 transition-colors cursor-pointer text-left whitespace-nowrap ${
-                catalogFilter === 'create_custom'
-                  ? 'font-bold text-neutral-950 border-b-2 border-amber-500'
-                  : 'text-neutral-500 hover:text-neutral-900 font-medium'
-              }`}
-            >
-              + {selectedLang === 'EN' ? 'Create Custom' : 'Crear Escenario'}
-            </button>
-          </div>
+          {/* Simplified Demo Mode Notice — Discreet neutral text directly under heading, no yellow pill or border */}
+          {assignmentData.isDemoMode && activeTab === 'assigned' && (
+            <p className="text-xs text-neutral-500 mt-1.5 leading-normal">
+              {selectedLang === 'EN'
+                ? 'Demonstration mode · Sample teacher assignments displayed.'
+                : 'Modo demostración · Se muestran asignaciones de prueba.'}
+            </p>
+          )}
         </div>
+      )}
 
-        {/* View 1: All Scenarios (Full Catalog) */}
-        {catalogFilter === 'all' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1 animate-fade-in">
-            {catalogScenarios.map((scen) => {
-              const activeLessonItem = myLessons.find(l => l.lessonId === scen.id || l.id === scen.id);
-              const isSaved = Boolean(activeLessonItem);
-              const isInProgress = activeLessonItem?.status === 'in_progress';
-              const scenProgress = activeLessonItem ? getLessonProgress(activeLessonItem) : 0;
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* VINTAGE INDEX-CARD TABS (Standardized to Student Calendar styling)     */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      <div className="w-full flex items-end relative pt-2 px-[14px] sm:px-[15px] z-10 overflow-visible">
+        <div className="flex items-end gap-2 sm:gap-2.5 relative">
+          {catalogTabs.map((tab, idx) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setCatalogPage(1);
+                  setDetailedItemIndex(null);
+                }}
+                className={`group relative h-[56px] sm:h-[62px] px-3.5 sm:px-4 md:px-5 min-w-[92px] sm:min-w-[110px] md:min-w-[124px] flex flex-col items-center pt-2 sm:pt-2.5 pb-1.5 sm:pb-2 justify-start cursor-pointer transition-colors ${
+                  isActive
+                    ? 'bg-[#F8ECC0] text-[#F8ECC0] z-30 rounded-t-[14px] sm:rounded-t-[18px] -mb-[2px] after:content-[\'\'] after:absolute after:-bottom-[3px] after:left-0 after:right-0 after:h-[5px] after:bg-[#F8ECC0] after:z-30'
+                    : 'bg-[#EADBB3] hover:bg-[#E0CF9E] text-[#EADBB3] hover:text-[#E0CF9E] rounded-t-[14px] sm:rounded-t-[18px] z-10'
+                }`}
+              >
+                {/* Left Concave Flare / Inverted Fillet (Vintage filing index-card tab) */}
+                {idx > 0 && (
+                  <svg
+                    className="absolute -left-[14px] sm:-left-[15px] bottom-0 w-[14px] sm:w-[15px] h-[14px] sm:h-[15px] pointer-events-none overflow-visible transition-colors"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                  >
+                    <path d="M 16 0 L 16 16.5 L 0 16.5 Q 16 16.5 16 0 Z" />
+                  </svg>
+                )}
 
-              return (
-                <div
-                  key={scen.id}
-                  className="group p-3 rounded-xl hover:bg-neutral-50/80 transition-all cursor-pointer flex flex-col justify-between"
-                  onClick={() => handleSelectLesson(scen)}
+                {/* Right Concave Flare / Inverted Fillet */}
+                <svg
+                  className="absolute -right-[14px] sm:-right-[15px] bottom-0 w-[14px] sm:w-[15px] h-[14px] sm:h-[15px] pointer-events-none overflow-visible transition-colors"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
                 >
-                  <div>
-                    {/* Top Header Row */}
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <button
-                        type="button"
-                        onClick={(e) => handlePlayLessonAudio(e, scen)}
-                        title={selectedLang === 'EN' ? 'Listen preview' : 'Escuchar vista previa'}
-                        className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
-                      >
-                        <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === scen.id ? 'animate-pulse' : ''}`} />
-                      </button>
+                  <path d="M 0 0 L 0 16.5 L 16 16.5 Q 0 16.5 0 0 Z" />
+                </svg>
 
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-900 font-mono">
-                        {scen.category}
-                      </span>
+                {/* Tab Label: Consistent typography and shared baseline on top */}
+                <div className="inline-flex flex-col items-center justify-start max-w-full px-0.5 leading-tight">
+                  <span className={`text-[13.5px] sm:text-[15px] md:text-[16px] font-bold leading-none text-center whitespace-nowrap ${
+                    isActive ? 'text-[#1F1A14]' : 'text-[#221D17] group-hover:text-black'
+                  }`}>
+                    {selectedLang === 'EN' ? tab.labelEN : tab.labelES}
+                  </span>
+                </div>
 
-                      {/* Subtle font weight & text color progress indicator if in progress */}
-                      {isInProgress && (
-                        <span className={`text-[10px] font-mono tracking-tight transition-colors ${getProgressWeight(scenProgress)} ${getProgressColor(scenProgress)}`}>
-                          ● {scenProgress}%
+                {/* Plain task count number centered beneath tab title */}
+                {tab.count !== undefined && tab.count > 0 && (
+                  <div className="relative mt-1 sm:mt-1.5 flex items-center justify-center">
+                    <span
+                      className={`select-none text-[11px] sm:text-[12px] font-semibold font-sans not-italic leading-none ${
+                        isActive ? 'text-[#1F1A14]' : 'text-[#221D17] group-hover:text-black'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      {/* FOLDER CONTENT CARD BODY (Visually connected to active index tab)     */}
+      {/* ───────────────────────────────────────────────────────────────────── */}
+      <div className={`bg-[#F8ECC0] rounded-b-[24px] sm:rounded-b-[28px] rounded-t-[14px] sm:rounded-t-[18px] p-4 sm:p-6 md:p-8 flex flex-col w-full relative z-0 shadow-xs ${hideHeader ? 'mb-0' : 'mb-8'}`}>
+        {detailedItemIndex !== null && currentTabItems[detailedItemIndex] ? (() => {
+          const item = currentTabItems[detailedItemIndex];
+
+          return (
+            <div className="w-full text-left space-y-5 animate-fade-in">
+              {/* Top Navigation & Back Action */}
+              <div className="flex items-center justify-between border-b border-[#EAE2D7]/70 pb-3 flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDetailedItemIndex(null)}
+                  className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#1F1A14] hover:text-amber-800 transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                  <span>{selectedLang === 'EN' ? 'Back to all lessons' : 'Volver a lecciones'}</span>
+                </button>
+                <span className="text-xs sm:text-sm font-medium text-neutral-600">
+                  {selectedLang === 'EN'
+                    ? `Lesson ${detailedItemIndex + 1} of ${currentTabItems.length}`
+                    : `Lección ${detailedItemIndex + 1} de ${currentTabItems.length}`}
+                </span>
+              </div>
+
+              {/* Main 1-Lesson Layout: Left photo, Right specifics */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                {/* Photo Column */}
+                <div className="md:col-span-5 flex flex-col items-start">
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayItemAudio(e, item);
+                    }}
+                    title={selectedLang === 'EN' ? 'Click photo for Voyager course explanation' : 'Haz clic en la foto para escuchar la explicación de Voyager'}
+                    className="relative w-full max-w-[320px] aspect-square rounded-[18px] sm:rounded-[22px] overflow-hidden bg-neutral-200/60 shrink-0 shadow-xs cursor-pointer group/photo"
+                  >
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className="w-full h-full object-cover voyager-duotone-gold-white transition-all duration-300"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  {/* Progress Indicator for detailed view */}
+                  {(() => {
+                    if (activeTab === 'completed') {
+                      return null;
+                    }
+
+                    const isCompleted = item.isCompleted || (item.progressPercentage !== undefined && item.progressPercentage >= 100);
+                    const pctVal = isCompleted ? 100 : (item.progressPercentage ?? 0);
+
+                    // ASIGNADAS: Circle indicators (0% red, 35% yellow, 100% solid green dot)
+                    if (activeTab === 'assigned') {
+                      if (isCompleted || pctVal >= 100) {
+                        return (
+                          <div className="mt-2.5 mb-1 flex items-center select-none" title={selectedLang === 'EN' ? 'Completed (100%)' : 'Completada (100%)'}>
+                            <div className="w-5 h-5 rounded-full bg-[#00E676] shadow-2xs" />
+                          </div>
+                        );
+                      }
+
+                      if (pctVal > 0) {
+                        return (
+                          <div className="mt-2.5 mb-1 flex items-center select-none" title={`${pctVal}%`}>
+                            <div className="w-6 h-6 rounded-full bg-[#FBBF24] text-[#1F1A14] flex items-center justify-center text-[9px] sm:text-[10px] font-bold font-sans shadow-2xs">
+                              {pctVal}%
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="mt-2.5 mb-1 flex items-center select-none" title="0%">
+                          <div className="w-6 h-6 rounded-full bg-[#EF4444] text-white flex items-center justify-center text-[9px] sm:text-[10px] font-bold font-sans shadow-2xs">
+                            0%
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // EN PROCESO / HORIZONTAL PROGRESS BAR:
+                    // Yellow fill in En proceso, straight square end (rounded-none), white bar with "0%" when 0%
+                    const isYellowSection = activeTab === 'to_complete';
+                    const fillColor = isYellowSection ? 'bg-[#FBBF24]' : 'bg-[#EF4444]';
+                    const textColor = isYellowSection ? 'text-[#1F1A14]' : 'text-white';
+
+                    return (
+                      <div className="w-full max-w-[320px] mt-2.5 mb-1 select-none">
+                        <div className="w-full h-3.5 sm:h-4 rounded-full bg-white overflow-hidden flex items-center relative">
+                          {pctVal === 0 ? (
+                            <div className="w-full h-full flex items-center justify-center select-none">
+                              <span className="text-[9px] sm:text-[10px] font-bold text-[#1F1A14] font-sans leading-none">
+                                0%
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              className={`h-full ${fillColor} rounded-none flex items-center justify-center transition-all duration-300`}
+                              style={{
+                                width: `${Math.min(100, Math.max(16, pctVal))}%`,
+                                minWidth: '28px'
+                              }}
+                            >
+                              <span className={`text-[9px] sm:text-[10px] font-bold ${textColor} font-sans leading-none px-1`}>
+                                {pctVal}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <p className="text-[11px] text-neutral-500 mt-1 italic">
+                    {selectedLang === 'EN'
+                      ? 'Click photo to hear Voyager explanation'
+                      : 'Haz clic en la foto para escuchar la explicación de Voyager'}
+                  </p>
+                </div>
+
+                {/* Specifics Column */}
+                <div className="md:col-span-7 space-y-3.5">
+                  {/* Category, Level, Duration */}
+                  <div className="flex items-center gap-2 text-xs font-semibold text-neutral-600 uppercase tracking-wide flex-wrap">
+                    <span className="text-[#1F1A14] font-bold">{item.category}</span>
+                    <span>·</span>
+                    <span>{item.level}</span>
+                    <span>·</span>
+                    <span>{item.estimatedMinutes} min</span>
+                    {item.originalAssignment && (
+                      <>
+                        <span>·</span>
+                        <span className="text-red-700 font-bold lowercase">
+                          {selectedLang === 'EN' ? `Due: ${item.originalAssignment.dueDate || 'Class'}` : `Entrega: ${item.originalAssignment.dueDate || 'Clase'}`}
                         </span>
-                      )}
+                      </>
+                    )}
+                  </div>
 
-                      <span className="text-[11px] font-mono text-neutral-500 font-medium ml-auto">
-                        {scen.level} · {scen.estimatedMinutes} min
-                      </span>
-                    </div>
+                  {/* Title with standalone Play Icon */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={(e) => handleItemActionClick(e, item)}
+                      title={selectedLang === 'EN' ? 'Practice with Voyager' : 'Practicar con Voyager'}
+                      className="p-1 -ml-1 text-[#1F1A14] hover:text-amber-800 hover:scale-115 active:scale-95 transition-all cursor-pointer shrink-0"
+                    >
+                      <Play className="w-4 h-4 fill-[#1F1A14] text-[#1F1A14]" />
+                    </button>
+                    <h3 className="text-lg sm:text-xl font-bold text-neutral-900 leading-snug">
+                      {item.title}
+                    </h3>
+                  </div>
 
-                    {/* Title & Subtitle */}
-                    <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug group-hover:text-amber-600 transition-colors">
-                      {scen.title}
+                  {item.originalAssignment?.teacherName && (
+                    <p className="text-xs sm:text-sm text-neutral-600 font-medium flex items-center gap-1.5">
+                      <GraduationCap className="w-4 h-4 text-neutral-600" />
+                      <span>{selectedLang === 'EN' ? 'Assigned by:' : 'Asignada por:'} {item.originalAssignment.teacherName}</span>
+                    </p>
+                  )}
+
+                  {/* Pedagogical Objective */}
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-neutral-900 text-xs sm:text-sm uppercase tracking-wide">
+                      {selectedLang === 'EN' ? 'Pedagogical Objective' : 'Objetivo Pedagógico'}
                     </h5>
-                    <p className="text-[11.5px] text-neutral-600 leading-relaxed font-sans mt-0.5 line-clamp-2">
-                      {scen.subtitle}
+                    <p className="text-[10pt] font-normal not-italic text-neutral-700 font-sans leading-relaxed text-left">
+                      {item.originalLesson?.objective || item.originalAssignment?.objective || item.description}
                     </p>
                   </div>
 
-                  {/* Minimal Action Link */}
-                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-neutral-100">
-                    <span className="text-[11px] font-mono font-bold text-neutral-900 group-hover:text-amber-600 flex items-center gap-1 transition-colors">
-                      <span>{selectedLang === 'EN' ? 'Practice Scenario' : 'Practicar Escenario'}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
+                  {/* Instructions (if assignment) */}
+                  {item.originalAssignment?.instructions && (
+                    <div className="space-y-1">
+                      <h5 className="font-bold text-neutral-900 text-xs sm:text-sm uppercase tracking-wide">
+                        {selectedLang === 'EN' ? 'Teacher Instructions' : 'Instrucciones del Profesor'}
+                      </h5>
+                      <p className="text-[10pt] font-normal not-italic text-neutral-700 font-sans leading-relaxed text-left">
+                        {item.originalAssignment.instructions}
+                      </p>
+                    </div>
+                  )}
 
+                  {/* Feedback (if completed assignment) */}
+                  {item.originalAssignment?.feedback && (
+                    <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-950">
+                      <h5 className="font-bold text-amber-900 text-xs mb-0.5 flex items-center gap-1.5">
+                        <MessageSquareQuote className="w-3.5 h-3.5 text-amber-700" />
+                        <span>{selectedLang === 'EN' ? 'Teacher Feedback' : 'Retroalimentación Docente'}</span>
+                      </h5>
+                      <p className="text-[10pt] font-normal not-italic text-amber-900/90 font-sans leading-relaxed text-left">
+                        "{item.originalAssignment.feedback}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Description / Subtitle */}
+                  {item.originalLesson?.subtitle && (
+                    <p className="text-[10pt] font-normal not-italic text-neutral-700 font-sans leading-relaxed text-left">
+                      {item.originalLesson.subtitle}
+                    </p>
+                  )}
+
+                  {/* Key outcomes if available */}
+                  {item.originalLesson?.keyOutcomes && item.originalLesson.keyOutcomes.length > 0 && (
+                    <div className="space-y-1">
+                      <h5 className="font-bold text-neutral-900 text-xs sm:text-sm uppercase tracking-wide">
+                        {selectedLang === 'EN' ? 'Key Outcomes' : 'Logros Clave'}
+                      </h5>
+                      <ul className="list-disc list-inside text-xs sm:text-sm text-neutral-700 space-y-0.5">
+                        {item.originalLesson.keyOutcomes.map((outcome, oIdx) => (
+                          <li key={oIdx}>{outcome}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Google NotebookLM & Google Doc Integration */}
+                  {item.originalLesson && (
+                    <div className="pt-2 flex items-center gap-2 flex-wrap text-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyNotebookLM(item.originalLesson!)}
+                        className="py-1 px-3 rounded-full bg-white hover:bg-neutral-100 border border-neutral-300 text-neutral-800 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        {copiedNotebookSource ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-neutral-600" />}
+                        <span>{copiedNotebookSource ? (selectedLang === 'EN' ? 'Copied!' : '¡Copiado!') : 'NotebookLM'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleExportGoogleDoc(item.originalLesson!)}
+                        disabled={isExportingGoogleDoc}
+                        className="py-1 px-3 rounded-full bg-white hover:bg-neutral-100 border border-neutral-300 text-neutral-800 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {isExportingGoogleDoc ? <Loader2 className="w-3.5 h-3.5 text-neutral-600 animate-spin" /> : <FileText className="w-3.5 h-3.5 text-neutral-600" />}
+                        <span>{isExportingGoogleDoc ? (selectedLang === 'EN' ? 'Saving...' : 'Guardando...') : 'Google Doc'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Practice with Voyager Call to Action */}
+                  <div className="pt-2 flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={(e) => handleItemActionClick(e, item)}
+                      className="px-5 py-2.5 rounded-full bg-[#1F1A14] hover:bg-[#3D352E] text-white font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-white" />
+                      <span>{selectedLang === 'EN' ? 'Practice with Voyager' : 'Practicar con Voyager'}</span>
+                    </button>
+
+                    {item.originalAssignment && item.originalAssignment.status !== 'COMPLETED' && (
+                      <button
+                        type="button"
+                        onClick={() => handleCompleteAssignment(item.originalAssignment!)}
+                        className="px-4 py-2 rounded-full bg-white hover:bg-neutral-100 border border-[#1F1A14]/30 text-neutral-800 text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        {selectedLang === 'EN' ? 'Mark as Completed' : 'Marcar como Completada'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Navigation: Circular previous and next arrows */}
+              <div className="flex items-center justify-between pt-4 border-t border-[#EAE2D7]/70">
+                <button
+                  type="button"
+                  disabled={detailedItemIndex === 0}
+                  onClick={() => setDetailedItemIndex(prev => Math.max(0, (prev ?? 0) - 1))}
+                  aria-label={selectedLang === 'EN' ? 'Previous lesson' : 'Lección anterior'}
+                  title={selectedLang === 'EN' ? 'Previous lesson' : 'Lección anterior'}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center text-[#1A1816] shadow-xs hover:bg-[#FBBF24] active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4]" />
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  {currentTabItems.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={() => setDetailedItemIndex(dotIdx)}
+                      className={`h-2 rounded-full transition-all cursor-pointer ${
+                        dotIdx === detailedItemIndex
+                          ? 'w-6 bg-[#1F1A14]'
+                          : 'w-2 bg-[#1F1A14]/20 hover:bg-[#1F1A14]/40'
+                      }`}
+                      aria-label={`Go to lesson ${dotIdx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={detailedItemIndex >= currentTabItems.length - 1}
+                  onClick={() => setDetailedItemIndex(prev => Math.min(currentTabItems.length - 1, (prev ?? 0) + 1))}
+                  aria-label={selectedLang === 'EN' ? 'Next lesson' : 'Lección siguiente'}
+                  title={selectedLang === 'EN' ? 'Next lesson' : 'Lección siguiente'}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center text-[#1A1816] shadow-xs hover:bg-[#FBBF24] active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4]" />
+                </button>
+              </div>
+            </div>
+          );
+        })() : isAssignmentsLoading && activeTab === 'assigned' ? (
+          <div className="py-16 flex items-center justify-center gap-3 text-neutral-600">
+            <Loader2 className="w-5 h-5 animate-spin text-neutral-800" />
+            <span className="text-[14px]">{selectedLang === 'EN' ? 'Loading assignments...' : 'Cargando asignaciones del profesor...'}</span>
+          </div>
+        ) : paginatedItems.length === 0 ? (
+          <div className="py-14 text-center space-y-2">
+            <CheckCircle2 className="w-8 h-8 text-neutral-500 mx-auto" />
+            <h4 className="text-[17px] font-bold text-[#1F1A14]">
+              {activeTab === 'assigned'
+                ? (selectedLang === 'EN' ? 'All caught up!' : '¡Al día con tus asignaciones!')
+                : activeTab === 'to_complete'
+                ? (selectedLang === 'EN' ? 'No tasks pending' : 'No tienes tareas pendientes')
+                : (selectedLang === 'EN' ? 'No completed lessons yet' : 'Aún no tienes lecciones completadas')}
+            </h4>
+            <p className="text-[10pt] font-normal not-italic text-neutral-700 font-sans leading-relaxed max-w-md mx-auto">
+              {activeTab === 'assigned'
+                ? (selectedLang === 'EN'
+                    ? 'You do not have any pending assignments from your teacher. Explore all lessons using the tabs above.'
+                    : 'No tienes asignaciones pendientes de tu profesor. Explora todas las lecciones usando las pestañas de arriba.')
+                : activeTab === 'to_complete'
+                ? (selectedLang === 'EN'
+                    ? 'Explore lessons matching your goals and conversation practice.'
+                    : 'Explora lecciones alineadas con tus metas e intereses de conversación.')
+                : (selectedLang === 'EN'
+                    ? 'Explore the full curriculum to start your next practice session.'
+                    : 'Explora el catálogo completo para comenzar tu próxima sesión de práctica.')}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 w-full">
+            {paginatedItems.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => handleItemCardClick(item)}
+                className="group flex flex-col justify-between text-left cursor-pointer"
+              >
+                <div>
+                  {/* Circular Photo Wrapped in Circle-Graph Progress Ring (#333333 track + #FACC15 arc) */}
+                  {(() => {
+                    const isCompleted = item.isCompleted || (item.progressPercentage !== undefined && item.progressPercentage >= 100);
+                    const pctVal = isCompleted ? 100 : Math.max(0, Math.min(100, item.progressPercentage ?? 0));
+                    const ringRadius = 45.5;
+                    const ringStrokeWidth = 9;
+                    const ringCircumference = 2 * Math.PI * ringRadius;
+                    const ringDashoffset = ringCircumference - (pctVal / 100) * ringCircumference;
+
+                    return (
+                      <div className="relative w-full aspect-square shrink-0">
+                        <svg
+                          viewBox="0 0 100 100"
+                          className="w-full h-full -rotate-90 pointer-events-none select-none"
+                          aria-hidden="true"
+                        >
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r={ringRadius}
+                            fill="transparent"
+                            stroke="#333333"
+                            strokeWidth={ringStrokeWidth}
+                          />
+                          {pctVal > 0 && (
+                            <circle
+                              cx="50"
+                              cy="50"
+                              r={ringRadius}
+                              fill="transparent"
+                              stroke="#FACC15"
+                              strokeWidth={ringStrokeWidth}
+                              strokeDasharray={ringCircumference}
+                              strokeDashoffset={ringDashoffset}
+                              strokeLinecap="butt"
+                              className="transition-all duration-700 ease-out group-hover:stroke-amber-400"
+                            />
+                          )}
+                        </svg>
+
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayItemAudio(e, item);
+                          }}
+                          title={selectedLang === 'EN' ? 'Click photo for Voyager course explanation' : 'Haz clic en la foto para escuchar la explicación de Voyager'}
+                          className="absolute inset-[10%] rounded-full overflow-hidden bg-neutral-200/60 shadow-2xs cursor-pointer"
+                        >
+                          <img
+                            src={item.imageUrl}
+                            alt={item.title}
+                            className="w-full h-full object-cover rounded-full voyager-duotone-gold-white transition-all duration-300"
+                            loading="lazy"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.dataset.hasFallback) {
+                                target.dataset.hasFallback = 'true';
+                                const cat = (item.category || '').toLowerCase();
+                                if (cat.includes('cívic') || cat.includes('civic') || item.id.includes('civic') || item.id.includes('constitution')) {
+                                  target.src = '/assets/lessons/photo-civics-flag.jpg';
+                                } else if (cat.includes('career') || cat.includes('negocio') || item.id.includes('job') || item.id.includes('salary')) {
+                                  target.src = '/assets/lessons/photo-job-interview.jpg';
+                                } else if (cat.includes('health') || cat.includes('salud') || item.id.includes('doctor')) {
+                                  target.src = '/assets/lessons/photo-doctor-clinic.jpg';
+                                } else if (cat.includes('travel') || cat.includes('viaje') || item.id.includes('airport') || item.id.includes('flight')) {
+                                  target.src = '/assets/lessons/photo-airport-transit.jpg';
+                                } else {
+                                  target.src = '/assets/lessons/photo-job-interview.jpg';
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+
+                        {(activeTab === 'assigned' || activeTab === 'to_complete') && (
+                          isCompleted || pctVal >= 100 ? (
+                            <div
+                              className="absolute bottom-[17.8%] right-[17.8%] translate-x-1/2 translate-y-1/2 z-10 pointer-events-none select-none"
+                              title={selectedLang === 'EN' ? 'Completed (100%)' : 'Completada (100%)'}
+                            >
+                              <div className="w-5 h-5 rounded-full bg-[#00E676] shadow-2xs" />
+                            </div>
+                          ) : pctVal > 0 ? (
+                            <div
+                              className="absolute bottom-[17.8%] right-[17.8%] translate-x-1/2 translate-y-1/2 z-10 pointer-events-none select-none"
+                              title={`${pctVal}%`}
+                            >
+                              <div className="w-6 h-6 rounded-full bg-[#FBBF24] text-[#1F1A14] flex items-center justify-center text-[9px] sm:text-[10px] font-bold font-sans shadow-2xs">
+                                {pctVal}%
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              className="absolute bottom-[17.8%] right-[17.8%] translate-x-1/2 translate-y-1/2 z-10 pointer-events-none select-none"
+                              title="0%"
+                            >
+                              <div className="w-6 h-6 rounded-full bg-[#EF4444] text-white flex items-center justify-center text-[9px] sm:text-[10px] font-bold font-sans shadow-2xs">
+                                0%
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* 4. Lesson Name as Main Title with Play icon next to it */}
+                  <div className="mt-1.5 sm:mt-2">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleAddToCollection(scen);
+                        handleItemActionClick(e, item);
                       }}
-                      className={`text-[11px] font-mono font-bold transition-colors cursor-pointer ${
-                        isSaved ? 'text-amber-600' : 'text-neutral-500 hover:text-black'
-                      }`}
+                      title={selectedLang === 'EN' ? `Practice ${item.title} in Chat` : `Practicar ${item.title} en el Chat`}
+                      aria-label={selectedLang === 'EN' ? `Practice ${item.title} in Chat` : `Practicar ${item.title} en el Chat`}
+                      className="group/title flex items-start gap-1.5 text-left cursor-pointer border-0 outline-hidden ring-0 w-full"
                     >
-                      {isInProgress
-                        ? (selectedLang === 'EN' ? `In Progress (${scenProgress}%)` : `En Curso (${scenProgress}%)`)
-                        : isSaved
-                        ? (selectedLang === 'EN' ? 'Saved ✓' : 'Guardada ✓')
-                        : `+ ${selectedLang === 'EN' ? 'Save' : 'Guardar'}`}
+                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-[#1F1A14] text-[#1F1A14] shrink-0 mt-0.5 group-hover/title:fill-amber-800 group-hover/title:text-amber-800 transition-colors" />
+                      <span className="text-[13px] sm:text-[14px] font-bold text-neutral-900 leading-snug group-hover/title:text-amber-800 group-hover/title:underline underline-offset-2 transition-colors line-clamp-2">
+                        {item.title}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* 5. Topic / Interest Chip below Title (in Spanish, lowercase, styled like reference chips) */}
+                  <div className="mt-1.5 flex items-center">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border border-black bg-transparent text-black text-[11px] sm:text-[11.5px] font-semibold leading-normal select-none">
+                      {getTopicInSpanish(item.category)}
+                    </span>
+                  </div>
+
+                  {/* 6. Metadata Row with Information Icon bold and clearly visible in former play icon position */}
+                  <div className="mt-2 flex items-center justify-between gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetailedView(item);
+                      }}
+                      title={selectedLang === 'EN' ? 'Lesson specifics & objectives' : 'Detalles y objetivos de la lección'}
+                      aria-label={selectedLang === 'EN' ? 'Lesson specifics' : 'Detalles de la lección'}
+                      className="group/meta flex items-center gap-1.5 text-left cursor-pointer hover:underline underline-offset-2 transition-all border-0 outline-hidden ring-0 min-w-0"
+                    >
+                      <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.8] text-black shrink-0 group-hover/meta:text-amber-800 transition-colors" />
+                      <span className="text-[11px] sm:text-[12px] text-neutral-700 group-hover/meta:text-neutral-900 font-medium truncate">
+                        {item.level} · {item.estimatedMinutes} min
+                      </span>
                     </button>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
 
-        {/* View 2: Saved / In Progress / Completed */}
-        {(catalogFilter === 'saved' || catalogFilter === 'in_progress' || catalogFilter === 'completed') && (() => {
-          const filteredList =
-            catalogFilter === 'in_progress'
-              ? myLessons.filter(l => l.status === 'in_progress')
-              : catalogFilter === 'completed'
-              ? myLessons.filter(l => l.status === 'completed')
-              : myLessons;
-
-          return (
-            <div className="px-1 animate-fade-in space-y-3">
-              {filteredList.length === 0 ? (
-                <div className="py-8 text-center space-y-2 font-mono">
-                  <p className="text-xs text-neutral-500">
-                    {catalogFilter === 'in_progress'
-                      ? (selectedLang === 'EN' ? 'No lessons currently in progress.' : 'No tienes lecciones en curso actualmente.')
-                      : catalogFilter === 'completed'
-                      ? (selectedLang === 'EN' ? 'No completed lessons yet.' : 'Aún no has completado ninguna lección.')
-                      : (selectedLang === 'EN' ? 'No saved lessons in your catalog yet.' : 'Aún no tienes lecciones guardadas en tu catálogo.')}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCatalogFilter('all')}
-                    className="text-xs font-bold text-amber-600 hover:underline cursor-pointer"
-                  >
-                    {selectedLang === 'EN' ? 'Explore All Scenarios →' : 'Explorar Todos los Escenarios →'}
-                  </button>
-                </div>
-              ) : (
-                filteredList.map((item) => {
-                  const progress = getLessonProgress(item);
-                  return (
-                    <div
-                      key={item.id}
-                      className="py-3 border-b border-neutral-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {item.status === 'in_progress' ? (
-                            <span className="text-[10px] uppercase font-mono flex items-center gap-1.5">
-                              <span className="text-amber-600 font-bold">● {selectedLang === 'EN' ? 'IN PROGRESS' : 'EN CURSO'}</span>
-                              <span className="text-neutral-300">·</span>
-                              {/* Visual progress indicator using subtle font weight and text color changes without progress bars or boxes */}
-                              <span className={`tracking-tight transition-colors ${getProgressWeight(progress)} ${getProgressColor(progress)}`}>
-                                {progress}% {selectedLang === 'EN' ? 'completed' : 'completado'}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold uppercase font-mono text-emerald-600 flex items-center gap-1">
-                              <span>✓</span>
-                              <span>{selectedLang === 'EN' ? 'COMPLETED' : 'COMPLETADA'}</span>
-                            </span>
-                          )}
-
-                          <span className="text-[10px] font-mono font-bold text-neutral-800">
-                            {item.scenario}
-                          </span>
-                          <span className="text-[10px] font-mono text-neutral-500">
-                            {item.level} · {item.estimatedMinutes} min
-                          </span>
-                        </div>
-
-                        <h5 className="text-xs sm:text-sm font-bold text-neutral-900 leading-snug">
-                          {item.title}
-                        </h5>
-                        <p className="text-[11px] text-neutral-600 line-clamp-1 font-sans">
-                          {item.objective}
-                        </p>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleCopyNotebookLM({
-                            id: item.lessonId || item.id,
-                            title: item.title,
-                            subtitle: item.subtitle,
-                            category: item.category,
-                            imageUrl: item.imageUrl,
-                            skillImproved: 'Lesson Plan',
-                            objective: item.objective,
-                            whatItIs: item.subtitle,
-                            perfectMatchReason: 'Personalized lesson plan active in your journey.',
-                            keyOutcomes: [],
-                            level: item.level,
-                            estimatedMinutes: item.estimatedMinutes
-                          }, item.scenario)}
-                          className="p-1.5 text-neutral-600 hover:text-black transition-colors cursor-pointer text-xs font-mono font-medium"
-                          title="Google NotebookLM"
-                        >
-                          <BookOpen className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleExportGoogleDoc({
-                            id: item.lessonId || item.id,
-                            title: item.title,
-                            subtitle: item.subtitle,
-                            category: item.category,
-                            imageUrl: item.imageUrl,
-                            skillImproved: 'Lesson Plan',
-                            objective: item.objective,
-                            whatItIs: item.subtitle,
-                            perfectMatchReason: 'Personalized lesson plan active in your journey.',
-                            keyOutcomes: [],
-                            level: item.level,
-                            estimatedMinutes: item.estimatedMinutes
-                          }, item.scenario)}
-                          className="p-1.5 text-neutral-600 hover:text-black transition-colors cursor-pointer text-xs font-mono font-medium"
-                          title="Google Doc"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-
-                        {item.status === 'in_progress' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleCompleteLesson(item.id)}
-                            className="px-2.5 py-1 text-xs font-mono font-bold text-emerald-700 hover:text-emerald-900 transition-colors cursor-pointer"
-                          >
-                            {selectedLang === 'EN' ? 'Mark Done' : 'Completar'}
-                          </button>
-                        ) : (
-                          <span className="text-xs font-mono font-bold text-emerald-700">
-                            {selectedLang === 'EN' ? 'Done' : 'Completada'}
-                          </span>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveLesson(item.id)}
-                          className="p-1.5 text-neutral-400 hover:text-neutral-800 transition-colors cursor-pointer"
-                          title={selectedLang === 'EN' ? 'Remove' : 'Quitar'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          );
-        })()}
-
-        {/* View 3: Create Custom Scenario */}
-        {catalogFilter === 'create_custom' && (
-          <form onSubmit={handleCreateCustomScenario} className="px-1 animate-fade-in space-y-3 font-mono">
-            <div>
-              <label className="block text-xs font-bold text-neutral-800 mb-1">
-                {selectedLang === 'EN' ? 'Scenario Title *' : 'Título del Escenario *'}
-              </label>
-              <input
-                type="text"
-                required
-                value={customTitle}
-                onChange={(e) => setCustomTitle(e.target.value)}
-                placeholder={selectedLang === 'EN' ? 'e.g. Salary negotiation at tech company' : 'ej. Negociación de salario en empresa de tecnología'}
-                className="w-full bg-neutral-50 border border-neutral-300 focus:border-amber-500 rounded-lg px-3 py-2 text-xs font-sans text-neutral-900 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-neutral-800 mb-1">
-                {selectedLang === 'EN' ? 'Situation Details / Goal' : 'Detalles de la Situación o Meta'}
-              </label>
-              <textarea
-                rows={3}
-                value={customDesc}
-                onChange={(e) => setCustomDesc(e.target.value)}
-                placeholder={selectedLang === 'EN' ? 'Describe what you want to practice speaking with Voyager...' : 'Describe qué quieres practicar hablar con Voyager...'}
-                className="w-full bg-neutral-50 border border-neutral-300 focus:border-amber-500 rounded-lg px-3 py-2 text-xs font-sans text-neutral-900 outline-none resize-none"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <input
-                type="text"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                placeholder={selectedLang === 'EN' ? 'Category tag' : 'Etiqueta de categoría'}
-                className="bg-transparent border-b border-neutral-300 px-1 py-1 text-xs text-neutral-800 font-mono outline-none w-48"
-              />
-
+        {/* Established Voyager Circular Navigation Arrows: Only displayed conditionally when navigation is possible */}
+        {detailedItemIndex === null && totalTabItems > itemsPerPage && (catalogPage > 1 || catalogPage < totalPages) && (
+          <div className="mt-6 flex items-center gap-2 sm:gap-2.5 justify-start select-none">
+            {catalogPage > 1 && (
               <button
-                type="submit"
-                className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-neutral-950 font-mono font-bold text-xs uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setCatalogPage(p => Math.max(1, p - 1))}
+                aria-label={selectedLang === 'EN' ? 'Previous lessons' : 'Lecciones anteriores'}
+                title={selectedLang === 'EN' ? 'Previous lessons' : 'Lecciones anteriores'}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center text-[#1A1816] shadow-xs hover:bg-[#FBBF24] active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
               >
-                {selectedLang === 'EN' ? 'Save & Add to Catalog' : 'Guardar en el Catálogo'}
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4]" />
               </button>
-            </div>
-          </form>
+            )}
+            {catalogPage < totalPages && (
+              <button
+                type="button"
+                onClick={() => setCatalogPage(p => Math.min(totalPages, p + 1))}
+                aria-label={selectedLang === 'EN' ? 'Next lessons' : 'Lecciones siguientes'}
+                title={selectedLang === 'EN' ? 'Next lessons' : 'Lecciones siguientes'}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white flex items-center justify-center text-[#1A1816] shadow-xs hover:bg-[#FBBF24] active:scale-95 transition-colors duration-200 cursor-pointer border border-[#EAE2D7]/60"
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.4]" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Voice-First Minimal Lesson Modal */}
-      {selectedLesson && (
-        <div 
-          className="fixed inset-0 z-50 bg-neutral-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in cursor-pointer"
-          onClick={handleCloseModal} // Click outside closes modal
-        >
-          <div 
-            className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border-2 border-neutral-200 text-left relative animate-scale-up cursor-default"
-            onClick={(e) => e.stopPropagation()} // Prevent inside clicks from closing
-          >
-            {/* Top Right Close Button ONLY */}
-            <button
-              type="button"
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 p-1.5 rounded-full text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer"
-              title={selectedLang === 'EN' ? 'Close' : 'Cerrar'}
-            >
-              <X className="w-5 h-5" />
-            </button>
 
-            {/* Header: Audio Icon + Category Badge + Level/Duration + Title */}
-            <div className="mb-3 pr-6">
-              <div className="flex items-center gap-2 mb-1.5">
-                {/* Clickable Audio Icon (Black circle default, yellow on hover with black icon) */}
-                <button
-                  type="button"
-                  onClick={(e) => handlePlayLessonAudio(e, selectedLesson)}
-                  title={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
-                  aria-label={selectedLang === 'EN' ? 'Listen to lesson summary' : 'Escuchar resumen de la lección'}
-                  className="w-6 h-6 rounded-full bg-black text-white hover:bg-amber-400 hover:text-black transition-colors cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
-                >
-                  <Volume2 className={`w-3.5 h-3.5 ${playingLessonId === selectedLesson.id ? 'animate-pulse' : ''}`} />
-                </button>
 
-                {/* Category (Clean text, no pill background) */}
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-neutral-900 font-mono">
-                  {selectedLesson.category}
-                </span>
-
-                <span className="text-[10px] text-neutral-400 font-mono">·</span>
-
-                {/* Level • Duration */}
-                <span className="text-[11px] font-mono text-neutral-600 font-bold">
-                  {selectedLesson.level} • {selectedLesson.estimatedMinutes} min
-                </span>
-              </div>
-
-              {/* Title (Bold 700) */}
-              <h3 className="text-base font-bold text-neutral-900 leading-tight">
-                {selectedLesson.title}
-              </h3>
-            </div>
-
-            {/* 2. One short sentence with the pedagogical objective */}
-            <p className="text-xs text-neutral-700 leading-relaxed font-sans mb-4">
-              <strong className="font-mono text-neutral-900">{selectedLang === 'EN' ? 'Objective:' : 'Objetivo:'}</strong> {selectedLesson.objective}
-            </p>
-
-            {/* 3. Selector "Cambiar escenario" */}
-            <div className="space-y-2 mb-5">
-              <label className="text-[11px] font-bold text-neutral-700 font-mono block">
-                {selectedLang === 'EN' ? 'Change Scenario:' : 'Cambiar escenario:'}
-              </label>
-              <select
-                value={selectedScenarioOption}
-                onChange={(e) => handleScenarioChange(e.target.value)}
-                className="w-full bg-neutral-50 border border-neutral-300 focus:border-amber-400 rounded-lg px-3 py-2 text-xs font-medium text-neutral-800 font-mono outline-none cursor-pointer"
-              >
-                {scenarioOptions.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              {selectedScenarioOption === 'custom_free' && (
-                <input
-                  type="text"
-                  value={customScenarioText}
-                  onChange={(e) => handleCustomTextChange(e.target.value)}
-                  placeholder={selectedLang === 'EN' ? 'Describe your custom situation...' : 'Describe tu situación o escenario libre...'}
-                  className="w-full bg-white border border-amber-400 rounded-lg px-3 py-2 text-xs text-neutral-900 placeholder:text-neutral-400 outline-none font-sans mt-2"
-                />
-              )}
-            </div>
-
-            {/* 4. Google NotebookLM Integration Section */}
-            <div className="mb-4 p-3 rounded-xl bg-blue-50/80 border border-blue-200">
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5 text-blue-900 font-mono font-bold text-xs">
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span>{selectedLang === 'EN' ? 'Google NotebookLM Link' : 'Vincular a Google Notebook'}</span>
-                </div>
-                <span className="text-[10px] font-mono text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded font-semibold">
-                  Google Workspace
-                </span>
-              </div>
-              <p className="text-[11px] text-blue-900/80 leading-tight mb-2.5 font-sans">
-                {selectedLang === 'EN'
-                  ? 'Export this lesson plan source directly to Google NotebookLM to generate audio overviews, summaries, and flashcards.'
-                  : 'Exporta el origen de esta lección a Google NotebookLM para generar resúmenes, audio resúmenes y flashcards.'}
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleCopyNotebookLM(selectedLesson, getActiveScenarioText(selectedLesson))}
-                  className="px-2 py-1.5 rounded-lg bg-white hover:bg-blue-100/50 border border-blue-300 text-blue-950 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  {copiedNotebookSource ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-600" />}
-                  <span>{copiedNotebookSource ? (selectedLang === 'EN' ? 'Copied!' : '¡Copiado!') : (selectedLang === 'EN' ? 'Copy Source' : 'Copiar Origen')}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleExportGoogleDoc(selectedLesson, getActiveScenarioText(selectedLesson))}
-                  disabled={isExportingGoogleDoc}
-                  className="px-2 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 border border-blue-300 text-blue-900 text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {isExportingGoogleDoc ? <Loader2 className="w-3.5 h-3.5 text-blue-700 animate-spin" /> : <FileText className="w-3.5 h-3.5 text-blue-700" />}
-                  <span>{isExportingGoogleDoc ? (selectedLang === 'EN' ? 'Saving...' : 'Guardando...') : (selectedLang === 'EN' ? 'Google Doc' : 'Google Doc')}</span>
-                </button>
-
-                <a
-                  href="https://notebooklm.google.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-2 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-mono font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-center"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>{selectedLang === 'EN' ? 'NotebookLM' : 'NotebookLM'}</span>
-                </a>
-              </div>
-            </div>
-
-            {/* 5. Single Call To Action Button */}
-            <button
-              type="button"
-              onClick={handleStartLesson}
-              className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black font-mono text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              <span>{selectedLang === 'EN' ? 'Start Lesson' : 'Comenzar lección'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      {/* Voyager Fundamentals Modal */}
+      {selectedFundamentalsLesson && (
+        <VoyagerFundamentalsModal
+          lesson={selectedFundamentalsLesson}
+          selectedLang={selectedLang}
+          allLessons={VOYAGER_FUNDAMENTALS_LESSONS}
+          onClose={() => setSelectedFundamentalsLesson(null)}
+          onSelectLesson={(l) => setSelectedFundamentalsLesson(l)}
+          onAskVoyager={onAskVoyager}
+        />
       )}
     </div>
   );

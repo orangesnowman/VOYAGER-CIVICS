@@ -1,26 +1,29 @@
-# USA Voyager Development Instructions
+# Instrucciones de Desarrollo — USA Voyager (AGENTS.md)
 
-These instructions govern all future modifications to the USA Voyager application. Any AI agent modifying this codebase must adhere strictly to these principles.
+Estas instrucciones rigen todas las modificaciones futuras a la aplicación USA Voyager. Cualquier desarrollador o agente de IA que modifique este código debe adherirse estrictamente a estos principios.
 
-## 🧱 App Architecture & Layout Divisions
+---
 
-The application interface is strictly divided into two permanent, high-contrast areas:
+## 🧱 Arquitectura y División de la Interfaz
 
-1. **Left Side: The "Passport"**
-   - This represents the core visual identity of USA Voyager.
-   - Contains: The USA Voyager astronaut mascot, branding title, connections status, the primary Connect/Disconnect button, and the End Session button.
-   - **Crucial Rule**: The Passport side **MUST NOT** be redesigned, modified, or touched unless explicitly and specifically requested by the user.
+La aplicación está dividida permanentemente en dos áreas de alto contraste con una relación de aspecto fija de **1.587 : 1** (división `2fr : 3fr`):
 
-2. **Right Side: The "Cover"**
-   - This is the dynamic learning area.
-   - Contains: The primary chat messages list, selected conversation mode, user profiles, the "My Journey" learning roadmap, Teachers panel, and any new features.
-   - All new features and visual tabs go here.
+1. **Lado Izquierdo: El "Pasaporte" (Passport)**
+   - Representa la identidad visual principal e inmutable de USA Voyager.
+   - **Contiene**: Mascota astronauta Voyager, marca y título principal (*YO SOY USA VOYAGER™*), indicador de conexión en vivo, orbe de voz reactivo, botón de Conectar/Desconectar y control de fin de sesión.
+   - **Regla Fundamental**: El Pasaporte **NO** debe ser rediseñado, modificado, movido ni alterado a menos que el usuario lo solicite de manera explícita y específica.
 
-## 🧭 Key Principles for Development
+2. **Lado Derecho: La "Portada" (Cover / Página Dinámica)**
+   - Es el área dinámica de interacción, estudio y herramientas de aprendizaje.
+   - **Contiene**: Lista de mensajes y chat, selector de modos de conversación, tarjeta de perfil de estudiante (en cuadrícula de 4 columnas en versión de escritorio), ruta de aprendizaje (*My Journey*), panel de profesores, diagnóstico de audio, calendario y herramientas interactivas.
+   - Todas las funciones nuevas, vistas y pestañas se integran exclusivamente aquí.
 
-- **Do Not Redesign, Integrate**: The structural "house" is already built. You are permitted to move furniture or add decor inside the rooms (the Cover area), but you are strictly forbidden from tearing down walls (changing the layout layout, moving the Passport, or altering the core visual identity).
-- **Determine Intent Before Modifying**: Before modifying any existing UI, determine whether the request is a feature enhancement or a redesign. If a redesign is not explicitly requested, preserve the current design and integrate the feature.
-- **Maintain Multi-Language Support**: Ensure all user-facing strings are fully internationalized. Maintain both English (`selectedLang === 'EN'`) and Spanish (`selectedLang === 'ES'`) strings in `/src/components/Translations.ts`.
-- **VOYAGER Voice Persona**: USA Voyager is strictly the ONLY voice, tutor, and persona used in the application. No other voice styles or secondary teacher personas are permitted. Voice output is configured with male Gemini Live voice `'Puck'` and male browser TTS voices.
-- **Circlegraph Chart Style & Legend Alignment**: All circlegraph/donut charts and statistics index lists must use left-aligned, compact item details. Legend metrics and percentages must sit immediately adjacent to item labels (left-aligned flex with close gap) rather than being pushed to the far right margin with `justify-between`. All legend lists and index sections must maintain tight, left-anchored horizontal alignment across columns.
+---
 
+## 🧭 Principios Clave de Desarrollo
+
+- **Integrar sin rediseñar**: La estructura base está definida. Se pueden añadir o ajustar componentes dentro de la Portada, pero sin alterar el diseño de dos columnas, sin tocar el Pasaporte ni modificar la proporción del libro.
+- **Soporte multilingüe obligatorio**: Todos los textos mostrados al usuario deben estar traducidos en inglés (`selectedLang === 'EN'`) y español (`selectedLang === 'ES'`) en `/src/components/Translations.ts`.
+- **Persona y Voz VOYAGER**: USA Voyager es estrictamente el ÚNICO tutor y persona de voz en la aplicación. Configurado con la voz masculina de Gemini Live `'Puck'` y síntesis de voz TTS masculina en el navegador. No se permiten voces secundarias ni otros personajes.
+- **Gráficos y Leyendas Circulares**: Todas las estadísticas, círculos de progreso y listas de métricas deben usar alineación compacta hacia la izquierda con espaciado ajustado entre etiquetas y porcentajes, evitando márgenes dispersos o `justify-between`.
+- **Tipografía y Legibilidad**: Utilizar la fuente *Raleway* con peso regular por defecto, reservando negritas e itálicas exclusivamente para énfasis intencional. No sobrecargar con badges o píldoras innecesarias.

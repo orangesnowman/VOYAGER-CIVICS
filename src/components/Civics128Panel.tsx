@@ -228,58 +228,13 @@ export const Civics128Panel: React.FC<Civics128PanelProps> = ({
     return list;
   }, [searchQuery, selectedCategory, selectedDay, selectedReviewFilter, progressData, only65_20, selectedLang]);
 
-  // Audio speech synthesis helper using Voyager's male voice
-  const speakText = (text: string, _langCode: 'en-US' | 'es-US' = 'en-US') => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Explicitly filter out any female voices to keep Voyager male
-    const isFemaleVoice = (name: string) => {
-      const lower = name.toLowerCase();
-      return lower.includes('female') || 
-        lower.includes('samantha') || 
-        lower.includes('victoria') || 
-        lower.includes('karen') || 
-        lower.includes('tessa') || 
-        lower.includes('veena') || 
-        lower.includes('moira') || 
-        lower.includes('fiona') || 
-        lower.includes('susan') || 
-        lower.includes('serena') || 
-        lower.includes('hazel') || 
-        lower.includes('zira') ||
-        lower.includes('siri') ||
-        lower.includes('kyoko');
-    };
-
-    const voicesList = window.speechSynthesis.getVoices();
-    const voyagerVoice = voicesList.find(v => 
-      v.name.toLowerCase() === 'alex' && !isFemaleVoice(v.name)
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && 
-      !isFemaleVoice(v.name) &&
-      (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('premium'))
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && 
-      !isFemaleVoice(v.name) &&
-      (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('fred') || v.name.toLowerCase().includes('rishi') || v.name.toLowerCase().includes('google'))
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en-us') && !isFemaleVoice(v.name)
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && !isFemaleVoice(v.name)
-    );
-
-    if (voyagerVoice) {
-      utterance.voice = voyagerVoice;
-      utterance.lang = voyagerVoice.lang;
-    } else {
-      utterance.lang = 'en-US';
+  // Audio speech helper: Voyager speaks exclusively via Gemini Live voice (Puck); remains silent otherwise
+  const speakText = (_text: string, _langCode: 'en-US' | 'es-US' = 'en-US') => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
     }
-
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05;
-    window.speechSynthesis.speak(utterance);
   };
 
   const handleExplainQuestionWithStory = (q: CivicsQuestion) => {

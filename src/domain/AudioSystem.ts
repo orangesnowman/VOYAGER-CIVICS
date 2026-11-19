@@ -108,6 +108,10 @@ export class AudioCapture {
     }
   }
 
+  isActive(): boolean {
+    return Boolean(this.stream && this.stream.active && !this.isPaused);
+  }
+
   pause(): void {
     this.isPaused = true;
   }
@@ -251,6 +255,11 @@ export class AudioPlayback {
     }
   }
 
+  isPlaying(): boolean {
+    if (!this.audioContext || this.audioContext.state === 'closed') return false;
+    return this.activeSources.size > 0 || (this.audioContext.currentTime < this.nextStartTime);
+  }
+
   stop(): void {
     this.nextStartTime = 0;
     for (const source of this.activeSources) {
@@ -304,6 +313,10 @@ export class VoiceActivityDetector {
 
   getInactiveMs(): number {
     return Date.now() - this.lastActivityTime;
+  }
+
+  isSpeaking(thresholdMs = 2000): boolean {
+    return (Date.now() - this.lastActivityTime) < thresholdMs;
   }
 
   reset(): void {

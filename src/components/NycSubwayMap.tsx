@@ -270,58 +270,12 @@ export const NycSubwayMap: React.FC<NycSubwayMapProps> = ({ selectedLang, onAskV
     }
   };
 
-  const speakStationName = (station: InteractiveStation) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(selectedLang === 'EN' ? station.name : station.nameEs);
-    
-    // Explicitly filter out any female voices to keep Voyager male
-    const isFemaleVoice = (name: string) => {
-      const lower = name.toLowerCase();
-      return lower.includes('female') || 
-             lower.includes('samantha') || 
-             lower.includes('victoria') || 
-             lower.includes('karen') || 
-             lower.includes('tessa') || 
-             lower.includes('veena') || 
-             lower.includes('moira') || 
-             lower.includes('fiona') || 
-             lower.includes('susan') || 
-             lower.includes('serena') || 
-             lower.includes('hazel') || 
-             lower.includes('zira') ||
-             lower.includes('siri') ||
-             lower.includes('kyoko');
-    };
-
-    const voicesList = window.speechSynthesis.getVoices();
-    const voyagerVoice = voicesList.find(v => 
-      v.name.toLowerCase() === 'alex' && !isFemaleVoice(v.name)
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && 
-      !isFemaleVoice(v.name) &&
-      (v.name.toLowerCase().includes('male') || v.name.toLowerCase().includes('google us english') || v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('premium'))
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && 
-      !isFemaleVoice(v.name) &&
-      (v.name.toLowerCase().includes('daniel') || v.name.toLowerCase().includes('fred') || v.name.toLowerCase().includes('rishi') || v.name.toLowerCase().includes('google'))
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en-us') && !isFemaleVoice(v.name)
-    ) || voicesList.find(v => 
-      v.lang.toLowerCase().startsWith('en') && !isFemaleVoice(v.name)
-    );
-    
-    if (voyagerVoice) {
-      speech.voice = voyagerVoice;
-      speech.lang = voyagerVoice.lang;
-    } else {
-      speech.lang = selectedLang === 'EN' ? 'en-US' : 'es-ES';
+  const speakStationName = (_station: InteractiveStation) => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
     }
-    
-    speech.rate = 1.05;
-    speech.pitch = 1.05;
-    
-    window.speechSynthesis.speak(speech);
   };
 
   return (
